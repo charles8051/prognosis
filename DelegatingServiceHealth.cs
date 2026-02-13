@@ -1,0 +1,41 @@
+namespace ServiceHealthModel;
+
+/// <summary>
+/// Adapts any external or closed service into the health graph by wrapping a
+/// <c>Func&lt;HealthStatus&gt;</c>. Use this when you cannot (or prefer not to)
+/// modify the service class itself.
+/// </summary>
+public sealed class DelegatingServiceHealth : IServiceHealth
+{
+    private readonly ServiceHealthTracker _tracker;
+
+    public string Name { get; }
+
+    public IReadOnlyList<ServiceDependency> Dependencies => _tracker.Dependencies;
+
+    /// <param name="name">Display name for the service.</param>
+    /// <param name="healthCheck">
+    /// A delegate that returns the service's intrinsic status.
+    /// Called every time <see cref="Evaluate"/> is invoked.
+    /// </param>
+    public DelegatingServiceHealth(string name, Func<HealthStatus> healthCheck)
+    {
+        Name = name;
+        _tracker = new ServiceHealthTracker(healthCheck);
+    }
+
+    /// <summary>Shortcut: a service whose intrinsic status is always healthy.</summary>
+    public DelegatingServiceHealth(string name)
+        : this(name, () => HealthStatus.Healthy) { }
+
+    /// <summary>Registers a dependency on another service.</summary>
+    public DelegatingServiceHealth DependsOn(IServiceHealth service, ServiceImportance importance)
+    {
+        _tracker.DependsOn(service, importance);
+        return this;
+    }
+
+    public HealthStatus Evaluate() => _tracker.Evaluate();
+
+    public override string ToString() => $"{Name}: {Evaluate()}";
+}

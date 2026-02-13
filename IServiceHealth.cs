@@ -9,18 +9,12 @@ public interface IServiceHealth
     string Name { get; }
 
     /// <summary>
-    /// The service's own intrinsic status, ignoring dependencies.
-    /// Pure composites should return <see cref="HealthStatus.Healthy"/>.
-    /// </summary>
-    HealthStatus IntrinsicStatus { get; }
-
-    /// <summary>
     /// Zero or more services this service depends on, each tagged with an importance level.
     /// </summary>
     IReadOnlyList<ServiceDependency> Dependencies { get; }
 
     /// <summary>
-    /// The effective health of this service, taking intrinsic status and all
+    /// The effective health of this service, taking its own state and all
     /// dependency statuses (weighted by importance) into account.
     /// </summary>
     HealthStatus Evaluate();

@@ -8,9 +8,6 @@ public sealed class CompositeServiceHealth : IServiceHealth
 {
     public string Name { get; }
 
-    /// <summary>Always <see cref="HealthStatus.Healthy"/> — composites have no intrinsic state.</summary>
-    public HealthStatus IntrinsicStatus => HealthStatus.Healthy;
-
     public IReadOnlyList<ServiceDependency> Dependencies { get; }
 
     public CompositeServiceHealth(
@@ -22,7 +19,7 @@ public sealed class CompositeServiceHealth : IServiceHealth
     }
 
     public HealthStatus Evaluate() =>
-        HealthAggregator.Aggregate(IntrinsicStatus, Dependencies);
+        HealthAggregator.Aggregate(HealthStatus.Healthy, Dependencies);
 
     public override string ToString() => $"{Name}: {Evaluate()}";
 }
