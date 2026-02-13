@@ -13,6 +13,9 @@ namespace ServiceHealthModel;
 /// </remarks>
 public sealed class ServiceHealthTracker
 {
+    [ThreadStatic]
+    private static HashSet<ServiceHealthTracker>? s_evaluating;
+
     private readonly Func<HealthStatus> _intrinsicCheck;
     private readonly List<ServiceDependency> _dependencies = [];
 
@@ -37,6 +40,20 @@ public sealed class ServiceHealthTracker
         return this;
     }
 
-    public HealthStatus Evaluate() =>
-        HealthAggregator.Aggregate(_intrinsicCheck(), _dependencies);
+    public HealthStatus Evaluate()
+    {
+        s_evaluating ??= new(ReferenceEqualityComparer.Instance);
+
+        if (!s_evaluating.Add(this))
+            return HealthStatus.Unhealthy;
+
+        try
+        {
+            return HealthAggregator.Aggregate(_intrinsicCheck(), _dependencies);
+        }
+        finally
+        {
+            s_evaluating.Remove(this);
+        }
+    }
 }

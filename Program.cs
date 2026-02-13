@@ -39,13 +39,11 @@ var app = new CompositeServiceHealth("Application",
 // ── Demo ─────────────────────────────────────────────────────────────
 void PrintHealth()
 {
-    Console.WriteLine($"  {database}");
-    Console.WriteLine($"  {cache}");
-    Console.WriteLine($"  {messageQueue}");
-    Console.WriteLine($"  {emailHealth}");
-    Console.WriteLine($"  {authService}");
-    Console.WriteLine($"  {notificationSystem}");
-    Console.WriteLine($"  {app}");
+    foreach (var snapshot in HealthAggregator.EvaluateAll(app))
+    {
+        Console.WriteLine($"  {snapshot}");
+    }
+
     Console.WriteLine();
 }
 
@@ -65,6 +63,30 @@ database.IsConnected = true;
 cache.IsConnected = true;
 externalEmailApi.IsConnected = false;
 PrintHealth();
+
+// ── Cycle detection ──────────────────────────────────────────────────
+Console.WriteLine("=== Upfront cycle detection ===");
+var cycles = HealthAggregator.DetectCycles(app);
+Console.WriteLine(cycles.Count == 0
+    ? "  No cycles detected."
+    : string.Join(Environment.NewLine, cycles.Select(c => "  Cycle: " + string.Join(" → ", c))));
+Console.WriteLine();
+
+// Now introduce a deliberate cycle and detect it.
+var serviceA = new DelegatingServiceHealth("ServiceA");
+var serviceB = new DelegatingServiceHealth("ServiceB")
+    .DependsOn(serviceA, ServiceImportance.Required);
+serviceA.DependsOn(serviceB, ServiceImportance.Required); // A → B → A
+
+Console.WriteLine("=== After introducing ServiceA ↔ ServiceB cycle ===");
+cycles = HealthAggregator.DetectCycles(serviceA);
+Console.WriteLine(string.Join(Environment.NewLine, cycles.Select(c => "  Cycle: " + string.Join(" → ", c))));
+Console.WriteLine();
+
+// Evaluation still works — the re-entrancy guard prevents a stack overflow.
+Console.WriteLine($"  ServiceA evaluates safely: {serviceA.Evaluate()}");
+Console.WriteLine($"  ServiceB evaluates safely: {serviceB.Evaluate()}");
+Console.WriteLine();
 
 // ─────────────────────────────────────────────────────────────────────
 // Example service classes
