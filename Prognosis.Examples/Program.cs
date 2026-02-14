@@ -16,7 +16,9 @@ var cache = new CacheService();
 // ─────────────────────────────────────────────────────────────────────
 var externalEmailApi = new ThirdPartyEmailClient();        // some closed class
 var emailHealth = new DelegatingServiceHealth("EmailProvider",
-    () => externalEmailApi.IsConnected ? HealthStatus.Healthy : HealthStatus.Unhealthy);
+    () => externalEmailApi.IsConnected
+        ? HealthStatus.Healthy
+        : new HealthEvaluation(HealthStatus.Unhealthy, "SMTP connection refused"));
 
 var messageQueue = new DelegatingServiceHealth("MessageQueue"); // always healthy for demo
 
@@ -153,7 +155,9 @@ class DatabaseService : IObservableServiceHealth
     public DatabaseService()
     {
         _health = new ServiceHealthTracker(
-            () => IsConnected ? HealthStatus.Healthy : HealthStatus.Unhealthy);
+            () => IsConnected
+                ? HealthStatus.Healthy
+                : new HealthEvaluation(HealthStatus.Unhealthy, "Connection lost"));
     }
 
     public bool IsConnected { get; set; } = true;
@@ -162,7 +166,7 @@ class DatabaseService : IObservableServiceHealth
     public IReadOnlyList<ServiceDependency> Dependencies => _health.Dependencies;
     public IObservable<HealthStatus> StatusChanged => _health.StatusChanged;
     public void NotifyChanged() => _health.NotifyChanged();
-    public HealthStatus Evaluate() => _health.Evaluate();
+    public HealthEvaluation Evaluate() => _health.Evaluate();
     public override string ToString() => $"{Name}: {Evaluate()}";
 }
 
@@ -174,7 +178,9 @@ class CacheService : IObservableServiceHealth
     public CacheService()
     {
         _health = new ServiceHealthTracker(
-            () => IsConnected ? HealthStatus.Healthy : HealthStatus.Unhealthy);
+            () => IsConnected
+                ? HealthStatus.Healthy
+                : new HealthEvaluation(HealthStatus.Unhealthy, "Redis timeout"));
     }
 
     public bool IsConnected { get; set; } = true;
@@ -183,7 +189,7 @@ class CacheService : IObservableServiceHealth
     public IReadOnlyList<ServiceDependency> Dependencies => _health.Dependencies;
     public IObservable<HealthStatus> StatusChanged => _health.StatusChanged;
     public void NotifyChanged() => _health.NotifyChanged();
-    public HealthStatus Evaluate() => _health.Evaluate();
+    public HealthEvaluation Evaluate() => _health.Evaluate();
     public override string ToString() => $"{Name}: {Evaluate()}";
 }
 

@@ -2,34 +2,35 @@ namespace Prognosis;
 
 /// <summary>
 /// Resolves the effective <see cref="HealthStatus"/> for a service given its
-/// intrinsic status and a set of weighted dependencies.
+/// intrinsic evaluation and a set of weighted dependencies.
 /// </summary>
 public static class HealthAggregator
 {
     /// <summary>
-    /// Computes the worst-case health across the intrinsic status and every
+    /// Computes the worst-case health across the intrinsic evaluation and every
     /// dependency, with the propagation rules driven by <see cref="ServiceImportance"/>.
     /// </summary>
-    public static HealthStatus Aggregate(
-        HealthStatus intrinsicStatus,
+    public static HealthEvaluation Aggregate(
+        HealthEvaluation intrinsic,
         IReadOnlyList<ServiceDependency> dependencies)
     {
-        var effective = intrinsicStatus;
+        var effective = intrinsic.Status;
+        string? reason = intrinsic.Reason;
 
         foreach (var dep in dependencies)
         {
-            var depStatus = dep.Service.Evaluate();
+            var depEval = dep.Service.Evaluate();
 
             var contribution = dep.Importance switch
             {
                 // Required: the dependency's status passes through as-is.
-                ServiceImportance.Required => depStatus,
+                ServiceImportance.Required => depEval.Status,
 
                 // Important: unhealthy is capped at degraded; unknown and degraded pass through.
-                ServiceImportance.Important => depStatus switch
+                ServiceImportance.Important => depEval.Status switch
                 {
                     HealthStatus.Unhealthy => HealthStatus.Degraded,
-                    _ => depStatus,
+                    _ => depEval.Status,
                 },
 
                 // Optional: never affects the parent.
@@ -39,10 +40,15 @@ public static class HealthAggregator
             };
 
             if (contribution > effective)
+            {
                 effective = contribution;
+                reason = depEval.Reason is not null
+                    ? $"{dep.Service.Name}: {depEval.Reason}"
+                    : $"{dep.Service.Name} is {depEval.Status}";
+            }
         }
 
-        return effective;
+        return new HealthEvaluation(effective, reason);
     }
 
     /// <summary>
@@ -147,6 +153,7 @@ public static class HealthAggregator
             Walk(dep.Service, visited, results);
         }
 
-        results.Add(new ServiceSnapshot(service.Name, service.Evaluate(), service.Dependencies.Count));
+        var eval = service.Evaluate();
+        results.Add(new ServiceSnapshot(service.Name, eval.Status, service.Dependencies.Count, eval.Reason));
     }
 }

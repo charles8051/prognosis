@@ -2,7 +2,7 @@ namespace Prognosis;
 
 /// <summary>
 /// Adapts any external or closed service into the health graph by wrapping a
-/// <c>Func&lt;HealthStatus&gt;</c>. Use this when you cannot (or prefer not to)
+/// <c>Func&lt;HealthEvaluation&gt;</c>. Use this when you cannot (or prefer not to)
 /// modify the service class itself.
 /// </summary>
 public sealed class DelegatingServiceHealth : IObservableServiceHealth
@@ -17,10 +17,10 @@ public sealed class DelegatingServiceHealth : IObservableServiceHealth
 
     /// <param name="name">Display name for the service.</param>
     /// <param name="healthCheck">
-    /// A delegate that returns the service's intrinsic status.
+    /// A delegate that returns the service's intrinsic health evaluation.
     /// Called every time <see cref="Evaluate"/> is invoked.
     /// </param>
-    public DelegatingServiceHealth(string name, Func<HealthStatus> healthCheck)
+    public DelegatingServiceHealth(string name, Func<HealthEvaluation> healthCheck)
     {
         Name = name;
         _tracker = new ServiceHealthTracker(healthCheck);
@@ -39,7 +39,7 @@ public sealed class DelegatingServiceHealth : IObservableServiceHealth
 
     public void NotifyChanged() => _tracker.NotifyChanged();
 
-    public HealthStatus Evaluate() => _tracker.Evaluate();
+    public HealthEvaluation Evaluate() => _tracker.Evaluate();
 
     public override string ToString() => $"{Name}: {Evaluate()}";
 }

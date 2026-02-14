@@ -17,5 +17,5 @@ public interface IServiceHealth
     /// The effective health of this service, taking its own state and all
     /// dependency statuses (weighted by importance) into account.
     /// </summary>
-    HealthStatus Evaluate();
+    HealthEvaluation Evaluate();
 }

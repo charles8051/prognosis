@@ -16,7 +16,7 @@ public sealed class ServiceHealthTracker
     [ThreadStatic]
     private static HashSet<ServiceHealthTracker>? s_evaluating;
 
-    private readonly Func<HealthStatus> _intrinsicCheck;
+    private readonly Func<HealthEvaluation> _intrinsicCheck;
     private readonly List<ServiceDependency> _dependencies = new();
     private readonly object _lock = new();
     private readonly List<IObserver<HealthStatus>> _observers = new();
@@ -26,7 +26,7 @@ public sealed class ServiceHealthTracker
     /// A callback that returns the owning service's intrinsic health
     /// (e.g., whether a connection is alive). Called on every <see cref="Evaluate"/>.
     /// </param>
-    public ServiceHealthTracker(Func<HealthStatus> intrinsicCheck)
+    public ServiceHealthTracker(Func<HealthEvaluation> intrinsicCheck)
     {
         _intrinsicCheck = intrinsicCheck;
     }
@@ -56,7 +56,7 @@ public sealed class ServiceHealthTracker
     /// </summary>
     public void NotifyChanged()
     {
-        var current = Evaluate();
+        var current = Evaluate().Status;
 
         List<IObserver<HealthStatus>>? snapshot = null;
         lock (_lock)
@@ -77,12 +77,12 @@ public sealed class ServiceHealthTracker
         }
     }
 
-    public HealthStatus Evaluate()
+    public HealthEvaluation Evaluate()
     {
         s_evaluating ??= new(ReferenceEqualityComparer.Instance);
 
         if (!s_evaluating.Add(this))
-            return HealthStatus.Unhealthy;
+            return new HealthEvaluation(HealthStatus.Unhealthy, "Circular dependency detected");
 
         try
         {

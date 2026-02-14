@@ -28,7 +28,7 @@ public sealed class CompositeServiceHealth : IObservableServiceHealth
 
     public void NotifyChanged() => _tracker.NotifyChanged();
 
-    public HealthStatus Evaluate() => _tracker.Evaluate();
+    public HealthEvaluation Evaluate() => _tracker.Evaluate();
 
     public override string ToString() => $"{Name}: {Evaluate()}";
 }
