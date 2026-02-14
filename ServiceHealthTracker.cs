@@ -18,6 +18,9 @@ public sealed class ServiceHealthTracker
 
     private readonly Func<HealthStatus> _intrinsicCheck;
     private readonly List<ServiceDependency> _dependencies = [];
+    private readonly Lock _lock = new();
+    private readonly List<IObserver<HealthStatus>> _observers = [];
+    private HealthStatus? _lastEmitted;
 
     /// <param name="intrinsicCheck">
     /// A callback that returns the owning service's intrinsic health
@@ -34,10 +37,44 @@ public sealed class ServiceHealthTracker
 
     public IReadOnlyList<ServiceDependency> Dependencies => _dependencies;
 
+    /// <summary>
+    /// An observable that emits the new <see cref="HealthStatus"/> whenever
+    /// <see cref="NotifyChanged"/> detects a status change.
+    /// <see cref="IObservable{T}"/> is a BCL type — no System.Reactive dependency required.
+    /// </summary>
+    public IObservable<HealthStatus> StatusChanged => new StatusObservable(this);
+
     public ServiceHealthTracker DependsOn(IServiceHealth service, ServiceImportance importance)
     {
         _dependencies.Add(new ServiceDependency(service, importance));
         return this;
+    }
+
+    /// <summary>
+    /// Re-evaluates the current health status and notifies observers if it has
+    /// changed since the last notification.
+    /// </summary>
+    public void NotifyChanged()
+    {
+        var current = Evaluate();
+
+        List<IObserver<HealthStatus>>? snapshot = null;
+        lock (_lock)
+        {
+            if (current == _lastEmitted)
+                return;
+            _lastEmitted = current;
+            if (_observers.Count > 0)
+                snapshot = [.. _observers];
+        }
+
+        if (snapshot is not null)
+        {
+            foreach (var observer in snapshot)
+            {
+                observer.OnNext(current);
+            }
+        }
     }
 
     public HealthStatus Evaluate()
@@ -55,5 +92,35 @@ public sealed class ServiceHealthTracker
         {
             s_evaluating.Remove(this);
         }
+    }
+
+    private void AddObserver(IObserver<HealthStatus> observer)
+    {
+        lock (_lock)
+        {
+            _observers.Add(observer);
+        }
+    }
+
+    private void RemoveObserver(IObserver<HealthStatus> observer)
+    {
+        lock (_lock)
+        {
+            _observers.Remove(observer);
+        }
+    }
+
+    private sealed class StatusObservable(ServiceHealthTracker tracker) : IObservable<HealthStatus>
+    {
+        public IDisposable Subscribe(IObserver<HealthStatus> observer)
+        {
+            tracker.AddObserver(observer);
+            return new Unsubscriber(tracker, observer);
+        }
+    }
+
+    private sealed class Unsubscriber(ServiceHealthTracker tracker, IObserver<HealthStatus> observer) : IDisposable
+    {
+        public void Dispose() => tracker.RemoveObserver(observer);
     }
 }

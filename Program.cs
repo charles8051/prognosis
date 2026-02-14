@@ -98,15 +98,55 @@ var report = HealthAggregator.CreateReport(app);
 Console.WriteLine(JsonSerializer.Serialize(report, jsonOptions));
 Console.WriteLine();
 
+// ── Observable health monitoring ─────────────────────────────────────
+Console.WriteLine("=== Observable health monitoring ===");
+
+// Reset all services to healthy.
+database.IsConnected = true;
+cache.IsConnected = true;
+externalEmailApi.IsConnected = true;
+
+// Subscribe to an individual service's status changes.
+using var dbSubscription = database.StatusChanged.Subscribe(
+    new StatusObserver("Database"));
+
+// Subscribe to graph-level report changes via HealthMonitor.
+await using var monitor = new HealthMonitor([app], TimeSpan.FromSeconds(1));
+using var reportSubscription = monitor.ReportChanged.Subscribe(
+    new ReportObserver());
+
+// Initial poll to establish baseline.
+Console.WriteLine("  Polling initial state...");
+monitor.Poll();
+Console.WriteLine();
+
+// Simulate a change — detected on manual poll.
+Console.WriteLine("  Taking database offline...");
+database.IsConnected = false;
+monitor.Poll();
+Console.WriteLine();
+
+// Bring it back.
+Console.WriteLine("  Restoring database...");
+database.IsConnected = true;
+monitor.Poll();
+Console.WriteLine();
+
+// Let the timer do the work — change state, then wait for a tick.
+Console.WriteLine("  Taking cache offline and waiting for next timer tick...");
+cache.IsConnected = false;
+await Task.Delay(TimeSpan.FromSeconds(1.5));
+Console.WriteLine();
+
 // ─────────────────────────────────────────────────────────────────────
 // Example service classes
 // ─────────────────────────────────────────────────────────────────────
 
 /// <summary>
-/// A service you own — implements <see cref="IServiceHealth"/> directly by
+/// A service you own — implements <see cref="IObservableServiceHealth"/> directly by
 /// embedding a <see cref="ServiceHealthTracker"/>.
 /// </summary>
-class DatabaseService : IServiceHealth
+class DatabaseService : IObservableServiceHealth
 {
     private readonly ServiceHealthTracker _health;
 
@@ -120,12 +160,14 @@ class DatabaseService : IServiceHealth
 
     public string Name => "Database";
     public IReadOnlyList<ServiceDependency> Dependencies => _health.Dependencies;
+    public IObservable<HealthStatus> StatusChanged => _health.StatusChanged;
+    public void NotifyChanged() => _health.NotifyChanged();
     public HealthStatus Evaluate() => _health.Evaluate();
     public override string ToString() => $"{Name}: {Evaluate()}";
 }
 
 /// <summary>Another service you own, same pattern.</summary>
-class CacheService : IServiceHealth
+class CacheService : IObservableServiceHealth
 {
     private readonly ServiceHealthTracker _health;
 
@@ -139,6 +181,8 @@ class CacheService : IServiceHealth
 
     public string Name => "Cache";
     public IReadOnlyList<ServiceDependency> Dependencies => _health.Dependencies;
+    public IObservable<HealthStatus> StatusChanged => _health.StatusChanged;
+    public void NotifyChanged() => _health.NotifyChanged();
     public HealthStatus Evaluate() => _health.Evaluate();
     public override string ToString() => $"{Name}: {Evaluate()}";
 }
@@ -150,4 +194,25 @@ class CacheService : IServiceHealth
 class ThirdPartyEmailClient
 {
     public bool IsConnected { get; set; } = true;
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Minimal IObserver<T> implementations for the demo
+// ─────────────────────────────────────────────────────────────────────
+
+class StatusObserver(string name) : IObserver<HealthStatus>
+{
+    public void OnNext(HealthStatus value) =>
+        Console.WriteLine($"    >> {name} status changed: {value}");
+    public void OnError(Exception error) { }
+    public void OnCompleted() { }
+}
+
+class ReportObserver : IObserver<HealthReport>
+{
+    public void OnNext(HealthReport value) =>
+        Console.WriteLine($"    >> Report changed: Overall={value.OverallStatus} " +
+            $"({value.Services.Count} services @ {value.Timestamp:HH:mm:ss.fff})");
+    public void OnError(Exception error) { }
+    public void OnCompleted() { }
 }

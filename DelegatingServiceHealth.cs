@@ -5,13 +5,15 @@ namespace ServiceHealthModel;
 /// <c>Func&lt;HealthStatus&gt;</c>. Use this when you cannot (or prefer not to)
 /// modify the service class itself.
 /// </summary>
-public sealed class DelegatingServiceHealth : IServiceHealth
+public sealed class DelegatingServiceHealth : IObservableServiceHealth
 {
     private readonly ServiceHealthTracker _tracker;
 
     public string Name { get; }
 
     public IReadOnlyList<ServiceDependency> Dependencies => _tracker.Dependencies;
+
+    public IObservable<HealthStatus> StatusChanged => _tracker.StatusChanged;
 
     /// <param name="name">Display name for the service.</param>
     /// <param name="healthCheck">
@@ -34,6 +36,8 @@ public sealed class DelegatingServiceHealth : IServiceHealth
         _tracker.DependsOn(service, importance);
         return this;
     }
+
+    public void NotifyChanged() => _tracker.NotifyChanged();
 
     public HealthStatus Evaluate() => _tracker.Evaluate();
 
