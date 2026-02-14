@@ -66,6 +66,43 @@ public static class HealthAggregator
     }
 
     /// <summary>
+    /// Compares two reports and returns a change record for every service
+    /// whose <see cref="HealthStatus"/> differs between them.
+    /// </summary>
+    public static IReadOnlyList<ServiceStatusChange> Diff(
+        HealthReport previous,
+        HealthReport current)
+    {
+        var previousByName = new Dictionary<string, ServiceSnapshot>(previous.Services.Count);
+        foreach (var snapshot in previous.Services)
+        {
+            previousByName[snapshot.Name] = snapshot;
+        }
+
+        var changes = new List<ServiceStatusChange>();
+
+        foreach (var curr in current.Services)
+        {
+            if (previousByName.TryGetValue(curr.Name, out var prev))
+            {
+                if (prev.Status != curr.Status)
+                {
+                    changes.Add(new ServiceStatusChange(
+                        curr.Name, prev.Status, curr.Status, curr.Reason));
+                }
+            }
+            else
+            {
+                // New service appeared in the graph.
+                changes.Add(new ServiceStatusChange(
+                    curr.Name, HealthStatus.Unknown, curr.Status, curr.Reason));
+            }
+        }
+
+        return changes;
+    }
+
+    /// <summary>
     /// Walks the full dependency graph from one or more roots and returns every
     /// service's evaluated status. Results are in depth-first post-order
     /// (leaves before their parents) and each service appears at most once.

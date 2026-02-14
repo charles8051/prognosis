@@ -1,11 +1,12 @@
-namespace Prognosis.Reactive;
+namespace Prognosis;
 
 /// <summary>
 /// Compares two <see cref="HealthReport"/> instances for equality based on
-/// overall status and per-service snapshots. Used by Rx operators like
+/// overall status and per-service snapshots. Used by the core
+/// <see cref="HealthMonitor"/> and Rx operators like
 /// <c>DistinctUntilChanged</c> to suppress duplicate emissions.
 /// </summary>
-internal sealed class HealthReportComparer : IEqualityComparer<HealthReport>
+public sealed class HealthReportComparer : IEqualityComparer<HealthReport>
 {
     public static readonly HealthReportComparer Instance = new();
 

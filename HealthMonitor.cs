@@ -44,7 +44,7 @@ public sealed class HealthMonitor : IAsyncDisposable
         List<IObserver<HealthReport>>? snapshot = null;
         lock (_lock)
         {
-            if (_lastReport is not null && !HasChanged(_lastReport, report))
+            if (_lastReport is not null && HealthReportComparer.Instance.Equals(_lastReport, report))
                 return;
             _lastReport = report;
             if (_observers.Count > 0)
@@ -83,23 +83,6 @@ public sealed class HealthMonitor : IAsyncDisposable
 
             Poll();
         }
-    }
-
-    private static bool HasChanged(HealthReport previous, HealthReport current)
-    {
-        if (previous.OverallStatus != current.OverallStatus)
-            return true;
-
-        if (previous.Services.Count != current.Services.Count)
-            return true;
-
-        for (var i = 0; i < current.Services.Count; i++)
-        {
-            if (previous.Services[i] != current.Services[i])
-                return true;
-        }
-
-        return false;
     }
 
     private void AddObserver(IObserver<HealthReport> observer)

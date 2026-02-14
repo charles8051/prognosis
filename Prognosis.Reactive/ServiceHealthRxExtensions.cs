@@ -29,16 +29,47 @@ public static class ServiceHealthRxExtensions
     }
 
     /// <summary>
-    /// Merges <see cref="IObservableServiceHealth.StatusChanged"/> streams
-    /// from every observable node reachable in the dependency graph into a
-    /// single sequence of <c>(Name, Status)</c> tuples.
+    /// Produces a new <see cref="HealthReport"/> whenever any observable leaf
+    /// node in the graph signals a change, throttled to avoid evaluation storms.
+    /// Combines push-based triggers with the single-pass evaluation of
+    /// <see cref="HealthAggregator.CreateReport"/>.
+    /// Only leaf nodes (those with no dependencies) are observed as triggers,
+    /// since parent status changes are always a consequence of
+    /// <see cref="HealthAggregator.NotifyGraph"/>, not exogenous events.
     /// </summary>
-    public static IObservable<(string Name, HealthStatus Status)> MergeStatusChanges(
-        this IServiceHealth[] roots)
+    public static IObservable<HealthReport> ObserveHealthReport(
+        this IServiceHealth[] roots,
+        TimeSpan throttle)
     {
         return WalkObservables(roots)
-            .Select(s => s.StatusChanged.Select(status => (s.Name, status)))
-            .Merge();
+            .Where(s => s.Dependencies.Count == 0)
+            .Select(s => s.StatusChanged)
+            .Merge()
+            .Throttle(throttle)
+            .Select(_ =>
+            {
+                HealthAggregator.NotifyGraph(roots);
+                return HealthAggregator.CreateReport(roots);
+            })
+            .DistinctUntilChanged(HealthReportComparer.Instance);
+    }
+
+    /// <summary>
+    /// Projects a stream of <see cref="HealthReport"/>s into individual
+    /// <see cref="ServiceStatusChange"/> events by diffing consecutive reports.
+    /// Only services whose status actually changed are emitted.
+    /// Composable with any report source — <see cref="PollHealthReport"/>,
+    /// <see cref="ObserveHealthReport"/>, or custom pipelines.
+    /// </summary>
+    public static IObservable<ServiceStatusChange> SelectServiceChanges(
+        this IObservable<HealthReport> reports)
+    {
+        return reports
+            .Scan(
+                (Previous: (HealthReport?)null, Current: (HealthReport?)null),
+                (state, report) => (state.Current, report))
+            .Where(state => state.Previous is not null)
+            .SelectMany(state => HealthAggregator.Diff(state.Previous!, state.Current!));
     }
 
     private static IObservable<IObservableServiceHealth> WalkObservables(IServiceHealth[] roots)
