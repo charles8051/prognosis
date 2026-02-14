@@ -5,6 +5,7 @@ namespace Prognosis;
 /// overall status and per-service snapshots. Used by the core
 /// <see cref="HealthMonitor"/> and Rx operators like
 /// <c>DistinctUntilChanged</c> to suppress duplicate emissions.
+/// Explicitly does not consider the timestamp.
 /// </summary>
 public sealed class HealthReportComparer : IEqualityComparer<HealthReport>
 {
