@@ -25,7 +25,7 @@ public static class HealthAggregator
                 // Required: the dependency's status passes through as-is.
                 ServiceImportance.Required => depStatus,
 
-                // Important: unhealthy is capped at degraded; degraded passes through.
+                // Important: unhealthy is capped at degraded; unknown and degraded pass through.
                 ServiceImportance.Important => depStatus switch
                 {
                     HealthStatus.Unhealthy => HealthStatus.Degraded,

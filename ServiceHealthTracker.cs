@@ -31,9 +31,9 @@ public sealed class ServiceHealthTracker
         _intrinsicCheck = intrinsicCheck;
     }
 
-    /// <summary>Shortcut: always-healthy intrinsic status.</summary>
+    /// <summary>Shortcut: intrinsic status starts as <see cref="HealthStatus.Unknown"/> until first real check.</summary>
     public ServiceHealthTracker()
-        : this(() => HealthStatus.Healthy) { }
+        : this(() => HealthStatus.Unknown) { }
 
     public IReadOnlyList<ServiceDependency> Dependencies => _dependencies;
 

@@ -10,6 +10,7 @@ namespace ServiceHealthModel;
 public enum HealthStatus
 {
     Healthy = 0,
-    Degraded = 1,
-    Unhealthy = 2,
+    Unknown = 1,
+    Degraded = 2,
+    Unhealthy = 3,
 }
