@@ -55,3 +55,4 @@ nunit-*.xml
 
 .vs
 .mcp.json
+*.tmp
