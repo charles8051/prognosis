@@ -34,6 +34,7 @@
     <None Include="Prognosis.Examples.DependencyInjection\Prognosis.Examples.DependencyInjection.csproj" />
     <None Include="Prognosis.Examples.Reactive\Prognosis.Examples.Reactive.csproj" />
     <None Include="Prognosis.Reactive\Prognosis.Reactive.csproj" />
+    <None Include="Prognosis.Tests\Prognosis.Tests.csproj" />
     <None Include="README.md" Pack="true" PackagePath="\" />
     <None Include="icon.png" Pack="true" PackagePath="\" />
   </ItemGroup>
@@ -57,6 +58,9 @@
     <None Remove="Prognosis.Examples.Reactive\**" />
     <Compile Remove="Prognosis.Reactive\**" />
     <None Remove="Prognosis.Reactive\**" />
+    <Compile Remove="Prognosis.Tests\**" />
+    <None Remove="Prognosis.Tests\**" />
   </ItemGroup>
 
-</Project>
+
+  </Project>

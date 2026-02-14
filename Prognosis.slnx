@@ -5,4 +5,5 @@
   <Project Path="Prognosis.Examples.Reactive/Prognosis.Examples.Reactive.csproj" />
   <Project Path="Prognosis.Examples/Prognosis.Examples.csproj" />
   <Project Path="Prognosis.Reactive/Prognosis.Reactive.csproj" />
+  <Project Path="Prognosis.Tests/Prognosis.Tests.csproj" />
 </Solution>
