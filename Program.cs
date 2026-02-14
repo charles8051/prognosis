@@ -1,5 +1,5 @@
 ﻿using System.Text.Json;
-using ServiceHealthModel;
+using Prognosis;
 
 var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
 

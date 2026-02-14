@@ -1,4 +1,4 @@
-namespace ServiceHealthModel;
+namespace Prognosis;
 
 /// <summary>
 /// Polls the health graph on a configurable interval, calls

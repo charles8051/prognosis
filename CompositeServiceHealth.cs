@@ -1,4 +1,4 @@
-namespace ServiceHealthModel;
+namespace Prognosis;
 
 /// <summary>
 /// A virtual service whose health is derived entirely from its dependencies.

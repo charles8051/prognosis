@@ -1,4 +1,4 @@
-namespace ServiceHealthModel;
+namespace Prognosis;
 
 /// <summary>
 /// A serialization-friendly, point-in-time health report for the entire

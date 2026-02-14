@@ -1,4 +1,4 @@
-namespace ServiceHealthModel;
+namespace Prognosis;
 
 /// <summary>
 /// Extended contract for services that support push-based health notifications.

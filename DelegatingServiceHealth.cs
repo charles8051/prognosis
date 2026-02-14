@@ -1,4 +1,4 @@
-namespace ServiceHealthModel;
+namespace Prognosis;
 
 /// <summary>
 /// Adapts any external or closed service into the health graph by wrapping a

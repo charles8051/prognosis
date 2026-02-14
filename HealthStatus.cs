@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace ServiceHealthModel;
+namespace Prognosis;
 
 /// <summary>
 /// Represents the health state of a service, ordered from worst to best

@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace ServiceHealthModel;
+namespace Prognosis;
 
 /// <summary>
 /// Describes how important a dependency is to its parent service.

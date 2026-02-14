@@ -1,4 +1,4 @@
-namespace ServiceHealthModel;
+namespace Prognosis;
 
 /// <summary>
 /// Resolves the effective <see cref="HealthStatus"/> for a service given its
