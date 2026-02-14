@@ -63,10 +63,16 @@ public static class ServiceCollectionExtensions
             var attrs = kvp.Key.GetCustomAttributes<DependsOnAttribute>();
             foreach (var attr in attrs)
             {
-                if (byType.TryGetValue(attr.DependencyType, out var dep)
-                    && kvp.Value is DelegatingServiceHealth delegating)
+                if (!byType.TryGetValue(attr.DependencyType, out var dep))
+                    continue;
+
+                if (kvp.Value is DelegatingServiceHealth delegating)
                 {
                     delegating.DependsOn(dep, attr.Importance);
+                }
+                else if (FindTracker(kvp.Value) is { } tracker)
+                {
+                    tracker.DependsOn(dep, attr.Importance);
                 }
             }
         }
@@ -139,5 +145,19 @@ public static class ServiceCollectionExtensions
             ? named
             : throw new InvalidOperationException(
                 $"Dependency '{edge.ServiceName}' was not found in the health graph.");
+    }
+
+    /// <summary>
+    /// Locates an embedded <see cref="ServiceHealthTracker"/> field on an
+    /// <see cref="IServiceHealth"/> instance via reflection. This supports
+    /// the recommended pattern of embedding a tracker and delegating to it.
+    /// </summary>
+    private static ServiceHealthTracker? FindTracker(IServiceHealth service)
+    {
+        var field = service.GetType()
+            .GetFields(BindingFlags.NonPublic | BindingFlags.Instance)
+            .FirstOrDefault(f => f.FieldType == typeof(ServiceHealthTracker));
+
+        return field?.GetValue(service) as ServiceHealthTracker;
     }
 }

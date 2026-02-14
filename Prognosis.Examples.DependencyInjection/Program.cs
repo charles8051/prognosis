@@ -177,18 +177,32 @@ class CacheService : IObservableServiceHealth
 /// <summary>
 /// A service that declares its dependencies via attributes.
 /// The scanner reads these and wires the edges automatically.
+/// Uses <see cref="ServiceHealthTracker"/> internally since
+/// <see cref="DelegatingServiceHealth"/> is sealed.
 /// </summary>
 [DependsOn<DatabaseService>(ServiceImportance.Required)]
 [DependsOn<CacheService>(ServiceImportance.Important)]
-class AuthService : DelegatingServiceHealth
+class AuthService : IObservableServiceHealth
 {
-    public AuthService() : base("AuthService") { }
+    private readonly ServiceHealthTracker _health = new();
+
+    public string Name => "AuthService";
+    public IReadOnlyList<ServiceDependency> Dependencies => _health.Dependencies;
+    public IObservable<HealthStatus> StatusChanged => _health.StatusChanged;
+    public void NotifyChanged() => _health.NotifyChanged();
+    public HealthEvaluation Evaluate() => _health.Evaluate();
 }
 
 /// <summary>Always-healthy placeholder for demo purposes.</summary>
-class MessageQueueService : DelegatingServiceHealth
+class MessageQueueService : IObservableServiceHealth
 {
-    public MessageQueueService() : base("MessageQueue") { }
+    private readonly ServiceHealthTracker _health = new(() => HealthStatus.Healthy);
+
+    public string Name => "MessageQueue";
+    public IReadOnlyList<ServiceDependency> Dependencies => _health.Dependencies;
+    public IObservable<HealthStatus> StatusChanged => _health.StatusChanged;
+    public void NotifyChanged() => _health.NotifyChanged();
+    public HealthEvaluation Evaluate() => _health.Evaluate();
 }
 
 /// <summary>
