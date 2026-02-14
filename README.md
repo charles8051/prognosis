@@ -4,6 +4,28 @@
 
 A dependency-aware service health modeling library for .NET. Models the health of multiple services as a directed graph where each service's effective status is computed from its own intrinsic health and the weighted health of its dependencies.
 
+```mermaid
+graph TD
+    Store["🛒 Online Store"] -->|"Required"| Checkout["Checkout"]
+    Store -->|"Important"| Search["Product Search"]
+    Store -->|"Optional"| Reviews["Reviews"]
+    Checkout -->|"Required"| Payment["Payment Gateway"]
+    Checkout -->|"Required"| Inventory["Inventory"]
+    Payment -->|"Important"| Fraud["Fraud Detection"]
+    Search -->|"Required"| Index["Search Index"]
+
+    style Store fill:#22c55e,color:#fff
+    style Checkout fill:#22c55e,color:#fff
+    style Payment fill:#22c55e,color:#fff
+    style Inventory fill:#22c55e,color:#fff
+    style Fraud fill:#22c55e,color:#fff
+    style Search fill:#22c55e,color:#fff
+    style Index fill:#22c55e,color:#fff
+    style Reviews fill:#22c55e,color:#fff
+```
+
+> **How it works:** each service reports its own health and declares dependencies with an importance level. Prognosis walks the graph and computes the effective status — a **Required** dependency failing makes the parent unhealthy, an **Important** one degrades it, and an **Optional** one is ignored. If Fraud Detection goes down, Payment Gateway becomes *degraded*, which degrades Checkout, which degrades the whole store. If Payment Gateway itself goes down, Checkout becomes *unhealthy* — and since it's Required, the store is unhealthy too. If Reviews go down? Nothing happens.
+
 ## Packages
 
 | Package | Purpose |

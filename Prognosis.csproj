@@ -16,6 +16,7 @@
     <RepositoryUrl>https://github.com/charles8051/prognosis</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
 
     <!-- Symbols and source link -->
     <IncludeSymbols>true</IncludeSymbols>
@@ -34,6 +35,7 @@
     <None Include="Prognosis.Examples.Reactive\Prognosis.Examples.Reactive.csproj" />
     <None Include="Prognosis.Reactive\Prognosis.Reactive.csproj" />
     <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="icon.png" Pack="true" PackagePath="\" />
   </ItemGroup>
 
   <ItemGroup>
