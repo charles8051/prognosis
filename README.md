@@ -4,6 +4,14 @@
 
 A dependency-aware service health modeling library for .NET. Models the health of multiple services as a directed graph where each service's effective status is computed from its own intrinsic health and the weighted health of its dependencies.
 
+## Packages
+
+| Package | Purpose |
+|---|---|
+| [`Prognosis`](https://www.nuget.org/packages/Prognosis) | Core library — health graph modeling, aggregation, monitoring, serialization |
+| [`Prognosis.Reactive`](https://www.nuget.org/packages/Prognosis.Reactive) | System.Reactive extensions — Rx-based polling, push-triggered reports, diff-based change streams |
+| [`Prognosis.DependencyInjection`](https://www.nuget.org/packages/Prognosis.DependencyInjection) | Microsoft.Extensions.DependencyInjection integration — assembly scanning, fluent graph builder, hosted monitoring |
+
 ## Key concepts
 
 ### Health statuses
@@ -39,7 +47,9 @@ class DatabaseService : IObservableServiceHealth
     public DatabaseService()
     {
         _health = new ServiceHealthTracker(
-            () => IsConnected ? HealthStatus.Healthy : HealthStatus.Unhealthy);
+            () => IsConnected
+                ? HealthStatus.Healthy
+                : new HealthEvaluation(HealthStatus.Unhealthy, "Connection lost"));
     }
 
     public bool IsConnected { get; set; } = true;
@@ -48,7 +58,7 @@ class DatabaseService : IObservableServiceHealth
     public IReadOnlyList<ServiceDependency> Dependencies => _health.Dependencies;
     public IObservable<HealthStatus> StatusChanged => _health.StatusChanged;
     public void NotifyChanged() => _health.NotifyChanged();
-    public HealthStatus Evaluate() => _health.Evaluate();
+    public HealthEvaluation Evaluate() => _health.Evaluate();
 }
 ```
 
@@ -58,7 +68,9 @@ Use `DelegatingServiceHealth` with a health-check delegate:
 
 ```csharp
 var emailHealth = new DelegatingServiceHealth("EmailProvider",
-    () => client.IsConnected ? HealthStatus.Healthy : HealthStatus.Unhealthy);
+    () => client.IsConnected
+        ? HealthStatus.Healthy
+        : new HealthEvaluation(HealthStatus.Unhealthy, "SMTP connection refused"));
 ```
 
 ### 3. Pure composite aggregation
@@ -77,7 +89,7 @@ var app = new CompositeServiceHealth("Application",
 
 ```csharp
 // Evaluate a single service (walks its dependencies)
-HealthStatus status = app.Evaluate();
+HealthEvaluation eval = app.Evaluate();
 
 // Snapshot the entire graph (depth-first post-order)
 IReadOnlyList<ServiceSnapshot> snapshots = HealthAggregator.EvaluateAll(app);
@@ -87,6 +99,9 @@ HealthReport report = HealthAggregator.CreateReport(app);
 
 // Detect circular dependencies
 IReadOnlyList<IReadOnlyList<string>> cycles = HealthAggregator.DetectCycles(app);
+
+// Diff two reports to find individual service changes
+IReadOnlyList<ServiceStatusChange> changes = HealthAggregator.Diff(before, after);
 ```
 
 ## Observable health monitoring
@@ -107,6 +122,81 @@ monitor.Poll();
 
 `IObservable<T>` is a BCL type — no System.Reactive dependency required. Add System.Reactive only when you want operators like `DistinctUntilChanged()` or `Throttle()`.
 
+## Dependency injection
+
+The `Prognosis.DependencyInjection` package provides a fluent builder for configuring the health graph within a hosted application:
+
+```csharp
+builder.Services.AddPrognosis(health =>
+{
+    // Discover all IServiceHealth implementations and wire [DependsOn<T>] attributes.
+    health.ScanForServices(typeof(Program).Assembly);
+
+    // Wrap a third-party service with a health delegate.
+    health.AddDelegate<ThirdPartyEmailClient>("EmailProvider",
+        client => client.IsConnected
+            ? HealthStatus.Healthy
+            : new HealthEvaluation(HealthStatus.Unhealthy, "SMTP refused"));
+
+    // Define composite aggregation nodes.
+    health.AddComposite("Application", app =>
+    {
+        app.DependsOn<AuthService>(ServiceImportance.Required);
+        app.DependsOn("NotificationSystem", ServiceImportance.Important);
+    });
+
+    health.AddRoots("Application");
+    health.UseMonitor(TimeSpan.FromSeconds(30));
+});
+```
+
+Declare dependency edges on classes you own with attributes:
+
+```csharp
+[DependsOn<DatabaseService>(ServiceImportance.Required)]
+[DependsOn<CacheService>(ServiceImportance.Important)]
+class AuthService : IObservableServiceHealth
+{
+    private readonly ServiceHealthTracker _health = new();
+
+    public string Name => "AuthService";
+    public IReadOnlyList<ServiceDependency> Dependencies => _health.Dependencies;
+    public IObservable<HealthStatus> StatusChanged => _health.StatusChanged;
+    public void NotifyChanged() => _health.NotifyChanged();
+    public HealthEvaluation Evaluate() => _health.Evaluate();
+}
+```
+
+Inject `HealthGraph` to access the materialized graph at runtime:
+
+```csharp
+var graph = serviceProvider.GetRequiredService<HealthGraph>();
+var report = graph.CreateReport();
+var dbService = graph["Database"];
+```
+
+## Reactive extensions
+
+The `Prognosis.Reactive` package provides Rx-based alternatives to polling:
+
+```csharp
+var roots = new IServiceHealth[] { app };
+
+// Timer-driven polling — emits HealthReport on change.
+roots.PollHealthReport(TimeSpan.FromSeconds(30))
+    .Subscribe(report => Console.WriteLine(report.OverallStatus));
+
+// Push-triggered — reacts to leaf StatusChanged events, throttled.
+roots.ObserveHealthReport(TimeSpan.FromMilliseconds(500))
+    .Subscribe(report => Console.WriteLine(report.OverallStatus));
+
+// Diff-based change stream — composable with any report source.
+roots.PollHealthReport(TimeSpan.FromSeconds(30))
+    .SelectServiceChanges()
+    .Subscribe(change =>
+        Console.WriteLine($"{change.Name}: {change.Previous} → {change.Current}"));
+```
+
 ## Serialization
 
 Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"Degraded"` / etc. The `HealthReport` and `ServiceSnapshot` records are designed as wire-friendly DTOs:
@@ -124,20 +214,42 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 
 ## Project structure
 
+### Core (`Prognosis`)
+
 | File | Purpose |
 |---|---|
 | `IServiceHealth.cs` | Core interface — `Name`, `Dependencies`, `Evaluate()` |
 | `IObservableServiceHealth.cs` | Extends `IServiceHealth` with `StatusChanged` and `NotifyChanged()` |
 | `HealthStatus.cs` | `Healthy` → `Unknown` → `Degraded` → `Unhealthy` enum |
+| `HealthEvaluation.cs` | Status + optional reason pair, with implicit conversion from `HealthStatus` |
 | `ServiceImportance.cs` | `Required`, `Important`, `Optional` enum |
 | `ServiceDependency.cs` | Record linking an `IServiceHealth` with its importance |
 | `ServiceHealthTracker.cs` | Composable helper — embed in any class for dependency tracking, aggregation, and observability |
-| `DelegatingServiceHealth.cs` | Adapter wrapping a `Func<HealthStatus>` for closed types |
+| `DelegatingServiceHealth.cs` | Adapter wrapping a `Func<HealthEvaluation>` for closed types |
 | `CompositeServiceHealth.cs` | Pure aggregation point with no backing service |
-| `HealthAggregator.cs` | Static helpers — `Aggregate`, `EvaluateAll`, `CreateReport`, `DetectCycles` |
+| `HealthAggregator.cs` | Static helpers — `Aggregate`, `EvaluateAll`, `CreateReport`, `DetectCycles`, `Diff`, `NotifyGraph` |
 | `HealthReport.cs` | Serialization-ready report DTO |
 | `ServiceSnapshot.cs` | Serialization-ready per-service snapshot DTO |
+| `ServiceStatusChange.cs` | Record describing a single service's status transition |
+| `HealthReportComparer.cs` | `IEqualityComparer<HealthReport>` for deduplicating reports |
 | `HealthMonitor.cs` | Timer-based poller with `IObservable<HealthReport>` |
+
+### Reactive extensions (`Prognosis.Reactive`)
+
+| File | Purpose |
+|---|---|
+| `ServiceHealthRxExtensions.cs` | `PollHealthReport`, `ObserveHealthReport`, `SelectServiceChanges` |
+
+### Dependency injection (`Prognosis.DependencyInjection`)
+
+| File | Purpose |
+|---|---|
+| `ServiceCollectionExtensions.cs` | `AddPrognosis` entry point — assembly scanning and graph materialization |
+| `PrognosisBuilder.cs` | Fluent builder — `ScanForServices`, `AddDelegate<T>`, `AddComposite`, `AddRoots` |
+| `DependencyConfigurator.cs` | Fluent edge declaration — `DependsOn<T>`, `DependsOn(name)` |
+| `DependsOnAttribute.cs` | `[DependsOn<T>]` attribute for declarative dependency edges |
+| `HealthGraph.cs` | Materialized graph container — `Roots`, indexer, `CreateReport()` |
+| `PrognosisMonitorExtensions.cs` | `UseMonitor` extension + `IHostedService` adapter |
 
 ## Requirements
 
