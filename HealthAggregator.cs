@@ -46,6 +46,20 @@ public static class HealthAggregator
     }
 
     /// <summary>
+    /// Evaluates the full graph and packages the result as a serialization-ready
+    /// <see cref="HealthReport"/> with a timestamp and overall status.
+    /// </summary>
+    public static HealthReport CreateReport(params IServiceHealth[] roots)
+    {
+        var services = EvaluateAll(roots);
+        var overall = services.Count > 0
+            ? services.Max(s => s.Status)
+            : HealthStatus.Healthy;
+
+        return new HealthReport(DateTimeOffset.UtcNow, overall, services);
+    }
+
+    /// <summary>
     /// Walks the full dependency graph from one or more roots and returns every
     /// service's evaluated status. Results are in depth-first post-order
     /// (leaves before their parents) and each service appears at most once.

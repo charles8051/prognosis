@@ -1,8 +1,11 @@
+using System.Text.Json.Serialization;
+
 namespace ServiceHealthModel;
 
 /// <summary>
 /// Describes how important a dependency is to its parent service.
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum ServiceImportance
 {
     /// <summary>

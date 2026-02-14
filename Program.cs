@@ -1,4 +1,7 @@
-﻿using ServiceHealthModel;
+﻿using System.Text.Json;
+using ServiceHealthModel;
+
+var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
 
 // ─────────────────────────────────────────────────────────────────────
 // Pattern 1 — Implement IServiceHealth on a class you own.
@@ -86,6 +89,13 @@ Console.WriteLine();
 // Evaluation still works — the re-entrancy guard prevents a stack overflow.
 Console.WriteLine($"  ServiceA evaluates safely: {serviceA.Evaluate()}");
 Console.WriteLine($"  ServiceB evaluates safely: {serviceB.Evaluate()}");
+Console.WriteLine();
+
+// ── Serialization ────────────────────────────────────────────────────
+Console.WriteLine("=== Serialized health report (JSON) ===");
+externalEmailApi.IsConnected = true; // reset for clean report
+var report = HealthAggregator.CreateReport(app);
+Console.WriteLine(JsonSerializer.Serialize(report, jsonOptions));
 Console.WriteLine();
 
 // ─────────────────────────────────────────────────────────────────────
