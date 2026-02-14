@@ -30,6 +30,8 @@
   <ItemGroup>
     <None Include=".github\workflows\publish.yml" />
     <None Include="Prognosis.DependencyInjection\Prognosis.DependencyInjection.csproj" />
+    <None Include="Prognosis.Examples.DependencyInjection\Prognosis.Examples.DependencyInjection.csproj" />
+    <None Include="Prognosis.Examples.Reactive\Prognosis.Examples.Reactive.csproj" />
     <None Include="Prognosis.Reactive\Prognosis.Reactive.csproj" />
     <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
@@ -47,6 +49,10 @@
     <None Remove="Prognosis.DependencyInjection\**" />
     <Compile Remove="Prognosis.Examples\**" />
     <None Remove="Prognosis.Examples\**" />
+    <Compile Remove="Prognosis.Examples.DependencyInjection\**" />
+    <None Remove="Prognosis.Examples.DependencyInjection\**" />
+    <Compile Remove="Prognosis.Examples.Reactive\**" />
+    <None Remove="Prognosis.Examples.Reactive\**" />
     <Compile Remove="Prognosis.Reactive\**" />
     <None Remove="Prognosis.Reactive\**" />
   </ItemGroup>

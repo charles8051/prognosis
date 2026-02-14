@@ -58,13 +58,13 @@ public static class ServiceCollectionExtensions
         }
 
         // Wire attribute-declared [DependsOn<T>] edges.
-        foreach (var (type, svc) in byType)
+        foreach (var kvp in byType)
         {
-            var attrs = type.GetCustomAttributes<DependsOnAttribute>();
+            var attrs = kvp.Key.GetCustomAttributes<DependsOnAttribute>();
             foreach (var attr in attrs)
             {
                 if (byType.TryGetValue(attr.DependencyType, out var dep)
-                    && svc is DelegatingServiceHealth delegating)
+                    && kvp.Value is DelegatingServiceHealth delegating)
                 {
                     delegating.DependsOn(dep, attr.Importance);
                 }
