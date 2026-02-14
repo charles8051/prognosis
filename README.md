@@ -1,5 +1,7 @@
 # Prognosis
 
+**Unfiltered AI slop. Use at your own risk**
+
 A dependency-aware service health modeling library for .NET. Models the health of multiple services as a directed graph where each service's effective status is computed from its own intrinsic health and the weighted health of its dependencies.
 
 ## Key concepts
