@@ -36,11 +36,7 @@ public sealed class HealthMonitor : IAsyncDisposable
     public void Poll()
     {
         // Walk the graph depth-first and notify all observable services.
-        var visited = new HashSet<IServiceHealth>(ReferenceEqualityComparer.Instance);
-        foreach (var root in _roots)
-        {
-            NotifyGraph(root, visited);
-        }
+        HealthAggregator.NotifyGraph(_roots);
 
         // Build a report and emit if changed.
         var report = HealthAggregator.CreateReport(_roots);
@@ -86,23 +82,6 @@ public sealed class HealthMonitor : IAsyncDisposable
             }
 
             Poll();
-        }
-    }
-
-    private static void NotifyGraph(IServiceHealth service, HashSet<IServiceHealth> visited)
-    {
-        if (!visited.Add(service))
-            return;
-
-        // Depth-first: notify leaves before parents.
-        foreach (var dep in service.Dependencies)
-        {
-            NotifyGraph(dep.Service, visited);
-        }
-
-        if (service is IObservableServiceHealth observable)
-        {
-            observable.NotifyChanged();
         }
     }
 

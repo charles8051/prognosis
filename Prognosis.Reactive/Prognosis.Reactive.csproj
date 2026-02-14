@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;netstandard2.1</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <!-- NuGet package metadata -->
+    <PackageId>Prognosis.Reactive</PackageId>
+    <Authors>Charles Lee</Authors>
+    <Description>System.Reactive extensions for Prognosis. Provides idiomatic Rx operators for polling, merging, and composing health status streams from the Prognosis service health graph.</Description>
+    <PackageTags>health;health-check;service-health;dependency-graph;monitoring;observability;diagnostics;reactive;rx;system.reactive</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/charles8051/prognosis</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/charles8051/prognosis</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+
+    <!-- Symbols and source link -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+    <!-- Deterministic / reproducible builds -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Prognosis.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Reactive" Version="6.0.1" />
+  </ItemGroup>
+
+</Project>

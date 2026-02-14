@@ -29,6 +29,7 @@
 
   <ItemGroup>
     <None Include=".github\workflows\publish.yml" />
+    <None Include="Prognosis.Reactive\Prognosis.Reactive.csproj" />
     <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
@@ -43,6 +44,8 @@
   <ItemGroup>
     <Compile Remove="Prognosis.Examples\**" />
     <None Remove="Prognosis.Examples\**" />
+    <Compile Remove="Prognosis.Reactive\**" />
+    <None Remove="Prognosis.Reactive\**" />
   </ItemGroup>
 
 </Project>

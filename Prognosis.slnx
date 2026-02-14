@@ -1,4 +1,5 @@
 <Solution>
   <Project Path="Prognosis.csproj" />
   <Project Path="Prognosis.Examples/Prognosis.Examples.csproj" />
+  <Project Path="Prognosis.Reactive/Prognosis.Reactive.csproj" />
 </Solution>

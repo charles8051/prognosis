@@ -140,6 +140,37 @@ public static class HealthAggregator
         black.Add(service);
     }
 
+    /// <summary>
+    /// Walks the dependency graph depth-first from the given roots and calls
+    /// <see cref="IObservableServiceHealth.NotifyChanged"/> on every observable
+    /// service encountered. Leaves are notified before their parents.
+    /// </summary>
+    public static void NotifyGraph(params IServiceHealth[] roots)
+    {
+        var visited = new HashSet<IServiceHealth>(ReferenceEqualityComparer.Instance);
+        foreach (var root in roots)
+        {
+            NotifyGraphDfs(root, visited);
+        }
+    }
+
+    private static void NotifyGraphDfs(IServiceHealth service, HashSet<IServiceHealth> visited)
+    {
+        if (!visited.Add(service))
+            return;
+
+        // Depth-first: notify leaves before parents.
+        foreach (var dep in service.Dependencies)
+        {
+            NotifyGraphDfs(dep.Service, visited);
+        }
+
+        if (service is IObservableServiceHealth observable)
+        {
+            observable.NotifyChanged();
+        }
+    }
+
     private static void Walk(
         IServiceHealth service,
         HashSet<IServiceHealth> visited,
