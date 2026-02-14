@@ -9,11 +9,11 @@ namespace Prognosis;
 public sealed class HealthMonitor : IAsyncDisposable
 {
     private readonly IServiceHealth[] _roots;
-    private readonly PeriodicTimer _timer;
+    private readonly TimeSpan _interval;
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _pollingTask;
-    private readonly Lock _lock = new();
-    private readonly List<IObserver<HealthReport>> _observers = [];
+    private readonly object _lock = new();
+    private readonly List<IObserver<HealthReport>> _observers = new();
     private HealthReport? _lastReport;
 
     /// <summary>
@@ -24,8 +24,8 @@ public sealed class HealthMonitor : IAsyncDisposable
 
     public HealthMonitor(IEnumerable<IServiceHealth> roots, TimeSpan interval)
     {
-        _roots = [.. roots];
-        _timer = new PeriodicTimer(interval);
+        _roots = roots.ToArray();
+        _interval = interval;
         _pollingTask = PollLoopAsync(_cts.Token);
     }
 
@@ -52,7 +52,7 @@ public sealed class HealthMonitor : IAsyncDisposable
                 return;
             _lastReport = report;
             if (_observers.Count > 0)
-                snapshot = [.. _observers];
+                snapshot = new List<IObserver<HealthReport>>(_observers);
         }
 
         if (snapshot is not null)
@@ -66,17 +66,25 @@ public sealed class HealthMonitor : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await _cts.CancelAsync();
+        _cts.Cancel();
         try { await _pollingTask.ConfigureAwait(false); }
         catch (OperationCanceledException) { }
-        _timer.Dispose();
         _cts.Dispose();
     }
 
     private async Task PollLoopAsync(CancellationToken ct)
     {
-        while (await _timer.WaitForNextTickAsync(ct).ConfigureAwait(false))
+        while (!ct.IsCancellationRequested)
         {
+            try
+            {
+                await Task.Delay(_interval, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                break;
+            }
+
             Poll();
         }
     }

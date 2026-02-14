@@ -17,9 +17,9 @@ public sealed class ServiceHealthTracker
     private static HashSet<ServiceHealthTracker>? s_evaluating;
 
     private readonly Func<HealthStatus> _intrinsicCheck;
-    private readonly List<ServiceDependency> _dependencies = [];
-    private readonly Lock _lock = new();
-    private readonly List<IObserver<HealthStatus>> _observers = [];
+    private readonly List<ServiceDependency> _dependencies = new();
+    private readonly object _lock = new();
+    private readonly List<IObserver<HealthStatus>> _observers = new();
     private HealthStatus? _lastEmitted;
 
     /// <param name="intrinsicCheck">
@@ -65,7 +65,7 @@ public sealed class ServiceHealthTracker
                 return;
             _lastEmitted = current;
             if (_observers.Count > 0)
-                snapshot = [.. _observers];
+                snapshot = new List<IObserver<HealthStatus>>(_observers);
         }
 
         if (snapshot is not null)

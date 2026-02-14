@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Prognosis;
 
 var jsonOptions = new JsonSerializerOptions { WriteIndented = true };

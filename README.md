@@ -1,6 +1,6 @@
 # Prognosis
 
-A dependency-aware service health modeling library for .NET 10. Models the health of multiple services as a directed graph where each service's effective status is computed from its own intrinsic health and the weighted health of its dependencies.
+A dependency-aware service health modeling library for .NET. Models the health of multiple services as a directed graph where each service's effective status is computed from its own intrinsic health and the weighted health of its dependencies.
 
 ## Key concepts
 
@@ -135,8 +135,10 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 | `HealthAggregator.cs` | Static helpers — `Aggregate`, `EvaluateAll`, `CreateReport`, `DetectCycles` |
 | `HealthReport.cs` | Serialization-ready report DTO |
 | `ServiceSnapshot.cs` | Serialization-ready per-service snapshot DTO |
-| `HealthMonitor.cs` | `PeriodicTimer`-based poller with `IObservable<HealthReport>` |
+| `HealthMonitor.cs` | Timer-based poller with `IObservable<HealthReport>` |
 
 ## Requirements
 
-- .NET 10
+- .NET Standard 2.0 or .NET Standard 2.1 compatible runtime (.NET Framework 4.6.1+, .NET Core 2.0+, .NET 5+)
+- [System.Text.Json](https://www.nuget.org/packages/System.Text.Json) (bundled as a dependency)
+- [Microsoft.Bcl.AsyncInterfaces](https://www.nuget.org/packages/Microsoft.Bcl.AsyncInterfaces) (netstandard2.0 only, bundled as a dependency)
