@@ -39,13 +39,16 @@ jobs:
           fi
 
       - name: Restore
-        run: dotnet restore Prognosis.csproj
+        run: dotnet restore Prognosis.slnx
 
       - name: Build
-        run: dotnet build Prognosis.csproj -c Release --no-restore -p:Version=${{ steps.version.outputs.VERSION }}
+        run: dotnet build Prognosis.slnx -c Release --no-restore -p:Version=${{ steps.version.outputs.VERSION }}
 
-      - name: Pack
+      - name: Pack Prognosis
         run: dotnet pack Prognosis.csproj -c Release --no-build -o ./artifacts -p:Version=${{ steps.version.outputs.VERSION }}
+
+      - name: Pack Prognosis.Reactive
+        run: dotnet pack Prognosis.Reactive/Prognosis.Reactive.csproj -c Release --no-build -o ./artifacts -p:Version=${{ steps.version.outputs.VERSION }}
 
       - name: Push to NuGet
         run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
