@@ -14,16 +14,32 @@ public sealed class CompositeServiceHealth : IObservableServiceHealth
 
     public IObservable<HealthStatus> StatusChanged => _tracker.StatusChanged;
 
+    /// <param name="name">Display name for this composite in the health graph.</param>
+    public CompositeServiceHealth(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("A composite service must have a name.", nameof(name));
+
+        Name = name;
+        _tracker = new ServiceHealthTracker(() => HealthStatus.Healthy);
+    }
+
     public CompositeServiceHealth(
         string name,
         IReadOnlyList<ServiceDependency> dependencies)
+        : this(name)
     {
-        Name = name;
-        _tracker = new ServiceHealthTracker();
         foreach (var dep in dependencies)
         {
             _tracker.DependsOn(dep.Service, dep.Importance);
         }
+    }
+
+    /// <summary>Registers a dependency on another service.</summary>
+    public CompositeServiceHealth DependsOn(IServiceHealth service, ServiceImportance importance)
+    {
+        _tracker.DependsOn(service, importance);
+        return this;
     }
 
     public void NotifyChanged() => _tracker.NotifyChanged();

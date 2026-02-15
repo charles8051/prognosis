@@ -3,19 +3,15 @@ namespace Prognosis.Tests;
 public class CompositeServiceHealthTests
 {
     [Fact]
-    public void Evaluate_AllHealthy_ReturnsUnknown()
+    public void Evaluate_AllHealthy_ReturnsHealthy()
     {
-        // CompositeServiceHealth uses a default ServiceHealthTracker (intrinsic = Unknown).
-        // With all-healthy deps, the worst status is Unknown (from intrinsic).
         var dep = new DelegatingServiceHealth("Dep");
         var composite = new CompositeServiceHealth("Comp", new[]
         {
             new ServiceDependency(dep, ServiceImportance.Required),
         });
 
-        // The intrinsic is Unknown (default tracker), dep is Healthy.
-        // Unknown > Healthy, so result is Unknown.
-        Assert.Equal(HealthStatus.Unknown, composite.Evaluate().Status);
+        Assert.Equal(HealthStatus.Healthy, composite.Evaluate().Status);
     }
 
     [Fact]
