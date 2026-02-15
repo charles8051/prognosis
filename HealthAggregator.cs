@@ -52,6 +52,75 @@ public static class HealthAggregator
     }
 
     /// <summary>
+    /// Aggregation strategy for services with redundant dependencies.
+    /// When at least one non-optional dependency is healthy, a required dependency's
+    /// <see cref="HealthStatus.Unhealthy"/> is capped at <see cref="HealthStatus.Degraded"/>
+    /// instead of propagating through. If <em>all</em> non-optional dependencies are
+    /// unhealthy the parent becomes unhealthy as usual.
+    /// </summary>
+    /// <remarks>
+    /// Use this when a parent has multiple paths to the same capability (e.g. primary +
+    /// secondary database) and losing one should degrade — not kill — the parent.
+    /// </remarks>
+    public static HealthEvaluation AggregateWithRedundancy(
+        HealthEvaluation intrinsic,
+        IReadOnlyList<ServiceDependency> dependencies)
+    {
+        // First pass: evaluate all dependencies and determine whether any
+        // non-optional dependency is healthy.
+        var depCount = dependencies.Count;
+        var evals = new (ServiceDependency dep, HealthEvaluation eval)[depCount];
+        var hasHealthyNonOptional = false;
+
+        for (var i = 0; i < depCount; i++)
+        {
+            var dep = dependencies[i];
+            var eval = dep.Service.Evaluate();
+            evals[i] = (dep, eval);
+
+            if (dep.Importance != ServiceImportance.Optional && eval.Status == HealthStatus.Healthy)
+                hasHealthyNonOptional = true;
+        }
+
+        // Second pass: compute effective status using the redundancy rule.
+        var effective = intrinsic.Status;
+        string? reason = intrinsic.Reason;
+
+        for (var i = 0; i < depCount; i++)
+        {
+            var (dep, depEval) = evals[i];
+
+            var contribution = dep.Importance switch
+            {
+                ServiceImportance.Required when depEval.Status == HealthStatus.Unhealthy && hasHealthyNonOptional
+                    => HealthStatus.Degraded,
+                ServiceImportance.Required
+                    => depEval.Status,
+
+                ServiceImportance.Important => depEval.Status switch
+                {
+                    HealthStatus.Unhealthy => HealthStatus.Degraded,
+                    _ => depEval.Status,
+                },
+
+                ServiceImportance.Optional => HealthStatus.Healthy,
+
+                _ => HealthStatus.Healthy,
+            };
+
+            if (contribution > effective)
+            {
+                effective = contribution;
+                reason = depEval.Reason is not null
+                    ? $"{dep.Service.Name}: {depEval.Reason}"
+                    : $"{dep.Service.Name} is {depEval.Status}";
+            }
+        }
+
+        return new HealthEvaluation(effective, reason);
+    }
+
+    /// <summary>
     /// Evaluates the full graph and packages the result as a serialization-ready
     /// <see cref="HealthReport"/> with a timestamp and overall status.
     /// </summary>

@@ -89,7 +89,7 @@ public static class ServiceCollectionExtensions
         foreach (var def in builder.Composites)
         {
             var deps = ResolveEdges(def.Edges, byType, byName);
-            var composite = new CompositeServiceHealth(def.Name, deps);
+            var composite = new CompositeServiceHealth(def.Name, deps, def.Aggregator);
             byName[def.Name] = composite;
         }
 

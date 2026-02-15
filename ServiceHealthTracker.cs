@@ -17,6 +17,7 @@ public sealed class ServiceHealthTracker
     private static HashSet<ServiceHealthTracker>? s_evaluating;
 
     private readonly Func<HealthEvaluation> _intrinsicCheck;
+    private readonly AggregationStrategy _aggregator;
     private readonly List<ServiceDependency> _dependencies = new();
     private readonly object _lock = new();
     private readonly List<IObserver<HealthStatus>> _observers = new();
@@ -26,9 +27,14 @@ public sealed class ServiceHealthTracker
     /// A callback that returns the owning service's intrinsic health
     /// (e.g., whether a connection is alive). Called on every <see cref="Evaluate"/>.
     /// </param>
-    public ServiceHealthTracker(Func<HealthEvaluation> intrinsicCheck)
+    /// <param name="aggregator">
+    /// Strategy used to combine intrinsic health with dependency evaluations.
+    /// Defaults to <see cref="HealthAggregator.Aggregate"/> when <see langword="null"/>.
+    /// </param>
+    public ServiceHealthTracker(Func<HealthEvaluation> intrinsicCheck, AggregationStrategy? aggregator = null)
     {
         _intrinsicCheck = intrinsicCheck;
+        _aggregator = aggregator ?? HealthAggregator.Aggregate;
     }
 
     /// <summary>Shortcut: intrinsic status starts as <see cref="HealthStatus.Unknown"/> until first real check.</summary>
@@ -86,7 +92,7 @@ public sealed class ServiceHealthTracker
 
         try
         {
-            return HealthAggregator.Aggregate(_intrinsicCheck(), _dependencies);
+            return _aggregator(_intrinsicCheck(), _dependencies);
         }
         finally
         {

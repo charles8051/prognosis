@@ -15,19 +15,24 @@ public sealed class CompositeServiceHealth : IObservableServiceHealth
     public IObservable<HealthStatus> StatusChanged => _tracker.StatusChanged;
 
     /// <param name="name">Display name for this composite in the health graph.</param>
-    public CompositeServiceHealth(string name)
+    /// <param name="aggregator">
+    /// Strategy used to combine dependency evaluations into an effective health.
+    /// Defaults to <see cref="HealthAggregator.Aggregate"/> when <see langword="null"/>.
+    /// </param>
+    public CompositeServiceHealth(string name, AggregationStrategy? aggregator = null)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("A composite service must have a name.", nameof(name));
 
         Name = name;
-        _tracker = new ServiceHealthTracker(() => HealthStatus.Healthy);
+        _tracker = new ServiceHealthTracker(() => HealthStatus.Healthy, aggregator);
     }
 
     public CompositeServiceHealth(
         string name,
-        IReadOnlyList<ServiceDependency> dependencies)
-        : this(name)
+        IReadOnlyList<ServiceDependency> dependencies,
+        AggregationStrategy? aggregator = null)
+        : this(name, aggregator)
     {
         foreach (var dep in dependencies)
         {

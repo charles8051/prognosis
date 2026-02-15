@@ -49,11 +49,13 @@ Ordered worst-is-highest so comparisons naturally surface the most severe status
 
 ### Dependency importance
 
-| Importance | Propagation rule |
+| Importance | Default propagation rule |
 |---|---|
 | `Required` | Dependency status passes through unchanged — an unhealthy dependency makes the parent unhealthy |
 | `Important` | Unhealthy is capped at `Degraded` for the parent; `Unknown` and `Degraded` pass through |
 | `Optional` | Dependency health is ignored entirely |
+
+These rules describe the default strategy (`HealthAggregator.Aggregate`). Propagation behavior can be changed per-service by supplying a custom [aggregation strategy](#aggregation-strategies).
 
 ## Usage patterns
 
@@ -100,11 +102,68 @@ var emailHealth = new DelegatingServiceHealth("EmailProvider",
 Create virtual aggregation points with no backing service:
 
 ```csharp
+// List style
 var app = new CompositeServiceHealth("Application",
 [
     new ServiceDependency(authService, ServiceImportance.Required),
     new ServiceDependency(notifications, ServiceImportance.Important),
 ]);
+
+// Fluent style
+var app = new CompositeServiceHealth("Application")
+    .DependsOn(authService, ServiceImportance.Required)
+    .DependsOn(notifications, ServiceImportance.Important);
+```
+
+## Aggregation strategies
+
+By default, health propagation follows the rules in [Dependency importance](#dependency-importance) via `HealthAggregator.Aggregate`. You can swap the strategy per-service to change how dependency statuses combine.
+
+### Built-in strategies
+
+| Strategy | Behavior |
+|---|---|
+| `HealthAggregator.Aggregate` | **Default.** Worst-case propagation — a single unhealthy Required dependency makes the parent unhealthy. |
+| `HealthAggregator.AggregateWithRedundancy` | Redundancy-aware — when at least one non-optional dependency is healthy, a Required dependency's unhealthy status is capped at Degraded. All non-optional deps must be unhealthy before the parent becomes unhealthy. |
+
+### Using a built-in strategy
+
+```csharp
+// Without redundancy (default) — if either service goes down, the parent is unhealthy.
+var app = new CompositeServiceHealth("Application")
+    .DependsOn(primaryDb, ServiceImportance.Required)
+    .DependsOn(replicaDb, ServiceImportance.Required);
+
+// With redundancy — if one goes down but the other is healthy, the parent is degraded.
+var app = new CompositeServiceHealth("Application",
+    aggregator: HealthAggregator.AggregateWithRedundancy)
+    .DependsOn(primaryDb, ServiceImportance.Required)
+    .DependsOn(replicaDb, ServiceImportance.Required);
+```
+
+### Custom strategies
+
+The `AggregationStrategy` delegate takes intrinsic health + dependencies and returns an evaluation. Pass any matching function:
+
+```csharp
+var app = new CompositeServiceHealth("Application",
+    aggregator: (intrinsic, deps) =>
+    {
+        // Your custom logic here
+        return new HealthEvaluation(HealthStatus.Healthy);
+    });
+```
+
+Strategies can also be applied to `DelegatingServiceHealth` and `ServiceHealthTracker`:
+
+```csharp
+// DelegatingServiceHealth with a strategy
+var svc = new DelegatingServiceHealth("Service", healthCheck,
+    aggregator: HealthAggregator.AggregateWithRedundancy);
+
+// ServiceHealthTracker (when embedding in your own class)
+var tracker = new ServiceHealthTracker(intrinsicCheck,
+    aggregator: HealthAggregator.AggregateWithRedundancy);
 ```
 
 ## Graph operations
@@ -166,6 +225,13 @@ builder.Services.AddPrognosis(health =>
         app.DependsOn<AuthService>(ServiceImportance.Required);
         app.DependsOn("NotificationSystem", ServiceImportance.Important);
     });
+
+    // Composites with custom aggregation strategies.
+    health.AddComposite("DatabaseCluster", db =>
+    {
+        db.DependsOn("PrimaryDb", ServiceImportance.Required);
+        db.DependsOn("ReplicaDb", ServiceImportance.Required);
+    }, aggregator: HealthAggregator.AggregateWithRedundancy);
 
     health.AddRoots("Application");
     health.UseMonitor(TimeSpan.FromSeconds(30));
@@ -246,10 +312,11 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 | `HealthEvaluation.cs` | Status + optional reason pair, with implicit conversion from `HealthStatus` |
 | `ServiceImportance.cs` | `Required`, `Important`, `Optional` enum |
 | `ServiceDependency.cs` | Record linking an `IServiceHealth` with its importance |
+| `AggregationStrategy.cs` | Delegate type for pluggable propagation rules |
 | `ServiceHealthTracker.cs` | Composable helper — embed in any class for dependency tracking, aggregation, and observability |
 | `DelegatingServiceHealth.cs` | Adapter wrapping a `Func<HealthEvaluation>` for closed types |
 | `CompositeServiceHealth.cs` | Pure aggregation point with no backing service |
-| `HealthAggregator.cs` | Static helpers — `Aggregate`, `EvaluateAll`, `CreateReport`, `DetectCycles`, `Diff`, `NotifyGraph` |
+| `HealthAggregator.cs` | Static helpers — `Aggregate`, `AggregateWithRedundancy`, `EvaluateAll`, `CreateReport`, `DetectCycles`, `Diff`, `NotifyGraph` |
 | `HealthReport.cs` | Serialization-ready report DTO |
 | `ServiceSnapshot.cs` | Serialization-ready per-service snapshot DTO |
 | `ServiceStatusChange.cs` | Record describing a single service's status transition |

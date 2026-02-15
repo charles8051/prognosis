@@ -67,11 +67,17 @@ public sealed class PrognosisBuilder
     /// <param name="configure">
     /// A callback to declare dependencies via <see cref="DependencyConfigurator"/>.
     /// </param>
-    public PrognosisBuilder AddComposite(string name, Action<DependencyConfigurator> configure)
+    /// <param name="aggregator">
+    /// Optional aggregation strategy. Defaults to <see cref="HealthAggregator.Aggregate"/>.
+    /// </param>
+    public PrognosisBuilder AddComposite(
+        string name,
+        Action<DependencyConfigurator> configure,
+        AggregationStrategy? aggregator = null)
     {
         var configurator = new DependencyConfigurator();
         configure(configurator);
-        Composites.Add(new CompositeDefinition(name, configurator.Edges));
+        Composites.Add(new CompositeDefinition(name, configurator.Edges, aggregator));
         return this;
     }
 
@@ -94,7 +100,8 @@ internal sealed record EdgeDefinition(
 
 internal sealed record CompositeDefinition(
     string Name,
-    List<EdgeDefinition> Edges);
+    List<EdgeDefinition> Edges,
+    AggregationStrategy? Aggregator);
 
 internal sealed record DelegateDefinition(
     string Name,

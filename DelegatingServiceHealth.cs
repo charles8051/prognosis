@@ -20,10 +20,14 @@ public sealed class DelegatingServiceHealth : IObservableServiceHealth
     /// A delegate that returns the service's intrinsic health evaluation.
     /// Called every time <see cref="Evaluate"/> is invoked.
     /// </param>
-    public DelegatingServiceHealth(string name, Func<HealthEvaluation> healthCheck)
+    /// <param name="aggregator">
+    /// Strategy used to combine intrinsic health with dependency evaluations.
+    /// Defaults to <see cref="HealthAggregator.Aggregate"/> when <see langword="null"/>.
+    /// </param>
+    public DelegatingServiceHealth(string name, Func<HealthEvaluation> healthCheck, AggregationStrategy? aggregator = null)
     {
         Name = name;
-        _tracker = new ServiceHealthTracker(healthCheck);
+        _tracker = new ServiceHealthTracker(healthCheck, aggregator);
     }
 
     /// <summary>Shortcut: a service whose intrinsic status is always healthy.</summary>
