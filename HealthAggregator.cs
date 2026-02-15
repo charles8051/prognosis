@@ -136,7 +136,8 @@ public static class HealthAggregator
 
     /// <summary>
     /// Compares two reports and returns a change record for every service
-    /// whose <see cref="HealthStatus"/> differs between them.
+    /// whose <see cref="HealthStatus"/> differs between them, including
+    /// services that appeared in or disappeared from the graph.
     /// </summary>
     public static IReadOnlyList<ServiceStatusChange> Diff(
         HealthReport previous,
@@ -159,6 +160,8 @@ public static class HealthAggregator
                     changes.Add(new ServiceStatusChange(
                         curr.Name, prev.Status, curr.Status, curr.Reason));
                 }
+
+                previousByName.Remove(curr.Name);
             }
             else
             {
@@ -166,6 +169,13 @@ public static class HealthAggregator
                 changes.Add(new ServiceStatusChange(
                     curr.Name, HealthStatus.Unknown, curr.Status, curr.Reason));
             }
+        }
+
+        // Services that were in the previous report but not the current one.
+        foreach (var removed in previousByName.Values)
+        {
+            changes.Add(new ServiceStatusChange(
+                removed.Name, removed.Status, HealthStatus.Unknown, "Service removed from graph"));
         }
 
         return changes;

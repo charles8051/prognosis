@@ -175,6 +175,24 @@ public class HealthAggregatorTests
         Assert.Equal(HealthStatus.Healthy, changes[0].Current);
     }
 
+    [Fact]
+    public void Diff_ServiceDisappears_ReportsCurrentToUnknown()
+    {
+        var before = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[]
+        {
+            new ServiceSnapshot("Old", HealthStatus.Healthy, 0),
+        });
+        var after = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy,
+            Array.Empty<ServiceSnapshot>());
+
+        var changes = HealthAggregator.Diff(before, after);
+
+        Assert.Single(changes);
+        Assert.Equal("Old", changes[0].Name);
+        Assert.Equal(HealthStatus.Healthy, changes[0].Previous);
+        Assert.Equal(HealthStatus.Unknown, changes[0].Current);
+    }
+
     // ── DetectCycles ─────────────────────────────────────────────────
 
     [Fact]
