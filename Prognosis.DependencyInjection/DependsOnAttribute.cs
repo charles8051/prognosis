@@ -26,4 +26,4 @@ public abstract class DependsOnAttribute(Type dependencyType, ServiceImportance 
 public sealed class DependsOnAttribute<TDependency>(
     ServiceImportance importance = ServiceImportance.Required)
     : DependsOnAttribute(typeof(TDependency), importance)
-    where TDependency : IServiceHealth;
+    where TDependency : class, IServiceHealth;

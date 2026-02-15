@@ -13,7 +13,7 @@ public sealed class DependencyConfigurator
     /// implementation, referenced by its concrete type.
     /// </summary>
     public DependencyConfigurator DependsOn<TService>(ServiceImportance importance)
-        where TService : IServiceHealth
+        where TService : class, IServiceHealth
     {
         Edges.Add(new EdgeDefinition(typeof(TService), null, importance));
         return this;
