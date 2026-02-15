@@ -113,7 +113,7 @@ using var dbSubscription = database.StatusChanged.Subscribe(
     new StatusObserver("Database"));
 
 // Subscribe to graph-level report changes via HealthMonitor.
-await using var monitor = new HealthMonitor([app], TimeSpan.FromSeconds(1));
+await using var monitor = new HealthMonitor(new[] { app }, TimeSpan.FromSeconds(1));
 using var reportSubscription = monitor.ReportChanged.Subscribe(
     new ReportObserver());
 
