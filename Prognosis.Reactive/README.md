@@ -49,6 +49,33 @@ roots.PollHealthReport(TimeSpan.FromSeconds(30))
 
 Each `ServiceStatusChange` includes the service name, previous status, current status, and optional reason — derived from `HealthAggregator.Diff` in the core library.
 
+### Sharing patterns
+
+The Rx helpers in this package produce cold `IObservable<HealthReport>` streams — each subscription runs an independent pipeline and triggers its own evaluations. To avoid duplicate work across multiple subscribers, multicast the stream with one of the common patterns:
+
+- Auto-start while there are subscribers (stop when last unsubscribes):
+
+```csharp
+var shared = roots.ObserveHealthReport(TimeSpan.FromMilliseconds(500))
+    .Publish()
+    .RefCount();
+
+shared.Subscribe(...);
+shared.Subscribe(...);
+```
+
+- Replay the latest report to late subscribers:
+
+```csharp
+var shared = roots.ObserveHealthReport(TimeSpan.FromMilliseconds(500))
+    .Replay(1)
+    .RefCount();
+
+shared.Subscribe(...); // immediate get latest
+```
+
+If you prefer a convenience helper, this package also provides `CreateSharedReportStream` and `CreateSharedObserveStream` which wrap these patterns. They are opt-in and live in `Prognosis.Reactive`.
+
 ## Dependencies
 
 - [Prognosis](https://www.nuget.org/packages/Prognosis) (core library)
