@@ -22,6 +22,7 @@ public sealed class ServiceHealthTracker
     private readonly object _lock = new();
     private readonly List<IObserver<HealthStatus>> _observers = new();
     private HealthStatus? _lastEmitted;
+    private bool _frozen;
 
     /// <param name="intrinsicCheck">
     /// A callback that returns the owning service's intrinsic health
@@ -50,8 +51,20 @@ public sealed class ServiceHealthTracker
     /// </summary>
     public IObservable<HealthStatus> StatusChanged => new StatusObservable(this);
 
+    /// <summary>
+    /// Registers a dependency on another service. Must be called before the
+    /// first <see cref="Evaluate"/> — the dependency list is frozen once
+    /// evaluation begins.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if called after <see cref="Evaluate"/> has been invoked.
+    /// </exception>
     public ServiceHealthTracker DependsOn(IServiceHealth service, ServiceImportance importance)
     {
+        if (_frozen)
+            throw new InvalidOperationException(
+                "Dependencies cannot be modified after evaluation has started.");
+
         _dependencies.Add(new ServiceDependency(service, importance));
         return this;
     }
@@ -85,6 +98,8 @@ public sealed class ServiceHealthTracker
 
     public HealthEvaluation Evaluate()
     {
+        _frozen = true;
+
         s_evaluating ??= new(ReferenceEqualityComparer.Instance);
 
         if (!s_evaluating.Add(this))

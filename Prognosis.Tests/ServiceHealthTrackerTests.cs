@@ -63,6 +63,18 @@ public class ServiceHealthTrackerTests
         Assert.Same(tracker, returned);
     }
 
+    [Fact]
+    public void DependsOn_AfterEvaluate_Throws()
+    {
+        var tracker = new ServiceHealthTracker();
+        tracker.Evaluate();
+
+        var dep = new DelegatingServiceHealth("Dep");
+
+        Assert.Throws<InvalidOperationException>(
+            () => tracker.DependsOn(dep, ServiceImportance.Required));
+    }
+
     // ── Circular dependency guard ────────────────────────────────────
 
     [Fact]
