@@ -26,6 +26,9 @@ public sealed class DelegatingServiceHealth : IObservableServiceHealth
     /// </param>
     public DelegatingServiceHealth(string name, Func<HealthEvaluation> healthCheck, AggregationStrategy? aggregator = null)
     {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("A service must have a name.", nameof(name));
+
         Name = name;
         _tracker = new ServiceHealthTracker(healthCheck, aggregator);
     }
