@@ -20,12 +20,13 @@ public sealed class HealthMonitor : IAsyncDisposable, IDisposable
     /// Emits a new <see cref="HealthReport"/> whenever the graph's health state
     /// changes between polling ticks.
     /// </summary>
-    public IObservable<HealthReport> ReportChanged => new ReportObservable(this);
+    public IObservable<HealthReport> ReportChanged { get; }
 
     public HealthMonitor(IEnumerable<IServiceHealth> roots, TimeSpan interval)
     {
         _roots = roots.ToArray();
         _interval = interval;
+        ReportChanged = new ReportObservable(this);
         _pollingTask = PollLoopAsync(_cts.Token);
     }
 

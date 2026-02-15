@@ -36,6 +36,7 @@ public sealed class ServiceHealthTracker
     {
         _intrinsicCheck = intrinsicCheck;
         _aggregator = aggregator ?? HealthAggregator.Aggregate;
+        StatusChanged = new StatusObservable(this);
     }
 
     /// <summary>Shortcut: intrinsic status starts as <see cref="HealthStatus.Unknown"/> until first real check.</summary>
@@ -49,7 +50,7 @@ public sealed class ServiceHealthTracker
     /// <see cref="NotifyChanged"/> detects a status change.
     /// <see cref="IObservable{T}"/> is a BCL type — no System.Reactive dependency required.
     /// </summary>
-    public IObservable<HealthStatus> StatusChanged => new StatusObservable(this);
+    public IObservable<HealthStatus> StatusChanged { get; }
 
     /// <summary>
     /// Registers a dependency on another service. Must be called before the
