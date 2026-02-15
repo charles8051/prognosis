@@ -31,6 +31,19 @@ public sealed class HealthReportComparer : IEqualityComparer<HealthReport>
         return true;
     }
 
-    public int GetHashCode(HealthReport obj) =>
-        obj.OverallStatus.GetHashCode();
+    public int GetHashCode(HealthReport obj)
+    {
+        unchecked
+        {
+            var hash = 17;
+            hash = hash * 31 + obj.OverallStatus.GetHashCode();
+            hash = hash * 31 + obj.Services.Count;
+            foreach (var svc in obj.Services)
+            {
+                hash = hash * 31 + svc.Name.GetHashCode();
+                hash = hash * 31 + svc.Status.GetHashCode();
+            }
+            return hash;
+        }
+    }
 }
