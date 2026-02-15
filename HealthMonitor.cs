@@ -6,7 +6,7 @@ namespace Prognosis;
 /// service in the graph, and emits a <see cref="HealthReport"/> when the
 /// overall state changes.
 /// </summary>
-public sealed class HealthMonitor : IAsyncDisposable
+public sealed class HealthMonitor : IAsyncDisposable, IDisposable
 {
     private readonly IServiceHealth[] _roots;
     private readonly TimeSpan _interval;
@@ -64,6 +64,17 @@ public sealed class HealthMonitor : IAsyncDisposable
     {
         _cts.Cancel();
         try { await _pollingTask.ConfigureAwait(false); }
+        catch (OperationCanceledException) { }
+        _cts.Dispose();
+    }
+
+    /// <summary>
+    /// Synchronous disposal. Prefer <see cref="DisposeAsync"/> in async contexts.
+    /// </summary>
+    public void Dispose()
+    {
+        _cts.Cancel();
+        try { _pollingTask.GetAwaiter().GetResult(); }
         catch (OperationCanceledException) { }
         _cts.Dispose();
     }
