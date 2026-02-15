@@ -16,14 +16,15 @@ public static class ServiceHealthRxExtensions
     /// Only emits when the report changes.
     /// </summary>
     public static IObservable<HealthReport> PollHealthReport(
-        this IServiceHealth[] roots,
+        this IReadOnlyList<IServiceHealth> roots,
         TimeSpan interval)
     {
+        var rootsArray = roots as IServiceHealth[] ?? roots.ToArray();
         return Observable.Interval(interval)
             .Select(_ =>
             {
-                HealthAggregator.NotifyGraph(roots);
-                return HealthAggregator.CreateReport(roots);
+                HealthAggregator.NotifyGraph(rootsArray);
+                return HealthAggregator.CreateReport(rootsArray);
             })
             .DistinctUntilChanged(HealthReportComparer.Instance);
     }
@@ -38,18 +39,19 @@ public static class ServiceHealthRxExtensions
     /// <see cref="HealthAggregator.NotifyGraph"/>, not exogenous events.
     /// </summary>
     public static IObservable<HealthReport> ObserveHealthReport(
-        this IServiceHealth[] roots,
+        this IReadOnlyList<IServiceHealth> roots,
         TimeSpan throttle)
     {
-        return WalkObservables(roots)
+        var rootsArray = roots as IServiceHealth[] ?? roots.ToArray();
+        return WalkObservables(rootsArray)
             .Where(s => s.Dependencies.Count == 0)
             .Select(s => s.StatusChanged)
             .Merge()
             .Throttle(throttle)
             .Select(_ =>
             {
-                HealthAggregator.NotifyGraph(roots);
-                return HealthAggregator.CreateReport(roots);
+                HealthAggregator.NotifyGraph(rootsArray);
+                return HealthAggregator.CreateReport(rootsArray);
             })
             .DistinctUntilChanged(HealthReportComparer.Instance);
     }
