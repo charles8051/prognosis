@@ -21,26 +21,28 @@ builder.Services.AddPrognosis(health =>
     health.ScanForServices(typeof(Program).Assembly);
 
     // Wrap a third-party service you don't own with a health delegate.
+    // Name defaults to typeof(ThirdPartyEmailClient).Name when omitted.
     health.AddDelegate<ThirdPartyEmailClient>("EmailProvider",
         client => client.IsConnected
             ? HealthStatus.Healthy
             : new HealthEvaluation(HealthStatus.Unhealthy, "SMTP connection refused"));
 
     // Define composite aggregation nodes.
-    health.AddComposite("NotificationSystem", n =>
+    // Use constants or nameof to avoid magic strings — refactoring-safe.
+    health.AddComposite(ServiceNames.NotificationSystem, n =>
     {
-        n.DependsOn("MessageQueue", ServiceImportance.Required);
+        n.DependsOn(nameof(MessageQueueService), ServiceImportance.Required);
         n.DependsOn("EmailProvider", ServiceImportance.Optional);
     });
 
-    health.AddComposite("Application", app =>
+    health.AddComposite(ServiceNames.Application, app =>
     {
         app.DependsOn<AuthService>(ServiceImportance.Required);
-        app.DependsOn("NotificationSystem", ServiceImportance.Important);
+        app.DependsOn(ServiceNames.NotificationSystem, ServiceImportance.Important);
     });
 
     // Mark the top-level node as a root for monitoring.
-    health.AddRoots("Application");
+    health.AddRoots(ServiceNames.Application);
 
     // Register HealthMonitor as a hosted service (polls every 2 seconds).
     health.UseMonitor(TimeSpan.FromSeconds(2));
@@ -118,7 +120,8 @@ foreach (var svc in graph.Services)
 }
 Console.WriteLine();
 
-if (graph.TryGetService("AuthService", out var auth))
+// Type-safe lookup — uses typeof(AuthService).Name as the key.
+if (graph.TryGetService<AuthService>(out var auth))
 {
     Console.WriteLine($"  AuthService has {auth.Dependencies.Count} dependencies");
 }
@@ -198,7 +201,7 @@ class MessageQueueService : IObservableServiceHealth
 {
     private readonly ServiceHealthTracker _health = new(() => HealthStatus.Healthy);
 
-    public string Name => "MessageQueue";
+    public string Name => nameof(MessageQueueService);
     public IReadOnlyList<ServiceDependency> Dependencies => _health.Dependencies;
     public IObservable<HealthStatus> StatusChanged => _health.StatusChanged;
     public void NotifyChanged() => _health.NotifyChanged();
@@ -222,4 +225,14 @@ class ReportObserver : IObserver<HealthReport>
             $"({value.Services.Count} services @ {value.Timestamp:HH:mm:ss.fff})");
     public void OnError(Exception error) { }
     public void OnCompleted() { }
+}
+
+/// <summary>
+/// Central constants for composite/virtual service names.
+/// Eliminates magic strings across configuration, lookups, and assertions.
+/// </summary>
+static class ServiceNames
+{
+    public const string Application = nameof(Application);
+    public const string NotificationSystem = nameof(NotificationSystem);
 }

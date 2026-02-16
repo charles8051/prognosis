@@ -49,6 +49,17 @@ public sealed class HealthGraph
         _services.TryGetValue(name, out service!);
 
     /// <summary>
+    /// Looks up a service whose <see cref="IServiceHealth.Name"/> matches
+    /// <c>typeof(T).Name</c>. This is a convenience for the common convention
+    /// where service names are derived from their concrete types.
+    /// </summary>
+    /// <typeparam name="T">
+    /// The type whose <see cref="System.Type.Name"/> is used as the lookup key.
+    /// </typeparam>
+    public bool TryGetService<T>(out IServiceHealth service) where T : IServiceHealth =>
+        _services.TryGetValue(typeof(T).Name, out service!);
+
+    /// <summary>
     /// All named services in the graph (leaves, composites, and delegates).
     /// </summary>
     public IEnumerable<IServiceHealth> Services => _services.Values;
