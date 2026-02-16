@@ -214,28 +214,38 @@ builder.Services.AddPrognosis(health =>
     health.ScanForServices(typeof(Program).Assembly);
 
     // Wrap a third-party service with a health delegate.
+    // Name defaults to typeof(T).Name when omitted.
     health.AddDelegate<ThirdPartyEmailClient>("EmailProvider",
         client => client.IsConnected
             ? HealthStatus.Healthy
             : new HealthEvaluation(HealthStatus.Unhealthy, "SMTP refused"));
 
     // Define composite aggregation nodes.
-    health.AddComposite("Application", app =>
+    // Use nameof for concrete types, constants for virtual nodes.
+    health.AddComposite(ServiceNames.Application, app =>
     {
         app.DependsOn<AuthService>(ServiceImportance.Required);
-        app.DependsOn("NotificationSystem", ServiceImportance.Important);
+        app.DependsOn(ServiceNames.NotificationSystem, ServiceImportance.Important);
     });
 
     // Composites with custom aggregation strategies.
-    health.AddComposite("DatabaseCluster", db =>
+    health.AddComposite(ServiceNames.DatabaseCluster, db =>
     {
-        db.DependsOn("PrimaryDb", ServiceImportance.Required);
-        db.DependsOn("ReplicaDb", ServiceImportance.Required);
+        db.DependsOn(nameof(PrimaryDb), ServiceImportance.Required);
+        db.DependsOn(nameof(ReplicaDb), ServiceImportance.Required);
     }, aggregator: HealthAggregator.AggregateWithRedundancy);
 
-    health.AddRoots("Application");
+    health.AddRoots(ServiceNames.Application);
     health.UseMonitor(TimeSpan.FromSeconds(30));
 });
+
+// Central constants for virtual/composite service names.
+static class ServiceNames
+{
+    public const string Application = nameof(Application);
+    public const string NotificationSystem = nameof(NotificationSystem);
+    public const string DatabaseCluster = nameof(DatabaseCluster);
+}
 ```
 
 Declare dependency edges on classes you own with attributes:
@@ -247,7 +257,7 @@ class AuthService : IObservableServiceHealth
 {
     private readonly ServiceHealthTracker _health = new();
 
-    public string Name => "AuthService";
+    public string Name => nameof(AuthService);
     public IReadOnlyList<ServiceDependency> Dependencies => _health.Dependencies;
     public IObservable<HealthStatus> StatusChanged => _health.StatusChanged;
     public void NotifyChanged() => _health.NotifyChanged();
@@ -260,6 +270,12 @@ Inject `HealthGraph` to access the materialized graph at runtime:
 ```csharp
 var graph = serviceProvider.GetRequiredService<HealthGraph>();
 var report = graph.CreateReport();
+
+// Type-safe lookup — uses typeof(AuthService).Name as key.
+if (graph.TryGetService<AuthService>(out var auth))
+    Console.WriteLine($"AuthService has {auth.Dependencies.Count} deps");
+
+// String-based lookup still available.
 var dbService = graph["Database"];
 ```
 
@@ -284,6 +300,24 @@ roots.PollHealthReport(TimeSpan.FromSeconds(30))
     .Subscribe(change =>
         Console.WriteLine($"{change.Name}: {change.Previous} → {change.Current}"));
 ```
+
+### Sharing streams across subscribers
+
+The Rx helpers produce cold observables — each subscription runs its own pipeline. To share a single evaluation across multiple subscribers:
+
+```csharp
+// Auto-stop when last subscriber unsubscribes.
+var shared = roots.CreateSharedReportStream(TimeSpan.FromSeconds(30));
+
+// Replay latest report to late subscribers.
+var shared = roots.CreateSharedReportStream(TimeSpan.FromSeconds(30),
+    ShareStrategy.ReplayLatest);
+
+// Push-triggered variant.
+var shared = roots.CreateSharedObserveStream(TimeSpan.FromMilliseconds(500));
+```
+
+Or use standard Rx multicast operators directly: `Publish().RefCount()` or `Replay(1).RefCount()`.
 
 ## Serialization
 
@@ -328,6 +362,7 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 | File | Purpose |
 |---|---|
 | `ServiceHealthRxExtensions.cs` | `PollHealthReport`, `ObserveHealthReport`, `SelectServiceChanges` |
+| `ServiceHealthRxShared.cs` | `CreateSharedReportStream`, `CreateSharedObserveStream`, `ShareStrategy` |
 
 ### Dependency injection (`Prognosis.DependencyInjection`)
 
