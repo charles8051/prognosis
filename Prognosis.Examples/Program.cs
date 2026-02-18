@@ -5,7 +5,9 @@ var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
 
 // ─────────────────────────────────────────────────────────────────────
 // Pattern 1 — Implement IServiceHealth on a class you own.
-//             Embed a DelegatingServiceHealth property — no forwarding needed.
+//             Embed a ServiceHealth property — no forwarding needed.
+//             DatabaseService uses a CompositeServiceHealth backed by
+//             fine-grained sub-nodes (connection, latency, pool).
 // ─────────────────────────────────────────────────────────────────────
 var database = new DatabaseService();
 var cache = new CacheService();
@@ -67,6 +69,21 @@ Console.WriteLine("=== Only EmailProvider unhealthy (Optional to NotificationSys
 database.IsConnected = true;
 cache.IsConnected = true;
 externalEmailApi.IsConnected = false;
+PrintHealth();
+
+// ── Fine-grained database health ─────────────────────────────────────
+Console.WriteLine("=== Database sub-graph: high latency (Important → degrades Database) ===");
+externalEmailApi.IsConnected = true;
+database.AverageLatencyMs = 600;   // above the 500ms threshold
+PrintHealth();
+
+Console.WriteLine("=== Database sub-graph: connection pool exhausted (Required → unhealthy) ===");
+database.AverageLatencyMs = 50;    // restore latency
+database.PoolUtilization = 1.0;   // 100% — exhausted
+PrintHealth();
+
+Console.WriteLine("=== Database sub-graph: everything restored ===");
+database.PoolUtilization = 0.3;
 PrintHealth();
 
 // ── Cycle detection ──────────────────────────────────────────────────
@@ -145,22 +162,49 @@ Console.WriteLine();
 // ─────────────────────────────────────────────────────────────────────
 
 /// <summary>
-/// A service you own — implement <see cref="IServiceHealth"/> and expose
-/// a <see cref="DelegatingServiceHealth"/> property. No forwarding needed.
+/// A service you own — implement <see cref="IServiceHealth"/> and expose a
+/// <see cref="ServiceHealth"/> property. Here the top-level node is a
+/// <see cref="CompositeServiceHealth"/> whose health is derived entirely from
+/// three fine-grained <see cref="DelegatingServiceHealth"/> sub-nodes:
+/// connection, latency, and connection-pool utilization.
 /// </summary>
 class DatabaseService : IServiceHealth
 {
     public ServiceHealth Health { get; }
 
+    public bool IsConnected { get; set; } = true;
+    public double AverageLatencyMs { get; set; } = 50;
+    public double PoolUtilization { get; set; } = 0.3;
+
     public DatabaseService()
     {
-        Health = new DelegatingServiceHealth("Database",
+        var connection = new DelegatingServiceHealth("Database.Connection",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Connection lost"));
-    }
 
-    public bool IsConnected { get; set; } = true;
+        var latency = new DelegatingServiceHealth("Database.Latency",
+            () => AverageLatencyMs switch
+            {
+                > 500 => new HealthEvaluation(HealthStatus.Degraded,
+                    $"Avg latency {AverageLatencyMs:F0}ms exceeds 500ms threshold"),
+                _ => HealthStatus.Healthy,
+            });
+
+        var connectionPool = new DelegatingServiceHealth("Database.ConnectionPool",
+            () => PoolUtilization switch
+            {
+                >= 1.0 => new HealthEvaluation(HealthStatus.Unhealthy, "Connection pool exhausted"),
+                >= 0.9 => new HealthEvaluation(HealthStatus.Degraded,
+                    $"Connection pool at {PoolUtilization:P0} utilization"),
+                _ => HealthStatus.Healthy,
+            });
+
+        Health = new CompositeServiceHealth("Database")
+            .DependsOn(connection, ServiceImportance.Required)
+            .DependsOn(latency, ServiceImportance.Important)
+            .DependsOn(connectionPool, ServiceImportance.Required);
+    }
 }
 
 /// <summary>Another service you own, same pattern.</summary>
