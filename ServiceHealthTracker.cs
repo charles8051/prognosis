@@ -2,8 +2,8 @@ namespace Prognosis;
 
 /// <summary>
 /// A composable helper that any existing service can embed to participate in the
-/// health graph via delegation. The owning class implements <see cref="IServiceHealth"/>
-/// and forwards <see cref="IServiceHealth.Dependencies"/> and <see cref="IServiceHealth.Evaluate"/>
+/// health graph via delegation. The owning class implements <see cref="ServiceHealth"/>
+/// and forwards <see cref="ServiceHealth.Dependencies"/> and <see cref="ServiceHealth.Evaluate"/>
 /// to this tracker.
 /// </summary>
 /// <remarks>
@@ -60,7 +60,7 @@ public sealed class ServiceHealthTracker
     /// <exception cref="InvalidOperationException">
     /// Thrown if called after <see cref="Evaluate"/> has been invoked.
     /// </exception>
-    public ServiceHealthTracker DependsOn(IServiceHealth service, ServiceImportance importance)
+    public ServiceHealthTracker DependsOn(ServiceHealth service, ServiceImportance importance)
     {
         if (_frozen)
             throw new InvalidOperationException(

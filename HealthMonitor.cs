@@ -2,13 +2,12 @@ namespace Prognosis;
 
 /// <summary>
 /// Polls the health graph on a configurable interval, calls
-/// <see cref="IObservableServiceHealth.NotifyChanged"/> on every observable
-/// service in the graph, and emits a <see cref="HealthReport"/> when the
-/// overall state changes.
+/// <see cref="ServiceHealth.NotifyChanged"/> on every node in the graph,
+/// and emits a <see cref="HealthReport"/> when the overall state changes.
 /// </summary>
 public sealed class HealthMonitor : IAsyncDisposable, IDisposable
 {
-    private readonly IServiceHealth[] _roots;
+    private readonly ServiceHealth[] _roots;
     private readonly TimeSpan _interval;
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _pollingTask;
@@ -22,7 +21,7 @@ public sealed class HealthMonitor : IAsyncDisposable, IDisposable
     /// </summary>
     public IObservable<HealthReport> ReportChanged { get; }
 
-    public HealthMonitor(IEnumerable<IServiceHealth> roots, TimeSpan interval)
+    public HealthMonitor(IEnumerable<ServiceHealth> roots, TimeSpan interval)
     {
         _roots = roots.ToArray();
         _interval = interval;

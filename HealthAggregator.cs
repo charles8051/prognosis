@@ -124,7 +124,7 @@ public static class HealthAggregator
     /// Evaluates the full graph and packages the result as a serialization-ready
     /// <see cref="HealthReport"/> with a timestamp and overall status.
     /// </summary>
-    public static HealthReport CreateReport(params IServiceHealth[] roots)
+    public static HealthReport CreateReport(params ServiceHealth[] roots)
     {
         var services = EvaluateAll(roots);
         var overall = services.Count > 0
@@ -186,9 +186,9 @@ public static class HealthAggregator
     /// service's evaluated status. Results are in depth-first post-order
     /// (leaves before their parents) and each service appears at most once.
     /// </summary>
-    public static IReadOnlyList<ServiceSnapshot> EvaluateAll(params IServiceHealth[] roots)
+    public static IReadOnlyList<ServiceSnapshot> EvaluateAll(params ServiceHealth[] roots)
     {
-        var visited = new HashSet<IServiceHealth>(ReferenceEqualityComparer.Instance);
+        var visited = new HashSet<ServiceHealth>(ReferenceEqualityComparer.Instance);
         var results = new List<ServiceSnapshot>();
 
         foreach (var root in roots)
@@ -204,12 +204,12 @@ public static class HealthAggregator
     /// ordered list of service names (e.g. ["A", "B", "A"]).
     /// Returns an empty list when the graph is acyclic.
     /// </summary>
-    public static IReadOnlyList<IReadOnlyList<string>> DetectCycles(params IServiceHealth[] roots)
+    public static IReadOnlyList<IReadOnlyList<string>> DetectCycles(params ServiceHealth[] roots)
     {
         // Gray = currently on the DFS stack, Black = fully explored.
-        var gray = new HashSet<IServiceHealth>(ReferenceEqualityComparer.Instance);
-        var black = new HashSet<IServiceHealth>(ReferenceEqualityComparer.Instance);
-        var path = new List<IServiceHealth>();
+        var gray = new HashSet<ServiceHealth>(ReferenceEqualityComparer.Instance);
+        var black = new HashSet<ServiceHealth>(ReferenceEqualityComparer.Instance);
+        var path = new List<ServiceHealth>();
         var cycles = new List<IReadOnlyList<string>>();
 
         foreach (var root in roots)
@@ -221,10 +221,10 @@ public static class HealthAggregator
     }
 
     private static void DetectCyclesDfs(
-        IServiceHealth service,
-        HashSet<IServiceHealth> gray,
-        HashSet<IServiceHealth> black,
-        List<IServiceHealth> path,
+        ServiceHealth service,
+        HashSet<ServiceHealth> gray,
+        HashSet<ServiceHealth> black,
+        List<ServiceHealth> path,
         List<IReadOnlyList<string>> cycles)
     {
         if (black.Contains(service))
@@ -258,19 +258,19 @@ public static class HealthAggregator
 
     /// <summary>
     /// Walks the dependency graph depth-first from the given roots and calls
-    /// <see cref="IObservableServiceHealth.NotifyChanged"/> on every observable
-    /// service encountered. Leaves are notified before their parents.
+    /// <see cref="ServiceHealth.NotifyChanged"/> on every node encountered.
+    /// Leaves are notified before their parents.
     /// </summary>
-    public static void NotifyGraph(params IServiceHealth[] roots)
+    public static void NotifyGraph(params ServiceHealth[] roots)
     {
-        var visited = new HashSet<IServiceHealth>(ReferenceEqualityComparer.Instance);
+        var visited = new HashSet<ServiceHealth>(ReferenceEqualityComparer.Instance);
         foreach (var root in roots)
         {
             NotifyGraphDfs(root, visited);
         }
     }
 
-    private static void NotifyGraphDfs(IServiceHealth service, HashSet<IServiceHealth> visited)
+    private static void NotifyGraphDfs(ServiceHealth service, HashSet<ServiceHealth> visited)
     {
         if (!visited.Add(service))
             return;
@@ -281,15 +281,12 @@ public static class HealthAggregator
             NotifyGraphDfs(dep.Service, visited);
         }
 
-        if (service is IObservableServiceHealth observable)
-        {
-            observable.NotifyChanged();
-        }
+        service.NotifyChanged();
     }
 
     private static void Walk(
-        IServiceHealth service,
-        HashSet<IServiceHealth> visited,
+        ServiceHealth service,
+        HashSet<ServiceHealth> visited,
         List<ServiceSnapshot> results)
     {
         if (!visited.Add(service))
