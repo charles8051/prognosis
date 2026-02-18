@@ -4,15 +4,15 @@ namespace Prognosis;
 /// A virtual service whose health is derived entirely from its dependencies.
 /// It has no underlying service of its own — it is a named aggregation point.
 /// </summary>
-public sealed class CompositeServiceHealth : IObservableServiceHealth
+public sealed class CompositeServiceHealth : ServiceHealth
 {
     private readonly ServiceHealthTracker _tracker;
 
-    public string Name { get; }
+    public override string Name { get; }
 
-    public IReadOnlyList<ServiceDependency> Dependencies => _tracker.Dependencies;
+    public override IReadOnlyList<ServiceDependency> Dependencies => _tracker.Dependencies;
 
-    public IObservable<HealthStatus> StatusChanged => _tracker.StatusChanged;
+    public override IObservable<HealthStatus> StatusChanged => _tracker.StatusChanged;
 
     /// <param name="name">Display name for this composite in the health graph.</param>
     /// <param name="aggregator">
@@ -40,16 +40,19 @@ public sealed class CompositeServiceHealth : IObservableServiceHealth
         }
     }
 
+    private protected override void AddDependency(ServiceHealth service, ServiceImportance importance)
+        => _tracker.DependsOn(service, importance);
+
     /// <summary>Registers a dependency on another service.</summary>
-    public CompositeServiceHealth DependsOn(IServiceHealth service, ServiceImportance importance)
+    public new CompositeServiceHealth DependsOn(ServiceHealth service, ServiceImportance importance)
     {
-        _tracker.DependsOn(service, importance);
+        AddDependency(service, importance);
         return this;
     }
 
-    public void NotifyChanged() => _tracker.NotifyChanged();
+    public override void NotifyChanged() => _tracker.NotifyChanged();
 
-    public HealthEvaluation Evaluate() => _tracker.Evaluate();
+    public override HealthEvaluation Evaluate() => _tracker.Evaluate();
 
     public override string ToString() => $"{Name}: {Evaluate()}";
 }

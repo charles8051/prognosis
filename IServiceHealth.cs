@@ -1,21 +1,19 @@
 namespace Prognosis;
 
 /// <summary>
-/// Common contract for anything that can report its health.
-/// Implementations may represent real services, composite aggregations, or both.
+/// Marker interface for classes that participate in the health graph by
+/// embedding a <see cref="ServiceHealth"/> property. Implement this on your
+/// own service classes so the DI scanner can discover them automatically;
+/// there is no other member to implement.
 /// </summary>
 public interface IServiceHealth
 {
-    string Name { get; }
-
     /// <summary>
-    /// Zero or more services this service depends on, each tagged with an importance level.
+    /// The <see cref="ServiceHealth"/> node that represents this service in
+    /// the health graph. Typically a <see cref="DelegatingServiceHealth"/>
+    /// (when the service has its own intrinsic health check) or a
+    /// <see cref="CompositeServiceHealth"/> (when health is derived entirely
+    /// from sub-dependencies).
     /// </summary>
-    IReadOnlyList<ServiceDependency> Dependencies { get; }
-
-    /// <summary>
-    /// The effective health of this service, taking its own state and all
-    /// dependency statuses (weighted by importance) into account.
-    /// </summary>
-    HealthEvaluation Evaluate();
+    ServiceHealth Health { get; }
 }

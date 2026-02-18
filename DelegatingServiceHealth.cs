@@ -4,16 +4,21 @@ namespace Prognosis;
 /// Adapts any external or closed service into the health graph by wrapping a
 /// <c>Func&lt;HealthEvaluation&gt;</c>. Use this when you cannot (or prefer not to)
 /// modify the service class itself.
+/// <para>
+/// This is the recommended way for consumers to participate in the health graph.
+/// Embed a <see cref="DelegatingServiceHealth"/> as a property on your service
+/// class and pass it when composing the graph.
+/// </para>
 /// </summary>
-public sealed class DelegatingServiceHealth : IObservableServiceHealth
+public sealed class DelegatingServiceHealth : ServiceHealth
 {
     private readonly ServiceHealthTracker _tracker;
 
-    public string Name { get; }
+    public override string Name { get; }
 
-    public IReadOnlyList<ServiceDependency> Dependencies => _tracker.Dependencies;
+    public override IReadOnlyList<ServiceDependency> Dependencies => _tracker.Dependencies;
 
-    public IObservable<HealthStatus> StatusChanged => _tracker.StatusChanged;
+    public override IObservable<HealthStatus> StatusChanged => _tracker.StatusChanged;
 
     /// <param name="name">Display name for the service.</param>
     /// <param name="healthCheck">
@@ -37,16 +42,19 @@ public sealed class DelegatingServiceHealth : IObservableServiceHealth
     public DelegatingServiceHealth(string name)
         : this(name, () => HealthStatus.Healthy) { }
 
+    private protected override void AddDependency(ServiceHealth service, ServiceImportance importance)
+        => _tracker.DependsOn(service, importance);
+
     /// <summary>Registers a dependency on another service.</summary>
-    public DelegatingServiceHealth DependsOn(IServiceHealth service, ServiceImportance importance)
+    public new DelegatingServiceHealth DependsOn(ServiceHealth service, ServiceImportance importance)
     {
-        _tracker.DependsOn(service, importance);
+        AddDependency(service, importance);
         return this;
     }
 
-    public void NotifyChanged() => _tracker.NotifyChanged();
+    public override void NotifyChanged() => _tracker.NotifyChanged();
 
-    public HealthEvaluation Evaluate() => _tracker.Evaluate();
+    public override HealthEvaluation Evaluate() => _tracker.Evaluate();
 
     public override string ToString() => $"{Name}: {Evaluate()}";
 }
