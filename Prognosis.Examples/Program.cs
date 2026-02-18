@@ -5,7 +5,7 @@ var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
 
 // ─────────────────────────────────────────────────────────────────────
 // Pattern 1 — Implement IServiceHealth on a class you own.
-//             Embed a ServiceHealthTracker and delegate to it.
+//             Embed a DelegatingServiceHealth property — no forwarding needed.
 // ─────────────────────────────────────────────────────────────────────
 var database = new DatabaseService();
 var cache = new CacheService();
@@ -26,8 +26,8 @@ var messageQueue = new DelegatingServiceHealth("MessageQueue"); // always health
 // Pattern 3 — Pure composite aggregation (no backing service).
 // ─────────────────────────────────────────────────────────────────────
 var authService = new DelegatingServiceHealth("AuthService")
-    .DependsOn(database, ServiceImportance.Required)
-    .DependsOn(cache, ServiceImportance.Important);
+    .DependsOn(database.Health, ServiceImportance.Required)
+    .DependsOn(cache.Health, ServiceImportance.Important);
 
 var notificationSystem = new CompositeServiceHealth("NotificationSystem",
 [
@@ -109,7 +109,7 @@ cache.IsConnected = true;
 externalEmailApi.IsConnected = true;
 
 // Subscribe to an individual service's status changes.
-using var dbSubscription = database.StatusChanged.Subscribe(
+using var dbSubscription = database.Health.StatusChanged.Subscribe(
     new StatusObserver("Database"));
 
 // Subscribe to graph-level report changes via HealthMonitor.
@@ -145,52 +145,38 @@ Console.WriteLine();
 // ─────────────────────────────────────────────────────────────────────
 
 /// <summary>
-/// A service you own — implements <see cref="IObservableServiceHealth"/> directly by
-/// embedding a <see cref="ServiceHealthTracker"/>.
+/// A service you own — implement <see cref="IServiceHealth"/> and expose
+/// a <see cref="DelegatingServiceHealth"/> property. No forwarding needed.
 /// </summary>
-class DatabaseService : IObservableServiceHealth
+class DatabaseService : IServiceHealth
 {
-    private readonly ServiceHealthTracker _health;
+    public ServiceHealth Health { get; }
 
     public DatabaseService()
     {
-        _health = new ServiceHealthTracker(
+        Health = new DelegatingServiceHealth("Database",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Connection lost"));
     }
 
     public bool IsConnected { get; set; } = true;
-
-    public string Name => "Database";
-    public IReadOnlyList<ServiceDependency> Dependencies => _health.Dependencies;
-    public IObservable<HealthStatus> StatusChanged => _health.StatusChanged;
-    public void NotifyChanged() => _health.NotifyChanged();
-    public HealthEvaluation Evaluate() => _health.Evaluate();
-    public override string ToString() => $"{Name}: {Evaluate()}";
 }
 
 /// <summary>Another service you own, same pattern.</summary>
-class CacheService : IObservableServiceHealth
+class CacheService : IServiceHealth
 {
-    private readonly ServiceHealthTracker _health;
+    public ServiceHealth Health { get; }
 
     public CacheService()
     {
-        _health = new ServiceHealthTracker(
+        Health = new DelegatingServiceHealth("Cache",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Redis timeout"));
     }
 
     public bool IsConnected { get; set; } = true;
-
-    public string Name => "Cache";
-    public IReadOnlyList<ServiceDependency> Dependencies => _health.Dependencies;
-    public IObservable<HealthStatus> StatusChanged => _health.StatusChanged;
-    public void NotifyChanged() => _health.NotifyChanged();
-    public HealthEvaluation Evaluate() => _health.Evaluate();
-    public override string ToString() => $"{Name}: {Evaluate()}";
 }
 
 /// <summary>

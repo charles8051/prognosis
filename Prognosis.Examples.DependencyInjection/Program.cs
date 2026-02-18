@@ -131,81 +131,55 @@ if (graph.TryGetService<AuthService>(out var auth))
 // ─────────────────────────────────────────────────────────────────────
 
 /// <summary>
-/// A service you own — implements <see cref="IObservableServiceHealth"/> directly
-/// by embedding a <see cref="ServiceHealthTracker"/>.
+/// A service you own — implement <see cref="IServiceHealth"/> and expose
+/// a <see cref="DelegatingServiceHealth"/> property. No forwarding needed.
 /// </summary>
-class DatabaseService : IObservableServiceHealth
+class DatabaseService : IServiceHealth
 {
-    private readonly ServiceHealthTracker _health;
+    public ServiceHealth Health { get; }
 
     public DatabaseService()
     {
-        _health = new ServiceHealthTracker(
+        Health = new DelegatingServiceHealth("Database",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Connection lost"));
     }
 
     public bool IsConnected { get; set; } = true;
-
-    public string Name => "Database";
-    public IReadOnlyList<ServiceDependency> Dependencies => _health.Dependencies;
-    public IObservable<HealthStatus> StatusChanged => _health.StatusChanged;
-    public void NotifyChanged() => _health.NotifyChanged();
-    public HealthEvaluation Evaluate() => _health.Evaluate();
 }
 
 /// <summary>Another service you own, same pattern.</summary>
-class CacheService : IObservableServiceHealth
+class CacheService : IServiceHealth
 {
-    private readonly ServiceHealthTracker _health;
+    public ServiceHealth Health { get; }
 
     public CacheService()
     {
-        _health = new ServiceHealthTracker(
+        Health = new DelegatingServiceHealth("Cache",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Redis timeout"));
     }
 
     public bool IsConnected { get; set; } = true;
-
-    public string Name => "Cache";
-    public IReadOnlyList<ServiceDependency> Dependencies => _health.Dependencies;
-    public IObservable<HealthStatus> StatusChanged => _health.StatusChanged;
-    public void NotifyChanged() => _health.NotifyChanged();
-    public HealthEvaluation Evaluate() => _health.Evaluate();
 }
 
 /// <summary>
 /// A service that declares its dependencies via attributes.
 /// The scanner reads these and wires the edges automatically.
-/// Uses <see cref="ServiceHealthTracker"/> internally since
-/// <see cref="DelegatingServiceHealth"/> is sealed.
 /// </summary>
 [DependsOn<DatabaseService>(ServiceImportance.Required)]
 [DependsOn<CacheService>(ServiceImportance.Important)]
-class AuthService : IObservableServiceHealth
+class AuthService : IServiceHealth
 {
-    private readonly ServiceHealthTracker _health = new();
-
-    public string Name => "AuthService";
-    public IReadOnlyList<ServiceDependency> Dependencies => _health.Dependencies;
-    public IObservable<HealthStatus> StatusChanged => _health.StatusChanged;
-    public void NotifyChanged() => _health.NotifyChanged();
-    public HealthEvaluation Evaluate() => _health.Evaluate();
+    public ServiceHealth Health { get; } = new DelegatingServiceHealth("AuthService");
 }
 
 /// <summary>Always-healthy placeholder for demo purposes.</summary>
-class MessageQueueService : IObservableServiceHealth
+class MessageQueueService : IServiceHealth
 {
-    private readonly ServiceHealthTracker _health = new(() => HealthStatus.Healthy);
-
-    public string Name => nameof(MessageQueueService);
-    public IReadOnlyList<ServiceDependency> Dependencies => _health.Dependencies;
-    public IObservable<HealthStatus> StatusChanged => _health.StatusChanged;
-    public void NotifyChanged() => _health.NotifyChanged();
-    public HealthEvaluation Evaluate() => _health.Evaluate();
+    public ServiceHealth Health { get; } = new DelegatingServiceHealth(nameof(MessageQueueService));
 }
 
 /// <summary>

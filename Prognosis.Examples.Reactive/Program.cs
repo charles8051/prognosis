@@ -18,8 +18,8 @@ var emailHealth = new DelegatingServiceHealth("EmailProvider",
 var messageQueue = new DelegatingServiceHealth("MessageQueue");
 
 var authService = new DelegatingServiceHealth("AuthService")
-    .DependsOn(database, ServiceImportance.Required)
-    .DependsOn(cache, ServiceImportance.Important);
+    .DependsOn(database.Health, ServiceImportance.Required)
+    .DependsOn(cache.Health, ServiceImportance.Important);
 
 var notificationSystem = new CompositeServiceHealth("NotificationSystem",
 [
@@ -33,7 +33,7 @@ var app = new CompositeServiceHealth("Application",
     new ServiceDependency(notificationSystem, ServiceImportance.Important),
 ]);
 
-var roots = new IServiceHealth[] { app };
+var roots = new ServiceHealth[] { app };
 
 // ─────────────────────────────────────────────────────────────────────
 // PollHealthReport — timer-driven, emits HealthReport on change.
@@ -80,12 +80,12 @@ using var observeSubscription = roots
 // throttle elapses, then a single-pass evaluation runs.
 Console.WriteLine("  Taking cache offline...");
 cache.IsConnected = false;
-cache.NotifyChanged(); // push the change
+cache.Health.NotifyChanged(); // push the change
 await Task.Delay(TimeSpan.FromSeconds(1));
 
 Console.WriteLine("  Restoring cache...");
 cache.IsConnected = true;
-cache.NotifyChanged();
+cache.Health.NotifyChanged();
 await Task.Delay(TimeSpan.FromSeconds(1));
 Console.WriteLine();
 
@@ -131,46 +131,34 @@ Console.WriteLine("Done.");
 // Example service classes (self-contained, same as core example)
 // ─────────────────────────────────────────────────────────────────────
 
-class DatabaseService : IObservableServiceHealth
+class DatabaseService : IServiceHealth
 {
-    private readonly ServiceHealthTracker _health;
+    public ServiceHealth Health { get; }
 
     public DatabaseService()
     {
-        _health = new ServiceHealthTracker(
+        Health = new DelegatingServiceHealth("Database",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Connection lost"));
     }
 
     public bool IsConnected { get; set; } = true;
-
-    public string Name => "Database";
-    public IReadOnlyList<ServiceDependency> Dependencies => _health.Dependencies;
-    public IObservable<HealthStatus> StatusChanged => _health.StatusChanged;
-    public void NotifyChanged() => _health.NotifyChanged();
-    public HealthEvaluation Evaluate() => _health.Evaluate();
 }
 
-class CacheService : IObservableServiceHealth
+class CacheService : IServiceHealth
 {
-    private readonly ServiceHealthTracker _health;
+    public ServiceHealth Health { get; }
 
     public CacheService()
     {
-        _health = new ServiceHealthTracker(
+        Health = new DelegatingServiceHealth("Cache",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Redis timeout"));
     }
 
     public bool IsConnected { get; set; } = true;
-
-    public string Name => "Cache";
-    public IReadOnlyList<ServiceDependency> Dependencies => _health.Dependencies;
-    public IObservable<HealthStatus> StatusChanged => _health.StatusChanged;
-    public void NotifyChanged() => _health.NotifyChanged();
-    public HealthEvaluation Evaluate() => _health.Evaluate();
 }
 
 class ThirdPartyEmailClient
