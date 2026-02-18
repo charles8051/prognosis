@@ -19,7 +19,7 @@ public sealed class PrognosisBuilder
     internal PrognosisBuilder(IServiceCollection services) => Services = services;
 
     /// <summary>
-    /// Scans the given assemblies for all concrete <see cref="IServiceHealth"/>
+    /// Scans the given assemblies for all concrete <see cref="IHealthAware"/>
     /// implementations and registers them as singletons. Also reads
     /// <see cref="DependsOnAttribute"/> to auto-wire dependency edges.
     /// </summary>
@@ -131,7 +131,7 @@ public sealed class PrognosisBuilder
 internal sealed record EdgeDefinition(
     Type? ServiceType,
     string? ServiceName,
-    ServiceImportance Importance);
+    Importance Importance);
 
 internal sealed record CompositeDefinition(
     string Name,

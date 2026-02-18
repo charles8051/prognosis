@@ -17,7 +17,7 @@ Polls the full health graph on a fixed interval, notifying all observable servic
 ```csharp
 using Prognosis.Reactive;
 
-var roots = new IServiceHealth[] { app };
+var roots = new IHealthAware[] { app };
 
 roots.PollHealthReport(TimeSpan.FromSeconds(30))
     .Subscribe(report =>
@@ -38,7 +38,7 @@ Only leaf nodes are observed as triggers since parent status changes are always 
 
 ### `SelectServiceChanges` — diff-based change stream
 
-Projects consecutive `HealthReport` emissions into individual `ServiceStatusChange` events by diffing the reports. Composable with any report source:
+Projects consecutive `HealthReport` emissions into individual `StatusChange` events by diffing the reports. Composable with any report source:
 
 ```csharp
 roots.PollHealthReport(TimeSpan.FromSeconds(30))
@@ -47,7 +47,7 @@ roots.PollHealthReport(TimeSpan.FromSeconds(30))
         Console.WriteLine($"{change.Name}: {change.Previous} → {change.Current}"));
 ```
 
-Each `ServiceStatusChange` includes the service name, previous status, current status, and optional reason — derived from `HealthAggregator.Diff` in the core library.
+Each `StatusChange` includes the service name, previous status, current status, and optional reason — derived from `HealthAggregator.Diff` in the core library.
 
 ### Sharing patterns
 

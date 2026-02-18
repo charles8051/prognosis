@@ -14,4 +14,4 @@ namespace Prognosis;
 /// </remarks>
 public delegate HealthEvaluation AggregationStrategy(
     HealthEvaluation intrinsic,
-    IReadOnlyList<ServiceDependency> dependencies);
+    IReadOnlyList<HealthDependency> dependencies);

@@ -15,7 +15,7 @@ builder.Services.AddSingleton<ThirdPartyEmailClient>();
 
 builder.Services.AddPrognosis(health =>
 {
-    // Scan the assembly for all IServiceHealth implementations.
+    // Scan the assembly for all IHealthAware implementations.
     // DatabaseService and CacheService are discovered automatically.
     // [DependsOn<T>] attributes on those classes are read and wired.
     health.ScanForServices(typeof(Program).Assembly);
@@ -31,14 +31,14 @@ builder.Services.AddPrognosis(health =>
     // Use constants or nameof to avoid magic strings — refactoring-safe.
     health.AddComposite(ServiceNames.NotificationSystem, n =>
     {
-        n.DependsOn(nameof(MessageQueueService), ServiceImportance.Required);
-        n.DependsOn("EmailProvider", ServiceImportance.Optional);
+        n.DependsOn(nameof(MessageQueueService), Importance.Required);
+        n.DependsOn("EmailProvider", Importance.Optional);
     });
 
     health.AddComposite(ServiceNames.Application, app =>
     {
-        app.DependsOn<AuthService>(ServiceImportance.Required);
-        app.DependsOn(ServiceNames.NotificationSystem, ServiceImportance.Important);
+        app.DependsOn<AuthService>(Importance.Required);
+        app.DependsOn(ServiceNames.NotificationSystem, Importance.Important);
     });
 
     // Mark the top-level node as a root for monitoring.
@@ -131,16 +131,16 @@ if (graph.TryGetService<AuthService>(out var auth))
 // ─────────────────────────────────────────────────────────────────────
 
 /// <summary>
-/// A service you own — implement <see cref="IServiceHealth"/> and expose
-/// a <see cref="DelegatingServiceHealth"/> property. No forwarding needed.
+/// A service you own — implement <see cref="IHealthAware"/> and expose
+/// a <see cref="HealthCheck"/> property. No forwarding needed.
 /// </summary>
-class DatabaseService : IServiceHealth
+class DatabaseService : IHealthAware
 {
-    public ServiceHealth Health { get; }
+    public HealthNode Health { get; }
 
     public DatabaseService()
     {
-        Health = new DelegatingServiceHealth("Database",
+        Health = new HealthCheck("Database",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Connection lost"));
@@ -150,13 +150,13 @@ class DatabaseService : IServiceHealth
 }
 
 /// <summary>Another service you own, same pattern.</summary>
-class CacheService : IServiceHealth
+class CacheService : IHealthAware
 {
-    public ServiceHealth Health { get; }
+    public HealthNode Health { get; }
 
     public CacheService()
     {
-        Health = new DelegatingServiceHealth("Cache",
+        Health = new HealthCheck("Cache",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Redis timeout"));
@@ -169,21 +169,21 @@ class CacheService : IServiceHealth
 /// A service that declares its dependencies via attributes.
 /// The scanner reads these and wires the edges automatically.
 /// </summary>
-[DependsOn<DatabaseService>(ServiceImportance.Required)]
-[DependsOn<CacheService>(ServiceImportance.Important)]
-class AuthService : IServiceHealth
+[DependsOn<DatabaseService>(Importance.Required)]
+[DependsOn<CacheService>(Importance.Important)]
+class AuthService : IHealthAware
 {
-    public ServiceHealth Health { get; } = new DelegatingServiceHealth("AuthService");
+    public HealthNode Health { get; } = new HealthCheck("AuthService");
 }
 
 /// <summary>Always-healthy placeholder for demo purposes.</summary>
-class MessageQueueService : IServiceHealth
+class MessageQueueService : IHealthAware
 {
-    public ServiceHealth Health { get; } = new DelegatingServiceHealth(nameof(MessageQueueService));
+    public HealthNode Health { get; } = new HealthCheck(nameof(MessageQueueService));
 }
 
 /// <summary>
-/// A third-party class you cannot modify — no <see cref="IServiceHealth"/> on it.
+/// A third-party class you cannot modify — no <see cref="IHealthAware"/> on it.
 /// Wrapped via <c>AddDelegate&lt;T&gt;</c> in the builder above.
 /// </summary>
 class ThirdPartyEmailClient

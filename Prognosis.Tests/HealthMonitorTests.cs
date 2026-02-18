@@ -13,7 +13,7 @@ public class HealthMonitorTests : IAsyncDisposable
     [Fact]
     public void Poll_EmitsInitialReport()
     {
-        var svc = new DelegatingServiceHealth("Svc");
+        var svc = new HealthCheck("Svc");
         _monitor = new HealthMonitor(new[] { svc }, TimeSpan.FromHours(1));
 
         var reports = new List<HealthReport>();
@@ -28,7 +28,7 @@ public class HealthMonitorTests : IAsyncDisposable
     [Fact]
     public void Poll_SameState_SuppressesDuplicate()
     {
-        var svc = new DelegatingServiceHealth("Svc");
+        var svc = new HealthCheck("Svc");
         _monitor = new HealthMonitor(new[] { svc }, TimeSpan.FromHours(1));
 
         var reports = new List<HealthReport>();
@@ -44,7 +44,7 @@ public class HealthMonitorTests : IAsyncDisposable
     public void Poll_StateChanges_EmitsNewReport()
     {
         var isHealthy = true;
-        var svc = new DelegatingServiceHealth("Svc",
+        var svc = new HealthCheck("Svc",
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
         _monitor = new HealthMonitor(new[] { svc }, TimeSpan.FromHours(1));
 
@@ -63,7 +63,7 @@ public class HealthMonitorTests : IAsyncDisposable
     [Fact]
     public void Poll_NotifiesObservableServices()
     {
-        var svc = new DelegatingServiceHealth("Svc",
+        var svc = new HealthCheck("Svc",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
         _monitor = new HealthMonitor(new[] { svc }, TimeSpan.FromHours(1));
 
@@ -79,7 +79,7 @@ public class HealthMonitorTests : IAsyncDisposable
     [Fact]
     public void ReportChanged_MultipleSubscribers_AllReceive()
     {
-        var svc = new DelegatingServiceHealth("Svc");
+        var svc = new HealthCheck("Svc");
         _monitor = new HealthMonitor(new[] { svc }, TimeSpan.FromHours(1));
 
         var reports1 = new List<HealthReport>();
@@ -96,7 +96,7 @@ public class HealthMonitorTests : IAsyncDisposable
     [Fact]
     public async Task DisposeAsync_StopsPolling()
     {
-        var svc = new DelegatingServiceHealth("Svc");
+        var svc = new HealthCheck("Svc");
         _monitor = new HealthMonitor(new[] { svc }, TimeSpan.FromMilliseconds(50));
 
         await _monitor.DisposeAsync();

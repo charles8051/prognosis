@@ -23,10 +23,10 @@ public enum ShareStrategy
     ReplayLatest
 }
 
-public static class ServiceHealthRxShared
+public static class HealthRxShared
 {
     public static IObservable<HealthReport> CreateSharedReportStream(
-        this IReadOnlyList<ServiceHealth> roots,
+        this IReadOnlyList<HealthNode> roots,
         TimeSpan interval,
         ShareStrategy strategy = ShareStrategy.RefCount)
     {
@@ -39,7 +39,7 @@ public static class ServiceHealthRxShared
     }
 
     public static IObservable<HealthReport> CreateSharedObserveStream(
-        this IReadOnlyList<ServiceHealth> roots,
+        this IReadOnlyList<HealthNode> roots,
         TimeSpan throttle,
         ShareStrategy strategy = ShareStrategy.RefCount)
     {

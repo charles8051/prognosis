@@ -3,7 +3,7 @@ namespace Prognosis;
 /// <summary>
 /// A point-in-time capture of a single service's evaluated health.
 /// </summary>
-public sealed record ServiceSnapshot(string Name, HealthStatus Status, int DependencyCount, string? Reason = null)
+public sealed record HealthSnapshot(string Name, HealthStatus Status, int DependencyCount, string? Reason = null)
 {
     public override string ToString()
     {

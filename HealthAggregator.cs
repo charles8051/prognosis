@@ -8,11 +8,11 @@ public static class HealthAggregator
 {
     /// <summary>
     /// Computes the worst-case health across the intrinsic evaluation and every
-    /// dependency, with the propagation rules driven by <see cref="ServiceImportance"/>.
+    /// dependency, with the propagation rules driven by <see cref="Importance"/>.
     /// </summary>
     public static HealthEvaluation Aggregate(
         HealthEvaluation intrinsic,
-        IReadOnlyList<ServiceDependency> dependencies)
+        IReadOnlyList<HealthDependency> dependencies)
     {
         var effective = intrinsic.Status;
         string? reason = intrinsic.Reason;
@@ -24,17 +24,17 @@ public static class HealthAggregator
             var contribution = dep.Importance switch
             {
                 // Required: the dependency's status passes through as-is.
-                ServiceImportance.Required => depEval.Status,
+                Importance.Required => depEval.Status,
 
                 // Important: unhealthy is capped at degraded; unknown and degraded pass through.
-                ServiceImportance.Important => depEval.Status switch
+                Importance.Important => depEval.Status switch
                 {
                     HealthStatus.Unhealthy => HealthStatus.Degraded,
                     _ => depEval.Status,
                 },
 
                 // Optional: never affects the parent.
-                ServiceImportance.Optional => HealthStatus.Healthy,
+                Importance.Optional => HealthStatus.Healthy,
 
                 _ => HealthStatus.Healthy,
             };
@@ -64,12 +64,12 @@ public static class HealthAggregator
     /// </remarks>
     public static HealthEvaluation AggregateWithRedundancy(
         HealthEvaluation intrinsic,
-        IReadOnlyList<ServiceDependency> dependencies)
+        IReadOnlyList<HealthDependency> dependencies)
     {
         // First pass: evaluate all dependencies and determine whether any
         // non-optional dependency is healthy.
         var depCount = dependencies.Count;
-        var evals = new (ServiceDependency dep, HealthEvaluation eval)[depCount];
+        var evals = new (HealthDependency dep, HealthEvaluation eval)[depCount];
         var hasHealthyNonOptional = false;
 
         for (var i = 0; i < depCount; i++)
@@ -78,7 +78,7 @@ public static class HealthAggregator
             var eval = dep.Service.Evaluate();
             evals[i] = (dep, eval);
 
-            if (dep.Importance != ServiceImportance.Optional && eval.Status == HealthStatus.Healthy)
+            if (dep.Importance != Importance.Optional && eval.Status == HealthStatus.Healthy)
                 hasHealthyNonOptional = true;
         }
 
@@ -92,18 +92,18 @@ public static class HealthAggregator
 
             var contribution = dep.Importance switch
             {
-                ServiceImportance.Required when depEval.Status == HealthStatus.Unhealthy && hasHealthyNonOptional
+                Importance.Required when depEval.Status == HealthStatus.Unhealthy && hasHealthyNonOptional
                     => HealthStatus.Degraded,
-                ServiceImportance.Required
+                Importance.Required
                     => depEval.Status,
 
-                ServiceImportance.Important => depEval.Status switch
+                Importance.Important => depEval.Status switch
                 {
                     HealthStatus.Unhealthy => HealthStatus.Degraded,
                     _ => depEval.Status,
                 },
 
-                ServiceImportance.Optional => HealthStatus.Healthy,
+                Importance.Optional => HealthStatus.Healthy,
 
                 _ => HealthStatus.Healthy,
             };
@@ -124,7 +124,7 @@ public static class HealthAggregator
     /// Evaluates the full graph and packages the result as a serialization-ready
     /// <see cref="HealthReport"/> with a timestamp and overall status.
     /// </summary>
-    public static HealthReport CreateReport(params ServiceHealth[] roots)
+    public static HealthReport CreateReport(params HealthNode[] roots)
     {
         var services = EvaluateAll(roots);
         var overall = services.Count > 0
@@ -139,17 +139,17 @@ public static class HealthAggregator
     /// whose <see cref="HealthStatus"/> differs between them, including
     /// services that appeared in or disappeared from the graph.
     /// </summary>
-    public static IReadOnlyList<ServiceStatusChange> Diff(
+    public static IReadOnlyList<StatusChange> Diff(
         HealthReport previous,
         HealthReport current)
     {
-        var previousByName = new Dictionary<string, ServiceSnapshot>(previous.Services.Count);
+        var previousByName = new Dictionary<string, HealthSnapshot>(previous.Services.Count);
         foreach (var snapshot in previous.Services)
         {
             previousByName[snapshot.Name] = snapshot;
         }
 
-        var changes = new List<ServiceStatusChange>();
+        var changes = new List<StatusChange>();
 
         foreach (var curr in current.Services)
         {
@@ -157,7 +157,7 @@ public static class HealthAggregator
             {
                 if (prev.Status != curr.Status)
                 {
-                    changes.Add(new ServiceStatusChange(
+                    changes.Add(new StatusChange(
                         curr.Name, prev.Status, curr.Status, curr.Reason));
                 }
 
@@ -166,7 +166,7 @@ public static class HealthAggregator
             else
             {
                 // New service appeared in the graph.
-                changes.Add(new ServiceStatusChange(
+                changes.Add(new StatusChange(
                     curr.Name, HealthStatus.Unknown, curr.Status, curr.Reason));
             }
         }
@@ -174,7 +174,7 @@ public static class HealthAggregator
         // Services that were in the previous report but not the current one.
         foreach (var removed in previousByName.Values)
         {
-            changes.Add(new ServiceStatusChange(
+            changes.Add(new StatusChange(
                 removed.Name, removed.Status, HealthStatus.Unknown, "Service removed from graph"));
         }
 
@@ -186,10 +186,10 @@ public static class HealthAggregator
     /// service's evaluated status. Results are in depth-first post-order
     /// (leaves before their parents) and each service appears at most once.
     /// </summary>
-    public static IReadOnlyList<ServiceSnapshot> EvaluateAll(params ServiceHealth[] roots)
+    public static IReadOnlyList<HealthSnapshot> EvaluateAll(params HealthNode[] roots)
     {
-        var visited = new HashSet<ServiceHealth>(ReferenceEqualityComparer.Instance);
-        var results = new List<ServiceSnapshot>();
+        var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+        var results = new List<HealthSnapshot>();
 
         foreach (var root in roots)
         {
@@ -204,12 +204,12 @@ public static class HealthAggregator
     /// ordered list of service names (e.g. ["A", "B", "A"]).
     /// Returns an empty list when the graph is acyclic.
     /// </summary>
-    public static IReadOnlyList<IReadOnlyList<string>> DetectCycles(params ServiceHealth[] roots)
+    public static IReadOnlyList<IReadOnlyList<string>> DetectCycles(params HealthNode[] roots)
     {
         // Gray = currently on the DFS stack, Black = fully explored.
-        var gray = new HashSet<ServiceHealth>(ReferenceEqualityComparer.Instance);
-        var black = new HashSet<ServiceHealth>(ReferenceEqualityComparer.Instance);
-        var path = new List<ServiceHealth>();
+        var gray = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+        var black = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+        var path = new List<HealthNode>();
         var cycles = new List<IReadOnlyList<string>>();
 
         foreach (var root in roots)
@@ -221,10 +221,10 @@ public static class HealthAggregator
     }
 
     private static void DetectCyclesDfs(
-        ServiceHealth service,
-        HashSet<ServiceHealth> gray,
-        HashSet<ServiceHealth> black,
-        List<ServiceHealth> path,
+        HealthNode service,
+        HashSet<HealthNode> gray,
+        HashSet<HealthNode> black,
+        List<HealthNode> path,
         List<IReadOnlyList<string>> cycles)
     {
         if (black.Contains(service))
@@ -258,19 +258,19 @@ public static class HealthAggregator
 
     /// <summary>
     /// Walks the dependency graph depth-first from the given roots and calls
-    /// <see cref="ServiceHealth.NotifyChanged"/> on every node encountered.
+    /// <see cref="HealthNode.NotifyChanged"/> on every node encountered.
     /// Leaves are notified before their parents.
     /// </summary>
-    public static void NotifyGraph(params ServiceHealth[] roots)
+    public static void NotifyGraph(params HealthNode[] roots)
     {
-        var visited = new HashSet<ServiceHealth>(ReferenceEqualityComparer.Instance);
+        var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
         foreach (var root in roots)
         {
             NotifyGraphDfs(root, visited);
         }
     }
 
-    private static void NotifyGraphDfs(ServiceHealth service, HashSet<ServiceHealth> visited)
+    private static void NotifyGraphDfs(HealthNode service, HashSet<HealthNode> visited)
     {
         if (!visited.Add(service))
             return;
@@ -285,9 +285,9 @@ public static class HealthAggregator
     }
 
     private static void Walk(
-        ServiceHealth service,
-        HashSet<ServiceHealth> visited,
-        List<ServiceSnapshot> results)
+        HealthNode service,
+        HashSet<HealthNode> visited,
+        List<HealthSnapshot> results)
     {
         if (!visited.Add(service))
             return;
@@ -298,6 +298,6 @@ public static class HealthAggregator
         }
 
         var eval = service.Evaluate();
-        results.Add(new ServiceSnapshot(service.Name, eval.Status, service.Dependencies.Count, eval.Reason));
+        results.Add(new HealthSnapshot(service.Name, eval.Status, service.Dependencies.Count, eval.Reason));
     }
 }

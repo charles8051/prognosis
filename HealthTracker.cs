@@ -2,23 +2,23 @@ namespace Prognosis;
 
 /// <summary>
 /// A composable helper that any existing service can embed to participate in the
-/// health graph via delegation. The owning class implements <see cref="ServiceHealth"/>
-/// and forwards <see cref="ServiceHealth.Dependencies"/> and <see cref="ServiceHealth.Evaluate"/>
+/// health graph via delegation. The owning class implements <see cref="HealthNode"/>
+/// and forwards <see cref="HealthNode.Dependencies"/> and <see cref="HealthNode.Evaluate"/>
 /// to this tracker.
 /// </summary>
 /// <remarks>
-/// Usage: embed a <see cref="ServiceHealthTracker"/> as a field, supply a
+/// Usage: embed a <see cref="HealthTracker"/> as a field, supply a
 /// <c>Func&lt;HealthStatus&gt;</c> that returns the service's own intrinsic health,
 /// then delegate the interface members.
 /// </remarks>
-public sealed class ServiceHealthTracker
+public sealed class HealthTracker
 {
     [ThreadStatic]
-    private static HashSet<ServiceHealthTracker>? s_evaluating;
+    private static HashSet<HealthTracker>? s_evaluating;
 
     private readonly Func<HealthEvaluation> _intrinsicCheck;
     private readonly AggregationStrategy _aggregator;
-    private readonly List<ServiceDependency> _dependencies = new();
+    private readonly List<HealthDependency> _dependencies = new();
     private readonly object _lock = new();
     private readonly List<IObserver<HealthStatus>> _observers = new();
     private HealthStatus? _lastEmitted;
@@ -32,7 +32,7 @@ public sealed class ServiceHealthTracker
     /// Strategy used to combine intrinsic health with dependency evaluations.
     /// Defaults to <see cref="HealthAggregator.Aggregate"/> when <see langword="null"/>.
     /// </param>
-    public ServiceHealthTracker(Func<HealthEvaluation> intrinsicCheck, AggregationStrategy? aggregator = null)
+    public HealthTracker(Func<HealthEvaluation> intrinsicCheck, AggregationStrategy? aggregator = null)
     {
         _intrinsicCheck = intrinsicCheck;
         _aggregator = aggregator ?? HealthAggregator.Aggregate;
@@ -40,10 +40,10 @@ public sealed class ServiceHealthTracker
     }
 
     /// <summary>Shortcut: intrinsic status starts as <see cref="HealthStatus.Unknown"/> until first real check.</summary>
-    public ServiceHealthTracker()
+    public HealthTracker()
         : this(() => HealthStatus.Unknown) { }
 
-    public IReadOnlyList<ServiceDependency> Dependencies => _dependencies;
+    public IReadOnlyList<HealthDependency> Dependencies => _dependencies;
 
     /// <summary>
     /// An observable that emits the new <see cref="HealthStatus"/> whenever
@@ -60,13 +60,13 @@ public sealed class ServiceHealthTracker
     /// <exception cref="InvalidOperationException">
     /// Thrown if called after <see cref="Evaluate"/> has been invoked.
     /// </exception>
-    public ServiceHealthTracker DependsOn(ServiceHealth service, ServiceImportance importance)
+    public HealthTracker DependsOn(HealthNode service, Importance importance)
     {
         if (_frozen)
             throw new InvalidOperationException(
                 "Dependencies cannot be modified after evaluation has started.");
 
-        _dependencies.Add(new ServiceDependency(service, importance));
+        _dependencies.Add(new HealthDependency(service, importance));
         return this;
     }
 
@@ -132,7 +132,7 @@ public sealed class ServiceHealthTracker
         }
     }
 
-    private sealed class StatusObservable(ServiceHealthTracker tracker) : IObservable<HealthStatus>
+    private sealed class StatusObservable(HealthTracker tracker) : IObservable<HealthStatus>
     {
         public IDisposable Subscribe(IObserver<HealthStatus> observer)
         {
@@ -141,7 +141,7 @@ public sealed class ServiceHealthTracker
         }
     }
 
-    private sealed class Unsubscriber(ServiceHealthTracker tracker, IObserver<HealthStatus> observer) : IDisposable
+    private sealed class Unsubscriber(HealthTracker tracker, IObserver<HealthStatus> observer) : IDisposable
     {
         public void Dispose() => tracker.RemoveObserver(observer);
     }

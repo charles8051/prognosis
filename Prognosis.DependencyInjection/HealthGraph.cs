@@ -17,9 +17,9 @@ namespace Prognosis.DependencyInjection;
 /// </remarks>
 public sealed class HealthGraph
 {
-    private readonly Dictionary<string, ServiceHealth> _services;
+    private readonly Dictionary<string, HealthNode> _services;
 
-    internal HealthGraph(ServiceHealth[] roots, Dictionary<string, ServiceHealth> services)
+    internal HealthGraph(HealthNode[] roots, Dictionary<string, HealthNode> services)
     {
         Roots = roots;
         _services = services;
@@ -31,38 +31,38 @@ public sealed class HealthGraph
     /// <see cref="HealthAggregator.EvaluateAll"/>, or the Rx
     /// <c>PollHealthReport</c> / <c>ObserveHealthReport</c> extensions.
     /// </summary>
-    public ServiceHealth[] Roots { get; }
+    public HealthNode[] Roots { get; }
 
     /// <summary>
-    /// Looks up any node in the graph by its <see cref="ServiceHealth.Name"/>.
+    /// Looks up any node in the graph by its <see cref="HealthNode.Name"/>.
     /// </summary>
     /// <exception cref="KeyNotFoundException">
     /// No service with the given name exists in the graph.
     /// </exception>
-    public ServiceHealth this[string name] => _services[name];
+    public HealthNode this[string name] => _services[name];
 
     /// <summary>
     /// Attempts to look up a node by name, returning <see langword="false"/>
     /// if no service with the given name exists.
     /// </summary>
-    public bool TryGetService(string name, out ServiceHealth service) =>
+    public bool TryGetService(string name, out HealthNode service) =>
         _services.TryGetValue(name, out service!);
 
     /// <summary>
-    /// Looks up a service whose <see cref="ServiceHealth.Name"/> matches
+    /// Looks up a service whose <see cref="HealthNode.Name"/> matches
     /// <c>typeof(T).Name</c>. This is a convenience for the common convention
     /// where service names are derived from their concrete types.
     /// </summary>
     /// <typeparam name="T">
     /// The type whose <see cref="System.Type.Name"/> is used as the lookup key.
     /// </typeparam>
-    public bool TryGetService<T>(out ServiceHealth service) where T : class, IServiceHealth =>
+    public bool TryGetService<T>(out HealthNode service) where T : class, IHealthAware =>
         _services.TryGetValue(typeof(T).Name, out service!);
 
     /// <summary>
     /// All named services in the graph (leaves, composites, and delegates).
     /// </summary>
-    public IEnumerable<ServiceHealth> Services => _services.Values;
+    public IEnumerable<HealthNode> Services => _services.Values;
 
     /// <summary>Convenience: creates a point-in-time report from all roots.</summary>
     public HealthReport CreateReport() => HealthAggregator.CreateReport(Roots);

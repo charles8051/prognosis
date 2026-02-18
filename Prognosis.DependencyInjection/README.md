@@ -19,8 +19,8 @@ builder.Services.AddPrognosis(health =>
 
     health.AddComposite("Application", app =>
     {
-        app.DependsOn<AuthService>(ServiceImportance.Required);
-        app.DependsOn("NotificationSystem", ServiceImportance.Important);
+        app.DependsOn<AuthService>(Importance.Required);
+        app.DependsOn("NotificationSystem", Importance.Important);
     });
 
     health.AddRoots("Application");
@@ -32,17 +32,17 @@ builder.Services.AddPrognosis(health =>
 
 ### Assembly scanning
 
-`ScanForServices` discovers all concrete `IServiceHealth` implementations in the given assemblies and registers them as singletons. It also reads `[DependsOn<T>]` attributes to auto-wire dependency edges:
+`ScanForServices` discovers all concrete `IHealthAware` implementations in the given assemblies and registers them as singletons. It also reads `[DependsOn<T>]` attributes to auto-wire dependency edges:
 
 ```csharp
-[DependsOn<DatabaseService>(ServiceImportance.Required)]
-[DependsOn<CacheService>(ServiceImportance.Important)]
-class AuthService : IObservableServiceHealth
+[DependsOn<DatabaseService>(Importance.Required)]
+[DependsOn<CacheService>(Importance.Important)]
+class AuthService : IObservableHealthNode
 {
-    private readonly ServiceHealthTracker _health = new();
+    private readonly HealthTracker _health = new();
 
     public string Name => "AuthService";
-    public IReadOnlyList<ServiceDependency> Dependencies => _health.Dependencies;
+    public IReadOnlyList<HealthDependency> Dependencies => _health.Dependencies;
     public IObservable<HealthStatus> StatusChanged => _health.StatusChanged;
     public void NotifyChanged() => _health.NotifyChanged();
     public HealthEvaluation Evaluate() => _health.Evaluate();
@@ -56,8 +56,8 @@ Define virtual aggregation points whose health is derived entirely from their de
 ```csharp
 health.AddComposite("NotificationSystem", n =>
 {
-    n.DependsOn("MessageQueue", ServiceImportance.Required);
-    n.DependsOn("EmailProvider", ServiceImportance.Optional);
+    n.DependsOn("MessageQueue", Importance.Required);
+    n.DependsOn("EmailProvider", Importance.Optional);
 });
 ```
 
@@ -93,7 +93,7 @@ var graph = serviceProvider.GetRequiredService<HealthGraph>();
 HealthReport report = graph.CreateReport();
 
 // Look up a service by name.
-IServiceHealth db = graph["Database"];
+IHealthAware db = graph["Database"];
 
 // Enumerate all services.
 foreach (var svc in graph.Services)
@@ -102,7 +102,7 @@ foreach (var svc in graph.Services)
 }
 ```
 
-The `Roots` property is `IServiceHealth[]`, directly compatible with the Rx extensions in `Prognosis.Reactive`:
+The `Roots` property is `IHealthAware[]`, directly compatible with the Rx extensions in `Prognosis.Reactive`:
 
 ```csharp
 graph.Roots.PollHealthReport(TimeSpan.FromSeconds(30)).Subscribe(...);

@@ -7,4 +7,4 @@ namespace Prognosis;
 public sealed record HealthReport(
     DateTimeOffset Timestamp,
     HealthStatus OverallStatus,
-    IReadOnlyList<ServiceSnapshot> Services);
+    IReadOnlyList<HealthSnapshot> Services);

@@ -4,13 +4,13 @@ namespace Prognosis;
 /// A virtual service whose health is derived entirely from its dependencies.
 /// It has no underlying service of its own — it is a named aggregation point.
 /// </summary>
-public sealed class CompositeServiceHealth : ServiceHealth
+public sealed class HealthGroup : HealthNode
 {
-    private readonly ServiceHealthTracker _tracker;
+    private readonly HealthTracker _tracker;
 
     public override string Name { get; }
 
-    public override IReadOnlyList<ServiceDependency> Dependencies => _tracker.Dependencies;
+    public override IReadOnlyList<HealthDependency> Dependencies => _tracker.Dependencies;
 
     public override IObservable<HealthStatus> StatusChanged => _tracker.StatusChanged;
 
@@ -19,18 +19,18 @@ public sealed class CompositeServiceHealth : ServiceHealth
     /// Strategy used to combine dependency evaluations into an effective health.
     /// Defaults to <see cref="HealthAggregator.Aggregate"/> when <see langword="null"/>.
     /// </param>
-    public CompositeServiceHealth(string name, AggregationStrategy? aggregator = null)
+    public HealthGroup(string name, AggregationStrategy? aggregator = null)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("A composite service must have a name.", nameof(name));
 
         Name = name;
-        _tracker = new ServiceHealthTracker(() => HealthStatus.Healthy, aggregator);
+        _tracker = new HealthTracker(() => HealthStatus.Healthy, aggregator);
     }
 
-    public CompositeServiceHealth(
+    public HealthGroup(
         string name,
-        IReadOnlyList<ServiceDependency> dependencies,
+        IReadOnlyList<HealthDependency> dependencies,
         AggregationStrategy? aggregator = null)
         : this(name, aggregator)
     {
@@ -40,11 +40,11 @@ public sealed class CompositeServiceHealth : ServiceHealth
         }
     }
 
-    private protected override void AddDependency(ServiceHealth service, ServiceImportance importance)
+    private protected override void AddDependency(HealthNode service, Importance importance)
         => _tracker.DependsOn(service, importance);
 
     /// <summary>Registers a dependency on another service.</summary>
-    public new CompositeServiceHealth DependsOn(ServiceHealth service, ServiceImportance importance)
+    public new HealthGroup DependsOn(HealthNode service, Importance importance)
     {
         AddDependency(service, importance);
         return this;

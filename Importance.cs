@@ -6,7 +6,7 @@ namespace Prognosis;
 /// Describes how important a dependency is to its parent service.
 /// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter))]
-public enum ServiceImportance
+public enum Importance
 {
     /// <summary>
     /// The parent cannot function without this dependency.

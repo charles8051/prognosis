@@ -1,14 +1,14 @@
 namespace Prognosis.Tests;
 
-public class CompositeServiceHealthTests
+public class HealthGroupTests
 {
     [Fact]
     public void Evaluate_AllHealthy_ReturnsHealthy()
     {
-        var dep = new DelegatingServiceHealth("Dep");
-        var composite = new CompositeServiceHealth("Comp", new[]
+        var dep = new HealthCheck("Dep");
+        var composite = new HealthGroup("Comp", new[]
         {
-            new ServiceDependency(dep, ServiceImportance.Required),
+            new HealthDependency(dep, Importance.Required),
         });
 
         Assert.Equal(HealthStatus.Healthy, composite.Evaluate().Status);
@@ -17,11 +17,11 @@ public class CompositeServiceHealthTests
     [Fact]
     public void Evaluate_UnhealthyRequired_ReturnsUnhealthy()
     {
-        var dep = new DelegatingServiceHealth("Dep",
+        var dep = new HealthCheck("Dep",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var composite = new CompositeServiceHealth("Comp", new[]
+        var composite = new HealthGroup("Comp", new[]
         {
-            new ServiceDependency(dep, ServiceImportance.Required),
+            new HealthDependency(dep, Importance.Required),
         });
 
         Assert.Equal(HealthStatus.Unhealthy, composite.Evaluate().Status);
@@ -30,17 +30,17 @@ public class CompositeServiceHealthTests
     [Fact]
     public void Evaluate_MixedImportance_PropagatesCorrectly()
     {
-        var required = new DelegatingServiceHealth("Req");
-        var important = new DelegatingServiceHealth("Imp",
+        var required = new HealthCheck("Req");
+        var important = new HealthCheck("Imp",
             () => HealthStatus.Unhealthy);
-        var optional = new DelegatingServiceHealth("Opt",
+        var optional = new HealthCheck("Opt",
             () => HealthStatus.Unhealthy);
 
-        var composite = new CompositeServiceHealth("Comp", new[]
+        var composite = new HealthGroup("Comp", new[]
         {
-            new ServiceDependency(required, ServiceImportance.Required),
-            new ServiceDependency(important, ServiceImportance.Important),
-            new ServiceDependency(optional, ServiceImportance.Optional),
+            new HealthDependency(required, Importance.Required),
+            new HealthDependency(important, Importance.Important),
+            new HealthDependency(optional, Importance.Optional),
         });
 
         // Important+Unhealthy → Degraded. Optional ignored. Intrinsic = Unknown.
@@ -51,8 +51,8 @@ public class CompositeServiceHealthTests
     [Fact]
     public void Name_ReturnsConstructorValue()
     {
-        var composite = new CompositeServiceHealth("MyComposite",
-            Array.Empty<ServiceDependency>());
+        var composite = new HealthGroup("MyComposite",
+            Array.Empty<HealthDependency>());
 
         Assert.Equal("MyComposite", composite.Name);
     }
@@ -60,12 +60,12 @@ public class CompositeServiceHealthTests
     [Fact]
     public void Dependencies_ReflectsConstructorDeps()
     {
-        var a = new DelegatingServiceHealth("A");
-        var b = new DelegatingServiceHealth("B");
-        var composite = new CompositeServiceHealth("Comp", new[]
+        var a = new HealthCheck("A");
+        var b = new HealthCheck("B");
+        var composite = new HealthGroup("Comp", new[]
         {
-            new ServiceDependency(a, ServiceImportance.Required),
-            new ServiceDependency(b, ServiceImportance.Optional),
+            new HealthDependency(a, Importance.Required),
+            new HealthDependency(b, Importance.Optional),
         });
 
         Assert.Equal(2, composite.Dependencies.Count);
@@ -74,11 +74,11 @@ public class CompositeServiceHealthTests
     [Fact]
     public void NotifyChanged_EmitsOnStatusChange()
     {
-        var dep = new DelegatingServiceHealth("Dep",
+        var dep = new HealthCheck("Dep",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var composite = new CompositeServiceHealth("Comp", new[]
+        var composite = new HealthGroup("Comp", new[]
         {
-            new ServiceDependency(dep, ServiceImportance.Required),
+            new HealthDependency(dep, Importance.Required),
         });
 
         var emitted = new List<HealthStatus>();

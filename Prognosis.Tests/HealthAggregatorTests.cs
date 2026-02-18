@@ -11,29 +11,29 @@ public class HealthAggregatorTests
     {
         var result = HealthAggregator.Aggregate(
             new HealthEvaluation(HealthStatus.Degraded, "slow"),
-            Array.Empty<ServiceDependency>());
+            Array.Empty<HealthDependency>());
 
         Assert.Equal(HealthStatus.Degraded, result.Status);
         Assert.Equal("slow", result.Reason);
     }
 
     [Theory]
-    [InlineData(HealthStatus.Unhealthy, ServiceImportance.Required, HealthStatus.Unhealthy)]
-    [InlineData(HealthStatus.Degraded, ServiceImportance.Required, HealthStatus.Degraded)]
-    [InlineData(HealthStatus.Unknown, ServiceImportance.Required, HealthStatus.Unknown)]
-    [InlineData(HealthStatus.Healthy, ServiceImportance.Required, HealthStatus.Healthy)]
-    [InlineData(HealthStatus.Unhealthy, ServiceImportance.Important, HealthStatus.Degraded)]
-    [InlineData(HealthStatus.Degraded, ServiceImportance.Important, HealthStatus.Degraded)]
-    [InlineData(HealthStatus.Unknown, ServiceImportance.Important, HealthStatus.Unknown)]
-    [InlineData(HealthStatus.Unhealthy, ServiceImportance.Optional, HealthStatus.Healthy)]
-    [InlineData(HealthStatus.Degraded, ServiceImportance.Optional, HealthStatus.Healthy)]
+    [InlineData(HealthStatus.Unhealthy, Importance.Required, HealthStatus.Unhealthy)]
+    [InlineData(HealthStatus.Degraded, Importance.Required, HealthStatus.Degraded)]
+    [InlineData(HealthStatus.Unknown, Importance.Required, HealthStatus.Unknown)]
+    [InlineData(HealthStatus.Healthy, Importance.Required, HealthStatus.Healthy)]
+    [InlineData(HealthStatus.Unhealthy, Importance.Important, HealthStatus.Degraded)]
+    [InlineData(HealthStatus.Degraded, Importance.Important, HealthStatus.Degraded)]
+    [InlineData(HealthStatus.Unknown, Importance.Important, HealthStatus.Unknown)]
+    [InlineData(HealthStatus.Unhealthy, Importance.Optional, HealthStatus.Healthy)]
+    [InlineData(HealthStatus.Degraded, Importance.Optional, HealthStatus.Healthy)]
     public void Aggregate_PropagatesAccordingToImportance(
-        HealthStatus depStatus, ServiceImportance importance, HealthStatus expected)
+        HealthStatus depStatus, Importance importance, HealthStatus expected)
     {
-        var dep = new DelegatingServiceHealth("Dep", () => depStatus);
+        var dep = new HealthCheck("Dep", () => depStatus);
         var result = HealthAggregator.Aggregate(
             HealthStatus.Healthy,
-            new[] { new ServiceDependency(dep, importance) });
+            new[] { new HealthDependency(dep, importance) });
 
         Assert.Equal(expected, result.Status);
     }
@@ -41,16 +41,16 @@ public class HealthAggregatorTests
     [Fact]
     public void Aggregate_PicksWorstAcrossMultipleDependencies()
     {
-        var healthy = new DelegatingServiceHealth("A");
-        var degraded = new DelegatingServiceHealth("B", () => HealthStatus.Degraded);
-        var unhealthy = new DelegatingServiceHealth("C",
+        var healthy = new HealthCheck("A");
+        var degraded = new HealthCheck("B", () => HealthStatus.Degraded);
+        var unhealthy = new HealthCheck("C",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
 
         var result = HealthAggregator.Aggregate(HealthStatus.Healthy, new[]
         {
-            new ServiceDependency(healthy, ServiceImportance.Required),
-            new ServiceDependency(degraded, ServiceImportance.Required),
-            new ServiceDependency(unhealthy, ServiceImportance.Required),
+            new HealthDependency(healthy, Importance.Required),
+            new HealthDependency(degraded, Importance.Required),
+            new HealthDependency(unhealthy, Importance.Required),
         });
 
         Assert.Equal(HealthStatus.Unhealthy, result.Status);
@@ -60,10 +60,10 @@ public class HealthAggregatorTests
     [Fact]
     public void Aggregate_IntrinsicWorseThanDeps_IntrinsicWins()
     {
-        var healthy = new DelegatingServiceHealth("Dep");
+        var healthy = new HealthCheck("Dep");
         var result = HealthAggregator.Aggregate(
             new HealthEvaluation(HealthStatus.Unhealthy, "self broken"),
-            new[] { new ServiceDependency(healthy, ServiceImportance.Required) });
+            new[] { new HealthDependency(healthy, Importance.Required) });
 
         Assert.Equal(HealthStatus.Unhealthy, result.Status);
         Assert.Equal("self broken", result.Reason);
@@ -74,9 +74,9 @@ public class HealthAggregatorTests
     [Fact]
     public void EvaluateAll_ReturnsPostOrder_LeavesBeforeParents()
     {
-        var leaf = new DelegatingServiceHealth("Leaf");
-        var parent = new DelegatingServiceHealth("Parent")
-            .DependsOn(leaf, ServiceImportance.Required);
+        var leaf = new HealthCheck("Leaf");
+        var parent = new HealthCheck("Parent")
+            .DependsOn(leaf, Importance.Required);
 
         var snapshots = HealthAggregator.EvaluateAll(parent);
 
@@ -88,12 +88,12 @@ public class HealthAggregatorTests
     [Fact]
     public void EvaluateAll_SharedDependency_AppearsOnce()
     {
-        var shared = new DelegatingServiceHealth("Shared");
-        var a = new DelegatingServiceHealth("A").DependsOn(shared, ServiceImportance.Required);
-        var b = new DelegatingServiceHealth("B").DependsOn(shared, ServiceImportance.Required);
-        var root = new DelegatingServiceHealth("Root")
-            .DependsOn(a, ServiceImportance.Required)
-            .DependsOn(b, ServiceImportance.Required);
+        var shared = new HealthCheck("Shared");
+        var a = new HealthCheck("A").DependsOn(shared, Importance.Required);
+        var b = new HealthCheck("B").DependsOn(shared, Importance.Required);
+        var root = new HealthCheck("Root")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Required);
 
         var snapshots = HealthAggregator.EvaluateAll(root);
         var names = snapshots.Select(s => s.Name).ToList();
@@ -106,8 +106,8 @@ public class HealthAggregatorTests
     [Fact]
     public void CreateReport_OverallStatus_IsWorstAcrossRoots()
     {
-        var healthy = new DelegatingServiceHealth("A");
-        var unhealthy = new DelegatingServiceHealth("B",
+        var healthy = new HealthCheck("A");
+        var unhealthy = new HealthCheck("B",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
 
         var report = HealthAggregator.CreateReport(healthy, unhealthy);
@@ -132,11 +132,11 @@ public class HealthAggregatorTests
     {
         var before = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[]
         {
-            new ServiceSnapshot("Svc", HealthStatus.Healthy, 0),
+            new HealthSnapshot("Svc", HealthStatus.Healthy, 0),
         });
         var after = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Unhealthy, new[]
         {
-            new ServiceSnapshot("Svc", HealthStatus.Unhealthy, 0, "down"),
+            new HealthSnapshot("Svc", HealthStatus.Unhealthy, 0, "down"),
         });
 
         var changes = HealthAggregator.Diff(before, after);
@@ -150,7 +150,7 @@ public class HealthAggregatorTests
     [Fact]
     public void Diff_NoChanges_ReturnsEmpty()
     {
-        var snapshot = new ServiceSnapshot("Svc", HealthStatus.Healthy, 0);
+        var snapshot = new HealthSnapshot("Svc", HealthStatus.Healthy, 0);
         var report = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[] { snapshot });
 
         var changes = HealthAggregator.Diff(report, report);
@@ -162,10 +162,10 @@ public class HealthAggregatorTests
     public void Diff_NewServiceAppears_ReportsUnknownToCurrent()
     {
         var before = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy,
-            Array.Empty<ServiceSnapshot>());
+            Array.Empty<HealthSnapshot>());
         var after = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[]
         {
-            new ServiceSnapshot("New", HealthStatus.Healthy, 0),
+            new HealthSnapshot("New", HealthStatus.Healthy, 0),
         });
 
         var changes = HealthAggregator.Diff(before, after);
@@ -180,10 +180,10 @@ public class HealthAggregatorTests
     {
         var before = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[]
         {
-            new ServiceSnapshot("Old", HealthStatus.Healthy, 0),
+            new HealthSnapshot("Old", HealthStatus.Healthy, 0),
         });
         var after = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy,
-            Array.Empty<ServiceSnapshot>());
+            Array.Empty<HealthSnapshot>());
 
         var changes = HealthAggregator.Diff(before, after);
 
@@ -198,9 +198,9 @@ public class HealthAggregatorTests
     [Fact]
     public void DetectCycles_AcyclicGraph_ReturnsEmpty()
     {
-        var leaf = new DelegatingServiceHealth("Leaf");
-        var root = new DelegatingServiceHealth("Root")
-            .DependsOn(leaf, ServiceImportance.Required);
+        var leaf = new HealthCheck("Leaf");
+        var root = new HealthCheck("Root")
+            .DependsOn(leaf, Importance.Required);
 
         var cycles = HealthAggregator.DetectCycles(root);
 
@@ -210,9 +210,9 @@ public class HealthAggregatorTests
     [Fact]
     public void DetectCycles_DirectCycle_Detected()
     {
-        var a = new DelegatingServiceHealth("A");
-        var b = new DelegatingServiceHealth("B").DependsOn(a, ServiceImportance.Required);
-        a.DependsOn(b, ServiceImportance.Required);
+        var a = new HealthCheck("A");
+        var b = new HealthCheck("B").DependsOn(a, Importance.Required);
+        a.DependsOn(b, Importance.Required);
 
         var cycles = HealthAggregator.DetectCycles(a);
 
@@ -226,10 +226,10 @@ public class HealthAggregatorTests
     [Fact]
     public void NotifyGraph_CallsNotifyChangedOnAllObservableNodes()
     {
-        var leaf = new DelegatingServiceHealth("Leaf",
+        var leaf = new HealthCheck("Leaf",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var root = new DelegatingServiceHealth("Root")
-            .DependsOn(leaf, ServiceImportance.Required);
+        var root = new HealthCheck("Root")
+            .DependsOn(leaf, Importance.Required);
 
         var statuses = new List<HealthStatus>();
         leaf.StatusChanged.Subscribe(new TestObserver<HealthStatus>(statuses.Add));

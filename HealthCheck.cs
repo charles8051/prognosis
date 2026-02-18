@@ -6,17 +6,17 @@ namespace Prognosis;
 /// modify the service class itself.
 /// <para>
 /// This is the recommended way for consumers to participate in the health graph.
-/// Embed a <see cref="DelegatingServiceHealth"/> as a property on your service
+/// Embed a <see cref="HealthCheck"/> as a property on your service
 /// class and pass it when composing the graph.
 /// </para>
 /// </summary>
-public sealed class DelegatingServiceHealth : ServiceHealth
+public sealed class HealthCheck : HealthNode
 {
-    private readonly ServiceHealthTracker _tracker;
+    private readonly HealthTracker _tracker;
 
     public override string Name { get; }
 
-    public override IReadOnlyList<ServiceDependency> Dependencies => _tracker.Dependencies;
+    public override IReadOnlyList<HealthDependency> Dependencies => _tracker.Dependencies;
 
     public override IObservable<HealthStatus> StatusChanged => _tracker.StatusChanged;
 
@@ -29,24 +29,24 @@ public sealed class DelegatingServiceHealth : ServiceHealth
     /// Strategy used to combine intrinsic health with dependency evaluations.
     /// Defaults to <see cref="HealthAggregator.Aggregate"/> when <see langword="null"/>.
     /// </param>
-    public DelegatingServiceHealth(string name, Func<HealthEvaluation> healthCheck, AggregationStrategy? aggregator = null)
+    public HealthCheck(string name, Func<HealthEvaluation> healthCheck, AggregationStrategy? aggregator = null)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("A service must have a name.", nameof(name));
 
         Name = name;
-        _tracker = new ServiceHealthTracker(healthCheck, aggregator);
+        _tracker = new HealthTracker(healthCheck, aggregator);
     }
 
     /// <summary>Shortcut: a service whose intrinsic status is always healthy.</summary>
-    public DelegatingServiceHealth(string name)
+    public HealthCheck(string name)
         : this(name, () => HealthStatus.Healthy) { }
 
-    private protected override void AddDependency(ServiceHealth service, ServiceImportance importance)
+    private protected override void AddDependency(HealthNode service, Importance importance)
         => _tracker.DependsOn(service, importance);
 
     /// <summary>Registers a dependency on another service.</summary>
-    public new DelegatingServiceHealth DependsOn(ServiceHealth service, ServiceImportance importance)
+    public new HealthCheck DependsOn(HealthNode service, Importance importance)
     {
         AddDependency(service, importance);
         return this;

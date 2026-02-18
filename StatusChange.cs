@@ -4,7 +4,7 @@ namespace Prognosis;
 /// Describes a single service's status transition between two consecutive
 /// health evaluations.
 /// </summary>
-public sealed record ServiceStatusChange(
+public sealed record StatusChange(
     string Name,
     HealthStatus Previous,
     HealthStatus Current,

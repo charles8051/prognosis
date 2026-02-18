@@ -10,30 +10,30 @@ var database = new DatabaseService();
 var cache = new CacheService();
 var externalEmailApi = new ThirdPartyEmailClient();
 
-var emailHealth = new DelegatingServiceHealth("EmailProvider",
+var emailHealth = new HealthCheck("EmailProvider",
     () => externalEmailApi.IsConnected
         ? HealthStatus.Healthy
         : new HealthEvaluation(HealthStatus.Unhealthy, "SMTP connection refused"));
 
-var messageQueue = new DelegatingServiceHealth("MessageQueue");
+var messageQueue = new HealthCheck("MessageQueue");
 
-var authService = new DelegatingServiceHealth("AuthService")
-    .DependsOn(database.Health, ServiceImportance.Required)
-    .DependsOn(cache.Health, ServiceImportance.Important);
+var authService = new HealthCheck("AuthService")
+    .DependsOn(database.Health, Importance.Required)
+    .DependsOn(cache.Health, Importance.Important);
 
-var notificationSystem = new CompositeServiceHealth("NotificationSystem",
+var notificationSystem = new HealthGroup("NotificationSystem",
 [
-    new ServiceDependency(messageQueue, ServiceImportance.Required),
-    new ServiceDependency(emailHealth, ServiceImportance.Optional),
+    new HealthDependency(messageQueue, Importance.Required),
+    new HealthDependency(emailHealth, Importance.Optional),
 ]);
 
-var app = new CompositeServiceHealth("Application",
+var app = new HealthGroup("Application",
 [
-    new ServiceDependency(authService, ServiceImportance.Required),
-    new ServiceDependency(notificationSystem, ServiceImportance.Important),
+    new HealthDependency(authService, Importance.Required),
+    new HealthDependency(notificationSystem, Importance.Important),
 ]);
 
-var roots = new ServiceHealth[] { app };
+var roots = new HealthNode[] { app };
 
 // ─────────────────────────────────────────────────────────────────────
 // PollHealthReport — timer-driven, emits HealthReport on change.
@@ -93,7 +93,7 @@ observeSubscription.Dispose();
 
 // ─────────────────────────────────────────────────────────────────────
 // SelectServiceChanges — diffs consecutive reports into individual
-// ServiceStatusChange events.
+// StatusChange events.
 // ─────────────────────────────────────────────────────────────────────
 
 Console.WriteLine("=== SelectServiceChanges (diff-based change stream) ===");
@@ -131,13 +131,13 @@ Console.WriteLine("Done.");
 // Example service classes (self-contained, same as core example)
 // ─────────────────────────────────────────────────────────────────────
 
-class DatabaseService : IServiceHealth
+class DatabaseService : IHealthAware
 {
-    public ServiceHealth Health { get; }
+    public HealthNode Health { get; }
 
     public DatabaseService()
     {
-        Health = new DelegatingServiceHealth("Database",
+        Health = new HealthCheck("Database",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Connection lost"));
@@ -146,13 +146,13 @@ class DatabaseService : IServiceHealth
     public bool IsConnected { get; set; } = true;
 }
 
-class CacheService : IServiceHealth
+class CacheService : IHealthAware
 {
-    public ServiceHealth Health { get; }
+    public HealthNode Health { get; }
 
     public CacheService()
     {
-        Health = new DelegatingServiceHealth("Cache",
+        Health = new HealthCheck("Cache",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Redis timeout"));

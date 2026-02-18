@@ -1,11 +1,11 @@
 namespace Prognosis.Tests;
 
-public class DelegatingServiceHealthTests
+public class HealthCheckTests
 {
     [Fact]
     public void Constructor_SetsName()
     {
-        var svc = new DelegatingServiceHealth("MyService");
+        var svc = new HealthCheck("MyService");
 
         Assert.Equal("MyService", svc.Name);
     }
@@ -13,7 +13,7 @@ public class DelegatingServiceHealthTests
     [Fact]
     public void Constructor_NameOnly_EvaluatesHealthy()
     {
-        var svc = new DelegatingServiceHealth("MyService");
+        var svc = new HealthCheck("MyService");
 
         Assert.Equal(HealthStatus.Healthy, svc.Evaluate().Status);
     }
@@ -21,7 +21,7 @@ public class DelegatingServiceHealthTests
     [Fact]
     public void Constructor_WithHealthCheck_DelegatesEvaluation()
     {
-        var svc = new DelegatingServiceHealth("Svc",
+        var svc = new HealthCheck("Svc",
             () => new HealthEvaluation(HealthStatus.Degraded, "slow"));
 
         var eval = svc.Evaluate();
@@ -33,10 +33,10 @@ public class DelegatingServiceHealthTests
     [Fact]
     public void DependsOn_ReturnsSelf_ForFluentChaining()
     {
-        var dep = new DelegatingServiceHealth("Dep");
-        var svc = new DelegatingServiceHealth("Svc");
+        var dep = new HealthCheck("Dep");
+        var svc = new HealthCheck("Svc");
 
-        var returned = svc.DependsOn(dep, ServiceImportance.Required);
+        var returned = svc.DependsOn(dep, Importance.Required);
 
         Assert.Same(svc, returned);
     }
@@ -44,10 +44,10 @@ public class DelegatingServiceHealthTests
     [Fact]
     public void DependsOn_WiresEdge_AffectsEvaluation()
     {
-        var dep = new DelegatingServiceHealth("Dep",
+        var dep = new HealthCheck("Dep",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var svc = new DelegatingServiceHealth("Svc")
-            .DependsOn(dep, ServiceImportance.Required);
+        var svc = new HealthCheck("Svc")
+            .DependsOn(dep, Importance.Required);
 
         Assert.Equal(HealthStatus.Unhealthy, svc.Evaluate().Status);
     }
@@ -55,10 +55,10 @@ public class DelegatingServiceHealthTests
     [Fact]
     public void DependsOn_ImportantCapsUnhealthyAtDegraded()
     {
-        var dep = new DelegatingServiceHealth("Dep",
+        var dep = new HealthCheck("Dep",
             () => HealthStatus.Unhealthy);
-        var svc = new DelegatingServiceHealth("Svc")
-            .DependsOn(dep, ServiceImportance.Important);
+        var svc = new HealthCheck("Svc")
+            .DependsOn(dep, Importance.Important);
 
         Assert.Equal(HealthStatus.Degraded, svc.Evaluate().Status);
     }
@@ -66,10 +66,10 @@ public class DelegatingServiceHealthTests
     [Fact]
     public void DependsOn_Optional_DoesNotAffectParent()
     {
-        var dep = new DelegatingServiceHealth("Dep",
+        var dep = new HealthCheck("Dep",
             () => HealthStatus.Unhealthy);
-        var svc = new DelegatingServiceHealth("Svc")
-            .DependsOn(dep, ServiceImportance.Optional);
+        var svc = new HealthCheck("Svc")
+            .DependsOn(dep, Importance.Optional);
 
         Assert.Equal(HealthStatus.Healthy, svc.Evaluate().Status);
     }
@@ -77,7 +77,7 @@ public class DelegatingServiceHealthTests
     [Fact]
     public void StatusChanged_EmitsAfterNotifyChanged()
     {
-        var svc = new DelegatingServiceHealth("Svc",
+        var svc = new HealthCheck("Svc",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
 
         var emitted = new List<HealthStatus>();
@@ -92,7 +92,7 @@ public class DelegatingServiceHealthTests
     [Fact]
     public void ToString_IncludesNameAndStatus()
     {
-        var svc = new DelegatingServiceHealth("DB");
+        var svc = new HealthCheck("DB");
         var str = svc.ToString();
 
         Assert.Contains("DB", str);

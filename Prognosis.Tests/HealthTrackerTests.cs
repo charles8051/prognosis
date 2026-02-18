@@ -1,13 +1,13 @@
 namespace Prognosis.Tests;
 
-public class ServiceHealthTrackerTests
+public class HealthTrackerTests
 {
     // ── Evaluate ─────────────────────────────────────────────────────
 
     [Fact]
     public void Evaluate_NoDependencies_ReturnsIntrinsicCheck()
     {
-        var tracker = new ServiceHealthTracker(
+        var tracker = new HealthTracker(
             () => new HealthEvaluation(HealthStatus.Degraded, "slow"));
 
         var result = tracker.Evaluate();
@@ -19,7 +19,7 @@ public class ServiceHealthTrackerTests
     [Fact]
     public void Evaluate_DefaultConstructor_ReturnsUnknown()
     {
-        var tracker = new ServiceHealthTracker();
+        var tracker = new HealthTracker();
 
         Assert.Equal(HealthStatus.Unknown, tracker.Evaluate().Status);
     }
@@ -27,10 +27,10 @@ public class ServiceHealthTrackerTests
     [Fact]
     public void Evaluate_WithDependency_AggregatesCorrectly()
     {
-        var dep = new DelegatingServiceHealth("Dep",
+        var dep = new HealthCheck("Dep",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var tracker = new ServiceHealthTracker(() => HealthStatus.Healthy);
-        tracker.DependsOn(dep, ServiceImportance.Required);
+        var tracker = new HealthTracker(() => HealthStatus.Healthy);
+        tracker.DependsOn(dep, Importance.Required);
 
         var result = tracker.Evaluate();
 
@@ -42,23 +42,23 @@ public class ServiceHealthTrackerTests
     [Fact]
     public void DependsOn_AddsDependency()
     {
-        var tracker = new ServiceHealthTracker();
-        var dep = new DelegatingServiceHealth("Dep");
+        var tracker = new HealthTracker();
+        var dep = new HealthCheck("Dep");
 
-        tracker.DependsOn(dep, ServiceImportance.Important);
+        tracker.DependsOn(dep, Importance.Important);
 
         Assert.Single(tracker.Dependencies);
         Assert.Equal("Dep", tracker.Dependencies[0].Service.Name);
-        Assert.Equal(ServiceImportance.Important, tracker.Dependencies[0].Importance);
+        Assert.Equal(Importance.Important, tracker.Dependencies[0].Importance);
     }
 
     [Fact]
     public void DependsOn_ReturnsSelf_ForChaining()
     {
-        var tracker = new ServiceHealthTracker();
-        var dep = new DelegatingServiceHealth("Dep");
+        var tracker = new HealthTracker();
+        var dep = new HealthCheck("Dep");
 
-        var returned = tracker.DependsOn(dep, ServiceImportance.Required);
+        var returned = tracker.DependsOn(dep, Importance.Required);
 
         Assert.Same(tracker, returned);
     }
@@ -66,13 +66,13 @@ public class ServiceHealthTrackerTests
     [Fact]
     public void DependsOn_AfterEvaluate_Throws()
     {
-        var tracker = new ServiceHealthTracker();
+        var tracker = new HealthTracker();
         tracker.Evaluate();
 
-        var dep = new DelegatingServiceHealth("Dep");
+        var dep = new HealthCheck("Dep");
 
         Assert.Throws<InvalidOperationException>(
-            () => tracker.DependsOn(dep, ServiceImportance.Required));
+            () => tracker.DependsOn(dep, Importance.Required));
     }
 
     // ── Circular dependency guard ────────────────────────────────────
@@ -80,9 +80,9 @@ public class ServiceHealthTrackerTests
     [Fact]
     public void Evaluate_CircularDependency_ReturnsUnhealthy_DoesNotStackOverflow()
     {
-        var a = new DelegatingServiceHealth("A");
-        var b = new DelegatingServiceHealth("B").DependsOn(a, ServiceImportance.Required);
-        a.DependsOn(b, ServiceImportance.Required);
+        var a = new HealthCheck("A");
+        var b = new HealthCheck("B").DependsOn(a, Importance.Required);
+        a.DependsOn(b, Importance.Required);
 
         var result = a.Evaluate();
 
@@ -96,7 +96,7 @@ public class ServiceHealthTrackerTests
     public void NotifyChanged_EmitsOnStatusChange()
     {
         var isHealthy = true;
-        var tracker = new ServiceHealthTracker(
+        var tracker = new HealthTracker(
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
 
         var emitted = new List<HealthStatus>();
@@ -121,7 +121,7 @@ public class ServiceHealthTrackerTests
     [Fact]
     public void StatusChanged_Unsubscribe_StopsEmitting()
     {
-        var tracker = new ServiceHealthTracker(() => HealthStatus.Healthy);
+        var tracker = new HealthTracker(() => HealthStatus.Healthy);
         var emitted = new List<HealthStatus>();
 
         var subscription = tracker.StatusChanged.Subscribe(
@@ -136,7 +136,7 @@ public class ServiceHealthTrackerTests
         // We need to reset _lastEmitted by changing status.
         // Since the intrinsic is always Healthy and _lastEmitted is Healthy,
         // changing won't trigger. Use a new tracker instead.
-        var tracker2 = new ServiceHealthTracker(() => HealthStatus.Degraded);
+        var tracker2 = new HealthTracker(() => HealthStatus.Degraded);
         var emitted2 = new List<HealthStatus>();
         var sub2 = tracker2.StatusChanged.Subscribe(
             new TestObserver<HealthStatus>(emitted2.Add));
@@ -156,7 +156,7 @@ public class ServiceHealthTrackerTests
     [Fact]
     public void StatusChanged_MultipleSubscribers_AllReceive()
     {
-        var tracker = new ServiceHealthTracker(
+        var tracker = new HealthTracker(
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
 
         var emitted1 = new List<HealthStatus>();

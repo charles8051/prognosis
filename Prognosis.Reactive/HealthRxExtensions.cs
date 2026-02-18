@@ -7,19 +7,19 @@ namespace Prognosis.Reactive;
 /// These provide idiomatic Rx alternatives to the polling-based
 /// <see cref="HealthMonitor"/> in the core package.
 /// </summary>
-public static class ServiceHealthRxExtensions
+public static class HealthRxExtensions
 {
     /// <summary>
     /// Polls the full health graph on the given interval, calling
-    /// <see cref="ServiceHealth.NotifyChanged"/> on every node before
+    /// <see cref="HealthNode.NotifyChanged"/> on every node before
     /// producing each <see cref="HealthReport"/>.
     /// Only emits when the report changes.
     /// </summary>
     public static IObservable<HealthReport> PollHealthReport(
-        this IReadOnlyList<ServiceHealth> roots,
+        this IReadOnlyList<HealthNode> roots,
         TimeSpan interval)
     {
-        var rootsArray = roots as ServiceHealth[] ?? roots.ToArray();
+        var rootsArray = roots as HealthNode[] ?? roots.ToArray();
         return Observable.Interval(interval)
             .Select(_ =>
             {
@@ -39,10 +39,10 @@ public static class ServiceHealthRxExtensions
     /// <see cref="HealthAggregator.NotifyGraph"/>, not exogenous events.
     /// </summary>
     public static IObservable<HealthReport> ObserveHealthReport(
-        this IReadOnlyList<ServiceHealth> roots,
+        this IReadOnlyList<HealthNode> roots,
         TimeSpan throttle)
     {
-        var rootsArray = roots as ServiceHealth[] ?? roots.ToArray();
+        var rootsArray = roots as HealthNode[] ?? roots.ToArray();
         return WalkNodes(rootsArray)
             .Where(s => s.Dependencies.Count == 0)
             .Select(s => s.StatusChanged)
@@ -58,12 +58,12 @@ public static class ServiceHealthRxExtensions
 
     /// <summary>
     /// Projects a stream of <see cref="HealthReport"/>s into individual
-    /// <see cref="ServiceStatusChange"/> events by diffing consecutive reports.
+    /// <see cref="StatusChange"/> events by diffing consecutive reports.
     /// Only services whose status actually changed are emitted.
     /// Composable with any report source — <see cref="PollHealthReport"/>,
     /// <see cref="ObserveHealthReport"/>, or custom pipelines.
     /// </summary>
-    public static IObservable<ServiceStatusChange> SelectServiceChanges(
+    public static IObservable<StatusChange> SelectServiceChanges(
         this IObservable<HealthReport> reports)
     {
         return reports
@@ -74,12 +74,12 @@ public static class ServiceHealthRxExtensions
             .SelectMany(state => HealthAggregator.Diff(state.Previous!, state.Current!));
     }
 
-    private static IObservable<ServiceHealth> WalkNodes(ServiceHealth[] roots)
+    private static IObservable<HealthNode> WalkNodes(HealthNode[] roots)
     {
-        return Observable.Create<ServiceHealth>(observer =>
+        return Observable.Create<HealthNode>(observer =>
         {
-            var visited = new HashSet<ServiceHealth>(ReferenceEqualityComparer.Instance);
-            var stack = new Stack<ServiceHealth>(roots);
+            var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+            var stack = new Stack<HealthNode>(roots);
 
             while (stack.Count > 0)
             {

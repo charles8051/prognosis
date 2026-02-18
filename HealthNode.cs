@@ -2,19 +2,19 @@ namespace Prognosis;
 
 /// <summary>
 /// Base class for all nodes in the health graph. Concrete implementations are
-/// <see cref="DelegatingServiceHealth"/> (wraps a health-check delegate) and
-/// <see cref="CompositeServiceHealth"/> (aggregates dependencies with no
+/// <see cref="HealthCheck"/> (wraps a health-check delegate) and
+/// <see cref="HealthGroup"/> (aggregates dependencies with no
 /// backing service of its own).
 /// <para>
-/// Consumers who own a service class should implement <see cref="IServiceHealth"/>
-/// and expose a <see cref="ServiceHealth"/> property — typically a
-/// <see cref="DelegatingServiceHealth"/> when the service has its own intrinsic
-/// check, or a <see cref="CompositeServiceHealth"/> when health is derived
+/// Consumers who own a service class should implement <see cref="IHealthAware"/>
+/// and expose a <see cref="HealthNode"/> property — typically a
+/// <see cref="HealthCheck"/> when the service has its own intrinsic
+/// check, or a <see cref="HealthGroup"/> when health is derived
 /// entirely from sub-dependencies. There is no need to subclass
-/// <see cref="ServiceHealth"/> directly.
+/// <see cref="HealthNode"/> directly.
 /// </para>
 /// </summary>
-public abstract class ServiceHealth
+public abstract class HealthNode
 {
     /// <summary>Display name for this node in the health graph.</summary>
     public abstract string Name { get; }
@@ -23,7 +23,7 @@ public abstract class ServiceHealth
     /// Zero or more services this service depends on, each tagged with an
     /// importance level.
     /// </summary>
-    public abstract IReadOnlyList<ServiceDependency> Dependencies { get; }
+    public abstract IReadOnlyList<HealthDependency> Dependencies { get; }
 
     /// <summary>
     /// The effective health of this service, taking its own state and all
@@ -53,12 +53,12 @@ public abstract class ServiceHealth
     /// <exception cref="InvalidOperationException">
     /// Thrown if called after <see cref="Evaluate"/> has been invoked.
     /// </exception>
-    public ServiceHealth DependsOn(ServiceHealth service, ServiceImportance importance)
+    public HealthNode DependsOn(HealthNode service, Importance importance)
     {
         AddDependency(service, importance);
         return this;
     }
 
     /// <summary>Subclass hook used by <see cref="DependsOn"/>.</summary>
-    private protected abstract void AddDependency(ServiceHealth service, ServiceImportance importance);
+    private protected abstract void AddDependency(HealthNode service, Importance importance);
 }

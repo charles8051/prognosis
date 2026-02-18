@@ -59,18 +59,18 @@ These rules describe the default strategy (`HealthAggregator.Aggregate`). Propag
 
 ## Usage patterns
 
-### 1. Implement `IServiceHealth` on a class you own
+### 1. Implement `IHealthAware` on a class you own
 
-Expose a `ServiceHealth` property — no forwarding boilerplate:
+Expose a `HealthNode` property — no forwarding boilerplate:
 
 ```csharp
-class CacheService : IServiceHealth
+class CacheService : IHealthAware
 {
-    public ServiceHealth Health { get; }
+    public HealthNode Health { get; }
 
     public CacheService()
     {
-        Health = new DelegatingServiceHealth("Cache",
+        Health = new HealthCheck("Cache",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Redis timeout"));
@@ -80,12 +80,12 @@ class CacheService : IServiceHealth
 }
 ```
 
-For services with fine-grained health attributes, use a `CompositeServiceHealth` backed by sub-nodes:
+For services with fine-grained health attributes, use a `HealthGroup` backed by sub-nodes:
 
 ```csharp
-class DatabaseService : IServiceHealth
+class DatabaseService : IHealthAware
 {
-    public ServiceHealth Health { get; }
+    public HealthNode Health { get; }
 
     public bool IsConnected { get; set; } = true;
     public double AverageLatencyMs { get; set; } = 50;
@@ -93,12 +93,12 @@ class DatabaseService : IServiceHealth
 
     public DatabaseService()
     {
-        var connection = new DelegatingServiceHealth("Database.Connection",
+        var connection = new HealthCheck("Database.Connection",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Connection lost"));
 
-        var latency = new DelegatingServiceHealth("Database.Latency",
+        var latency = new HealthCheck("Database.Latency",
             () => AverageLatencyMs switch
             {
                 > 500 => new HealthEvaluation(HealthStatus.Degraded,
@@ -106,7 +106,7 @@ class DatabaseService : IServiceHealth
                 _ => HealthStatus.Healthy,
             });
 
-        var connectionPool = new DelegatingServiceHealth("Database.ConnectionPool",
+        var connectionPool = new HealthCheck("Database.ConnectionPool",
             () => PoolUtilization switch
             {
                 >= 1.0 => new HealthEvaluation(HealthStatus.Unhealthy,
@@ -116,10 +116,10 @@ class DatabaseService : IServiceHealth
                 _ => HealthStatus.Healthy,
             });
 
-        Health = new CompositeServiceHealth("Database")
-            .DependsOn(connection, ServiceImportance.Required)
-            .DependsOn(latency, ServiceImportance.Important)
-            .DependsOn(connectionPool, ServiceImportance.Required);
+        Health = new HealthGroup("Database")
+            .DependsOn(connection, Importance.Required)
+            .DependsOn(latency, Importance.Important)
+            .DependsOn(connectionPool, Importance.Required);
     }
 }
 ```
@@ -134,10 +134,10 @@ AuthService: Degraded (2 dependencies) — Database: Database.Latency: ...
 
 ### 2. Wrap a service you can't modify
 
-Use `DelegatingServiceHealth` with a health-check delegate:
+Use `HealthCheck` with a health-check delegate:
 
 ```csharp
-var emailHealth = new DelegatingServiceHealth("EmailProvider",
+var emailHealth = new HealthCheck("EmailProvider",
     () => client.IsConnected
         ? HealthStatus.Healthy
         : new HealthEvaluation(HealthStatus.Unhealthy, "SMTP connection refused"));
@@ -145,24 +145,24 @@ var emailHealth = new DelegatingServiceHealth("EmailProvider",
 
 ### 3. Compose the graph
 
-Wire services together with `DependsOn` or `ServiceDependency` lists:
+Wire services together with `DependsOn` or `HealthDependency` lists:
 
 ```csharp
-var authService = new DelegatingServiceHealth("AuthService")
-    .DependsOn(database.Health, ServiceImportance.Required)
-    .DependsOn(cache.Health, ServiceImportance.Important);
+var authService = new HealthCheck("AuthService")
+    .DependsOn(database.Health, Importance.Required)
+    .DependsOn(cache.Health, Importance.Important);
 
 // List style
-var app = new CompositeServiceHealth("Application",
+var app = new HealthGroup("Application",
 [
-    new ServiceDependency(authService, ServiceImportance.Required),
-    new ServiceDependency(notifications, ServiceImportance.Important),
+    new HealthDependency(authService, Importance.Required),
+    new HealthDependency(notifications, Importance.Important),
 ]);
 
 // Fluent style
-var app = new CompositeServiceHealth("Application")
-    .DependsOn(authService, ServiceImportance.Required)
-    .DependsOn(notifications, ServiceImportance.Important);
+var app = new HealthGroup("Application")
+    .DependsOn(authService, Importance.Required)
+    .DependsOn(notifications, Importance.Important);
 ```
 
 ## Aggregation strategies
@@ -180,15 +180,15 @@ By default, health propagation follows the rules in [Dependency importance](#dep
 
 ```csharp
 // Without redundancy (default) — if either service goes down, the parent is unhealthy.
-var app = new CompositeServiceHealth("Application")
-    .DependsOn(primaryDb, ServiceImportance.Required)
-    .DependsOn(replicaDb, ServiceImportance.Required);
+var app = new HealthGroup("Application")
+    .DependsOn(primaryDb, Importance.Required)
+    .DependsOn(replicaDb, Importance.Required);
 
 // With redundancy — if one goes down but the other is healthy, the parent is degraded.
-var app = new CompositeServiceHealth("Application",
+var app = new HealthGroup("Application",
     aggregator: HealthAggregator.AggregateWithRedundancy)
-    .DependsOn(primaryDb, ServiceImportance.Required)
-    .DependsOn(replicaDb, ServiceImportance.Required);
+    .DependsOn(primaryDb, Importance.Required)
+    .DependsOn(replicaDb, Importance.Required);
 ```
 
 ### Custom strategies
@@ -196,7 +196,7 @@ var app = new CompositeServiceHealth("Application",
 The `AggregationStrategy` delegate takes intrinsic health + dependencies and returns an evaluation. Pass any matching function:
 
 ```csharp
-var app = new CompositeServiceHealth("Application",
+var app = new HealthGroup("Application",
     aggregator: (intrinsic, deps) =>
     {
         // Your custom logic here
@@ -204,15 +204,15 @@ var app = new CompositeServiceHealth("Application",
     });
 ```
 
-Strategies can also be applied to `DelegatingServiceHealth` and `ServiceHealthTracker`:
+Strategies can also be applied to `HealthCheck` and `HealthTracker`:
 
 ```csharp
-// DelegatingServiceHealth with a strategy
-var svc = new DelegatingServiceHealth("Service", healthCheck,
+// HealthCheck with a strategy
+var svc = new HealthCheck("Service", healthCheck,
     aggregator: HealthAggregator.AggregateWithRedundancy);
 
-// ServiceHealthTracker (when embedding in your own class)
-var tracker = new ServiceHealthTracker(intrinsicCheck,
+// HealthTracker (when embedding in your own class)
+var tracker = new HealthTracker(intrinsicCheck,
     aggregator: HealthAggregator.AggregateWithRedundancy);
 ```
 
@@ -223,7 +223,7 @@ var tracker = new ServiceHealthTracker(intrinsicCheck,
 HealthEvaluation eval = app.Evaluate();
 
 // Snapshot the entire graph (depth-first post-order)
-IReadOnlyList<ServiceSnapshot> snapshots = HealthAggregator.EvaluateAll(app);
+IReadOnlyList<HealthSnapshot> snapshots = HealthAggregator.EvaluateAll(app);
 
 // Package as a serialization-ready report with timestamp
 HealthReport report = HealthAggregator.CreateReport(app);
@@ -232,12 +232,12 @@ HealthReport report = HealthAggregator.CreateReport(app);
 IReadOnlyList<IReadOnlyList<string>> cycles = HealthAggregator.DetectCycles(app);
 
 // Diff two reports to find individual service changes
-IReadOnlyList<ServiceStatusChange> changes = HealthAggregator.Diff(before, after);
+IReadOnlyList<StatusChange> changes = HealthAggregator.Diff(before, after);
 ```
 
 ## Observable health monitoring
 
-Every `ServiceHealth` node supports push-based notifications. Subscribe to individual services or monitor the full graph:
+Every `HealthNode` node supports push-based notifications. Subscribe to individual services or monitor the full graph:
 
 ```csharp
 // Individual service notifications
@@ -260,7 +260,7 @@ The `Prognosis.DependencyInjection` package provides a fluent builder for config
 ```csharp
 builder.Services.AddPrognosis(health =>
 {
-    // Discover all IServiceHealth implementations and wire [DependsOn<T>] attributes.
+    // Discover all IHealthAware implementations and wire [DependsOn<T>] attributes.
     health.ScanForServices(typeof(Program).Assembly);
 
     // Wrap a third-party service with a health delegate.
@@ -274,15 +274,15 @@ builder.Services.AddPrognosis(health =>
     // Use nameof for concrete types, constants for virtual nodes.
     health.AddComposite(ServiceNames.Application, app =>
     {
-        app.DependsOn<AuthService>(ServiceImportance.Required);
-        app.DependsOn(ServiceNames.NotificationSystem, ServiceImportance.Important);
+        app.DependsOn<AuthService>(Importance.Required);
+        app.DependsOn(ServiceNames.NotificationSystem, Importance.Important);
     });
 
     // Composites with custom aggregation strategies.
     health.AddComposite(ServiceNames.DatabaseCluster, db =>
     {
-        db.DependsOn(nameof(PrimaryDb), ServiceImportance.Required);
-        db.DependsOn(nameof(ReplicaDb), ServiceImportance.Required);
+        db.DependsOn(nameof(PrimaryDb), Importance.Required);
+        db.DependsOn(nameof(ReplicaDb), Importance.Required);
     }, aggregator: HealthAggregator.AggregateWithRedundancy);
 
     health.AddRoots(ServiceNames.Application);
@@ -301,11 +301,11 @@ static class ServiceNames
 Declare dependency edges on classes you own with attributes:
 
 ```csharp
-[DependsOn<DatabaseService>(ServiceImportance.Required)]
-[DependsOn<CacheService>(ServiceImportance.Important)]
-class AuthService : IServiceHealth
+[DependsOn<DatabaseService>(Importance.Required)]
+[DependsOn<CacheService>(Importance.Important)]
+class AuthService : IHealthAware
 {
-    public ServiceHealth Health { get; } = new DelegatingServiceHealth("AuthService");
+    public HealthNode Health { get; } = new HealthCheck("AuthService");
 }
 ```
 
@@ -328,7 +328,7 @@ var dbService = graph["Database"];
 The `Prognosis.Reactive` package provides Rx-based alternatives to polling:
 
 ```csharp
-var roots = new ServiceHealth[] { app };
+var roots = new HealthNode[] { app };
 
 // Timer-driven polling — emits HealthReport on change.
 roots.PollHealthReport(TimeSpan.FromSeconds(30))
@@ -365,7 +365,7 @@ Or use standard Rx multicast operators directly: `Publish().RefCount()` or `Repl
 
 ## Serialization
 
-Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"Degraded"` / etc. The `HealthReport` and `ServiceSnapshot` records are designed as wire-friendly DTOs:
+Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"Degraded"` / etc. The `HealthReport` and `HealthSnapshot` records are designed as wire-friendly DTOs:
 
 ```json
 {
@@ -387,20 +387,20 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 
 | File | Purpose |
 |---|---|
-| `ServiceHealth.cs` | Abstract base class — `Name`, `Dependencies`, `Evaluate()`, `StatusChanged`, `NotifyChanged()`, `DependsOn()` |
-| `IServiceHealth.cs` | Marker interface — implement on your classes with a single `ServiceHealth Health` property |
+| `HealthNode.cs` | Abstract base class — `Name`, `Dependencies`, `Evaluate()`, `StatusChanged`, `NotifyChanged()`, `DependsOn()` |
+| `IHealthAware.cs` | Marker interface — implement on your classes with a single `HealthNode Health` property |
 | `HealthStatus.cs` | `Healthy` → `Unknown` → `Degraded` → `Unhealthy` enum |
 | `HealthEvaluation.cs` | Status + optional reason pair, with implicit conversion from `HealthStatus` |
-| `ServiceImportance.cs` | `Required`, `Important`, `Optional` enum |
-| `ServiceDependency.cs` | Record linking a `ServiceHealth` with its importance |
+| `Importance.cs` | `Required`, `Important`, `Optional` enum |
+| `HealthDependency.cs` | Record linking a `HealthNode` with its importance |
 | `AggregationStrategy.cs` | Delegate type for pluggable propagation rules |
-| `ServiceHealthTracker.cs` | Internal composable helper — dependency tracking, aggregation, and observability |
-| `DelegatingServiceHealth.cs` | Wraps a `Func<HealthEvaluation>` — use for services with intrinsic health checks |
-| `CompositeServiceHealth.cs` | Pure aggregation point — health derived entirely from dependencies |
+| `HealthTracker.cs` | Internal composable helper — dependency tracking, aggregation, and observability |
+| `HealthCheck.cs` | Wraps a `Func<HealthEvaluation>` — use for services with intrinsic health checks |
+| `HealthGroup.cs` | Pure aggregation point — health derived entirely from dependencies |
 | `HealthAggregator.cs` | Static helpers — `Aggregate`, `AggregateWithRedundancy`, `EvaluateAll`, `CreateReport`, `DetectCycles`, `Diff`, `NotifyGraph` |
 | `HealthReport.cs` | Serialization-ready report DTO |
-| `ServiceSnapshot.cs` | Serialization-ready per-service snapshot DTO |
-| `ServiceStatusChange.cs` | Record describing a single service's status transition |
+| `HealthSnapshot.cs` | Serialization-ready per-service snapshot DTO |
+| `StatusChange.cs` | Record describing a single service's status transition |
 | `HealthReportComparer.cs` | `IEqualityComparer<HealthReport>` for deduplicating reports |
 | `HealthMonitor.cs` | Timer-based poller with `IObservable<HealthReport>` |
 
@@ -408,8 +408,8 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 
 | File | Purpose |
 |---|---|
-| `ServiceHealthRxExtensions.cs` | `PollHealthReport`, `ObserveHealthReport`, `SelectServiceChanges` |
-| `ServiceHealthRxShared.cs` | `CreateSharedReportStream`, `CreateSharedObserveStream`, `ShareStrategy` |
+| `HealthRxExtensions.cs` | `PollHealthReport`, `ObserveHealthReport`, `SelectServiceChanges` |
+| `HealthRxShared.cs` | `CreateSharedReportStream`, `CreateSharedObserveStream`, `ShareStrategy` |
 
 ### Dependency injection (`Prognosis.DependencyInjection`)
 
