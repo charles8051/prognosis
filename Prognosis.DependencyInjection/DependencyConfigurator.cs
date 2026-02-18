@@ -22,7 +22,7 @@ public sealed class DependencyConfigurator
     /// <summary>
     /// Declares a dependency on a named service in the health graph. Use this
     /// to reference composites, delegates, or any service by its
-    /// <see cref="IServiceHealth.Name"/>.
+    /// <see cref="ServiceHealth.Name"/>.
     /// </summary>
     public DependencyConfigurator DependsOn(string serviceName, ServiceImportance importance)
     {

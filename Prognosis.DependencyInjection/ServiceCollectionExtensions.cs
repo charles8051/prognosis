@@ -34,7 +34,7 @@ public static class ServiceCollectionExtensions
                     services.TryAddSingleton(type);
                     services.AddSingleton(
                         typeof(IServiceHealth),
-                        sp => sp.GetRequiredService(type));
+                        sp => (IServiceHealth)sp.GetRequiredService(type));
                 }
             }
         }
@@ -47,14 +47,16 @@ public static class ServiceCollectionExtensions
 
     private static HealthGraph MaterializeGraph(IServiceProvider sp, PrognosisBuilder builder)
     {
-        // Collect all scanned IServiceHealth instances keyed by type and name.
-        var byType = new Dictionary<Type, IServiceHealth>();
-        var byName = new Dictionary<string, IServiceHealth>();
+        // Collect all scanned IServiceHealth instances, keyed by their
+        // concrete type and by the Health node's name.
+        var byType = new Dictionary<Type, ServiceHealth>();
+        var byName = new Dictionary<string, ServiceHealth>();
 
         foreach (var svc in sp.GetServices<IServiceHealth>())
         {
-            byType[svc.GetType()] = svc;
-            byName[svc.Name] = svc;
+            var health = svc.Health;
+            byType[svc.GetType()] = health;
+            byName[health.Name] = health;
         }
 
         // Wire attribute-declared [DependsOn<T>] edges.
@@ -69,10 +71,6 @@ public static class ServiceCollectionExtensions
                 if (kvp.Value is DelegatingServiceHealth delegating)
                 {
                     delegating.DependsOn(dep, attr.Importance);
-                }
-                else if (FindTracker(kvp.Value) is { } tracker)
-                {
-                    tracker.DependsOn(dep, attr.Importance);
                 }
             }
         }
@@ -108,8 +106,8 @@ public static class ServiceCollectionExtensions
     private static void WireEdges(
         DelegatingServiceHealth target,
         List<EdgeDefinition> edges,
-        Dictionary<Type, IServiceHealth> byType,
-        Dictionary<string, IServiceHealth> byName)
+        Dictionary<Type, ServiceHealth> byType,
+        Dictionary<string, ServiceHealth> byName)
     {
         foreach (var edge in edges)
         {
@@ -120,18 +118,18 @@ public static class ServiceCollectionExtensions
 
     private static List<ServiceDependency> ResolveEdges(
         List<EdgeDefinition> edges,
-        Dictionary<Type, IServiceHealth> byType,
-        Dictionary<string, IServiceHealth> byName)
+        Dictionary<Type, ServiceHealth> byType,
+        Dictionary<string, ServiceHealth> byName)
     {
         return edges
             .Select(e => new ServiceDependency(ResolveEdge(e, byType, byName), e.Importance))
             .ToList();
     }
 
-    private static IServiceHealth ResolveEdge(
+    private static ServiceHealth ResolveEdge(
         EdgeDefinition edge,
-        Dictionary<Type, IServiceHealth> byType,
-        Dictionary<string, IServiceHealth> byName)
+        Dictionary<Type, ServiceHealth> byType,
+        Dictionary<string, ServiceHealth> byName)
     {
         if (edge.ServiceType is not null)
         {
@@ -147,17 +145,4 @@ public static class ServiceCollectionExtensions
                 $"Dependency '{edge.ServiceName}' was not found in the health graph.");
     }
 
-    /// <summary>
-    /// Locates an embedded <see cref="ServiceHealthTracker"/> field on an
-    /// <see cref="IServiceHealth"/> instance via reflection. This supports
-    /// the recommended pattern of embedding a tracker and delegating to it.
-    /// </summary>
-    private static ServiceHealthTracker? FindTracker(IServiceHealth service)
-    {
-        var field = service.GetType()
-            .GetFields(BindingFlags.NonPublic | BindingFlags.Instance)
-            .FirstOrDefault(f => f.FieldType == typeof(ServiceHealthTracker));
-
-        return field?.GetValue(service) as ServiceHealthTracker;
     }
-}

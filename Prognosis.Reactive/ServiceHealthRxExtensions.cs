@@ -11,15 +11,15 @@ public static class ServiceHealthRxExtensions
 {
     /// <summary>
     /// Polls the full health graph on the given interval, calling
-    /// <see cref="IObservableServiceHealth.NotifyChanged"/> on every observable
-    /// service before producing each <see cref="HealthReport"/>.
+    /// <see cref="ServiceHealth.NotifyChanged"/> on every node before
+    /// producing each <see cref="HealthReport"/>.
     /// Only emits when the report changes.
     /// </summary>
     public static IObservable<HealthReport> PollHealthReport(
-        this IReadOnlyList<IServiceHealth> roots,
+        this IReadOnlyList<ServiceHealth> roots,
         TimeSpan interval)
     {
-        var rootsArray = roots as IServiceHealth[] ?? roots.ToArray();
+        var rootsArray = roots as ServiceHealth[] ?? roots.ToArray();
         return Observable.Interval(interval)
             .Select(_ =>
             {
@@ -30,8 +30,8 @@ public static class ServiceHealthRxExtensions
     }
 
     /// <summary>
-    /// Produces a new <see cref="HealthReport"/> whenever any observable leaf
-    /// node in the graph signals a change, throttled to avoid evaluation storms.
+    /// Produces a new <see cref="HealthReport"/> whenever any leaf node in
+    /// the graph signals a change, throttled to avoid evaluation storms.
     /// Combines push-based triggers with the single-pass evaluation of
     /// <see cref="HealthAggregator.CreateReport"/>.
     /// Only leaf nodes (those with no dependencies) are observed as triggers,
@@ -39,11 +39,11 @@ public static class ServiceHealthRxExtensions
     /// <see cref="HealthAggregator.NotifyGraph"/>, not exogenous events.
     /// </summary>
     public static IObservable<HealthReport> ObserveHealthReport(
-        this IReadOnlyList<IServiceHealth> roots,
+        this IReadOnlyList<ServiceHealth> roots,
         TimeSpan throttle)
     {
-        var rootsArray = roots as IServiceHealth[] ?? roots.ToArray();
-        return WalkObservables(rootsArray)
+        var rootsArray = roots as ServiceHealth[] ?? roots.ToArray();
+        return WalkNodes(rootsArray)
             .Where(s => s.Dependencies.Count == 0)
             .Select(s => s.StatusChanged)
             .Merge()
@@ -74,12 +74,12 @@ public static class ServiceHealthRxExtensions
             .SelectMany(state => HealthAggregator.Diff(state.Previous!, state.Current!));
     }
 
-    private static IObservable<IObservableServiceHealth> WalkObservables(IServiceHealth[] roots)
+    private static IObservable<ServiceHealth> WalkNodes(ServiceHealth[] roots)
     {
-        return Observable.Create<IObservableServiceHealth>(observer =>
+        return Observable.Create<ServiceHealth>(observer =>
         {
-            var visited = new HashSet<IServiceHealth>(ReferenceEqualityComparer.Instance);
-            var stack = new Stack<IServiceHealth>(roots);
+            var visited = new HashSet<ServiceHealth>(ReferenceEqualityComparer.Instance);
+            var stack = new Stack<ServiceHealth>(roots);
 
             while (stack.Count > 0)
             {
@@ -87,8 +87,7 @@ public static class ServiceHealthRxExtensions
                 if (!visited.Add(current))
                     continue;
 
-                if (current is IObservableServiceHealth observable)
-                    observer.OnNext(observable);
+                observer.OnNext(current);
 
                 foreach (var dep in current.Dependencies)
                     stack.Push(dep.Service);
