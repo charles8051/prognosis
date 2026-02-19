@@ -104,6 +104,49 @@ public class HealthMonitorTests : IAsyncDisposable
 
         // If we get here without hanging, the test passes.
     }
+
+    [Fact]
+    public void Constructor_WithHealthGraph_Polls()
+    {
+        var child = new HealthCheck("Child");
+        var root = new HealthCheck("Root")
+            .DependsOn(child, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        _monitor = new HealthMonitor(graph, TimeSpan.FromHours(1));
+
+        var reports = new List<HealthReport>();
+        _monitor.ReportChanged.Subscribe(new TestObserver<HealthReport>(reports.Add));
+
+        _monitor.Poll();
+
+        Assert.Single(reports);
+        Assert.Equal(2, reports[0].Services.Count);
+    }
+
+    [Fact]
+    public void Constructor_WithHealthGraph_ReflectsDynamicRootChanges()
+    {
+        var a = new HealthCheck("A");
+        var b = new HealthCheck("B");
+        var graph = HealthGraph.Create(a, b);
+
+        _monitor = new HealthMonitor(graph, TimeSpan.FromHours(1));
+
+        var reports = new List<HealthReport>();
+        _monitor.ReportChanged.Subscribe(new TestObserver<HealthReport>(reports.Add));
+
+        _monitor.Poll();
+        Assert.Single(reports);
+        Assert.Equal(2, reports[0].Services.Count);
+
+        // Wire A → B — now only A is a root, but B is still reachable.
+        a.DependsOn(b, Importance.Required);
+        _monitor.Poll();
+
+        // Report changed because services list order or root set changed.
+        Assert.Equal(2, reports.Count);
+    }
 }
 
 file class TestObserver<T>(Action<T> onNext) : IObserver<T>

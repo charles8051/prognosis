@@ -98,6 +98,82 @@ public class HealthCheckTests
         Assert.Contains("DB", str);
         Assert.Contains("Healthy", str);
     }
+
+    // ── Parent tracking ──────────────────────────────────────────────
+
+    [Fact]
+    public void DependsOn_SetsParentOnChild()
+    {
+        var child = new HealthCheck("Child");
+        var parent = new HealthCheck("Parent")
+            .DependsOn(child, Importance.Required);
+
+        Assert.True(child.HasParents);
+        Assert.Single(child.Parents);
+        Assert.Same(parent, child.Parents[0]);
+    }
+
+    [Fact]
+    public void DependsOn_MultipleParents_TracksAll()
+    {
+        var child = new HealthCheck("Child");
+        var p1 = new HealthCheck("P1").DependsOn(child, Importance.Required);
+        var p2 = new HealthCheck("P2").DependsOn(child, Importance.Important);
+
+        Assert.Equal(2, child.Parents.Count);
+    }
+
+    [Fact]
+    public void HasParents_FalseForOrphanedNode()
+    {
+        var orphan = new HealthCheck("Orphan");
+
+        Assert.False(orphan.HasParents);
+        Assert.Empty(orphan.Parents);
+    }
+
+    // ── RemoveDependency ─────────────────────────────────────────────
+
+    [Fact]
+    public void RemoveDependency_RemovesEdge()
+    {
+        var child = new HealthCheck("Child",
+            () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
+        var parent = new HealthCheck("Parent")
+            .DependsOn(child, Importance.Required);
+
+        Assert.Equal(HealthStatus.Unhealthy, parent.Evaluate().Status);
+
+        var removed = parent.RemoveDependency(child);
+
+        Assert.True(removed);
+        Assert.Empty(parent.Dependencies);
+        Assert.Equal(HealthStatus.Healthy, parent.Evaluate().Status);
+    }
+
+    [Fact]
+    public void RemoveDependency_ClearsParentOnChild()
+    {
+        var child = new HealthCheck("Child");
+        var parent = new HealthCheck("Parent")
+            .DependsOn(child, Importance.Required);
+
+        Assert.True(child.HasParents);
+
+        parent.RemoveDependency(child);
+
+        Assert.False(child.HasParents);
+        Assert.Empty(child.Parents);
+    }
+
+    [Fact]
+    public void RemoveDependency_UnknownNode_ReturnsFalse()
+    {
+        var parent = new HealthCheck("Parent");
+        var unknown = new HealthCheck("Unknown");
+
+        Assert.False(parent.RemoveDependency(unknown));
+    }
 }
 
 file class TestObserver<T>(Action<T> onNext) : IObserver<T>
