@@ -28,6 +28,11 @@
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
 
+  <!-- Allow the DI package to call HealthGraph's internal constructor -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Prognosis.DependencyInjection" />
+  </ItemGroup>
+
   <ItemGroup>
     <None Include=".github\workflows\publish.yml" />
     <None Include="Prognosis.DependencyInjection\Prognosis.DependencyInjection.csproj" />
