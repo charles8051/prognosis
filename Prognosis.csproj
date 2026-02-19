@@ -35,9 +35,12 @@
 
   <ItemGroup>
     <None Include=".github\workflows\publish.yml" />
+    <None Include="Prognosis.Benchmarks\Prognosis.Benchmarks.csproj" />
+    <None Include="Prognosis.DependencyInjection.Tests\Prognosis.DependencyInjection.Tests.csproj" />
     <None Include="Prognosis.DependencyInjection\Prognosis.DependencyInjection.csproj" />
     <None Include="Prognosis.Examples.DependencyInjection\Prognosis.Examples.DependencyInjection.csproj" />
     <None Include="Prognosis.Examples.Reactive\Prognosis.Examples.Reactive.csproj" />
+    <None Include="Prognosis.Reactive.Tests\Prognosis.Reactive.Tests.csproj" />
     <None Include="Prognosis.Reactive\Prognosis.Reactive.csproj" />
     <None Include="Prognosis.Tests\Prognosis.Tests.csproj" />
     <None Include="README.md" Pack="true" PackagePath="\" />
@@ -54,8 +57,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="Prognosis.Benchmarks\**" />
+    <None Remove="Prognosis.Benchmarks\**" />
     <Compile Remove="Prognosis.DependencyInjection\**" />
     <None Remove="Prognosis.DependencyInjection\**" />
+    <Compile Remove="Prognosis.DependencyInjection.Tests\**" />
+    <None Remove="Prognosis.DependencyInjection.Tests\**" />
     <Compile Remove="Prognosis.Examples\**" />
     <None Remove="Prognosis.Examples\**" />
     <Compile Remove="Prognosis.Examples.DependencyInjection\**" />
@@ -64,6 +71,8 @@
     <None Remove="Prognosis.Examples.Reactive\**" />
     <Compile Remove="Prognosis.Reactive\**" />
     <None Remove="Prognosis.Reactive\**" />
+    <Compile Remove="Prognosis.Reactive.Tests\**" />
+    <None Remove="Prognosis.Reactive.Tests\**" />
     <Compile Remove="Prognosis.Tests\**" />
     <None Remove="Prognosis.Tests\**" />
   </ItemGroup>
