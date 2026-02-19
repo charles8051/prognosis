@@ -14,7 +14,6 @@ public sealed class PrognosisBuilder
     internal List<Assembly> ScanAssemblies { get; } = [];
     internal List<CompositeDefinition> Composites { get; } = [];
     internal List<DelegateDefinition> Delegates { get; } = [];
-    internal List<string> RootNames { get; } = [];
 
     internal PrognosisBuilder(IServiceCollection services) => Services = services;
 
@@ -117,11 +116,13 @@ public sealed class PrognosisBuilder
     }
 
     /// <summary>
-    /// Marks named services as roots for monitoring and report generation.
+    /// Previously used to mark named services as roots. Roots are now
+    /// discovered automatically as nodes that no other node depends on.
+    /// This method is retained for source compatibility but has no effect.
     /// </summary>
+    [Obsolete("Roots are now discovered automatically from the graph topology. This method has no effect.")]
     public PrognosisBuilder AddRoots(params string[] names)
     {
-        RootNames.AddRange(names);
         return this;
     }
 }

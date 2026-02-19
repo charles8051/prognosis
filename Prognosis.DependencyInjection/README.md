@@ -23,7 +23,6 @@ builder.Services.AddPrognosis(health =>
         app.DependsOn("NotificationSystem", Importance.Important);
     });
 
-    health.AddRoots("Application");
     health.UseMonitor(TimeSpan.FromSeconds(30));
 });
 ```

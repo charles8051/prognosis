@@ -91,16 +91,8 @@ public static class ServiceCollectionExtensions
             byName[def.Name] = composite;
         }
 
-        // Resolve declared roots.
-        var roots = builder.RootNames
-            .Select(n => byName.TryGetValue(n, out var s)
-                ? s
-                : throw new InvalidOperationException(
-                    $"Root service '{n}' was not found in the health graph. " +
-                    $"Available services: {string.Join(", ", byName.Keys)}"))
-            .ToArray();
-
-        return new HealthGraph(roots, byName);
+        // Roots are discovered automatically from the graph topology.
+        return new HealthGraph(byName);
     }
 
     private static void WireEdges(
