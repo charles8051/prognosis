@@ -114,9 +114,9 @@ Console.WriteLine();
 // ─────────────────────────────────────────────────────────────────────
 
 Console.WriteLine("=== HealthGraph lookup ===");
-foreach (var svc in graph.Services)
+foreach (var node in graph.Services)
 {
-    Console.WriteLine($"  {svc.Name}: {svc.Evaluate()}");
+    Console.WriteLine($"  {node.Name}: {node.Evaluate()}");
 }
 Console.WriteLine();
 

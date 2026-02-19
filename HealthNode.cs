@@ -66,13 +66,13 @@ public abstract class HealthNode
     /// called at any time, including after evaluation has started. The new
     /// edge is visible to the next <see cref="Evaluate"/> call.
     /// </summary>
-    public HealthNode DependsOn(HealthNode service, Importance importance)
+    public HealthNode DependsOn(HealthNode node, Importance importance)
     {
-        AddDependency(service, importance);
-        lock (service._parentWriteLock)
+        AddDependency(node, importance);
+        lock (node._parentWriteLock)
         {
-            var updated = new List<HealthNode>(service._parents) { this };
-            service._parents = updated;
+            var updated = new List<HealthNode>(node._parents) { this };
+            node._parents = updated;
         }
         return this;
     }
@@ -83,13 +83,13 @@ public abstract class HealthNode
     /// <see langword="false"/>. Orphaned subgraphs naturally stop appearing in
     /// reports generated from the roots.
     /// </summary>
-    public bool RemoveDependency(HealthNode service)
+    public bool RemoveDependency(HealthNode node)
     {
-        if (RemoveDependencyCore(service))
+        if (RemoveDependencyCore(node))
         {
-            lock (service._parentWriteLock)
+            lock (node._parentWriteLock)
             {
-                var current = service._parents;
+                var current = node._parents;
                 var index = -1;
                 for (var i = 0; i < current.Count; i++)
                 {
@@ -108,7 +108,7 @@ public abstract class HealthNode
                         if (i != index)
                             updated.Add(current[i]);
                     }
-                    service._parents = updated;
+                    node._parents = updated;
                 }
             }
             return true;
@@ -117,8 +117,8 @@ public abstract class HealthNode
     }
 
     /// <summary>Subclass hook used by <see cref="DependsOn"/>.</summary>
-    private protected abstract void AddDependency(HealthNode service, Importance importance);
+    private protected abstract void AddDependency(HealthNode node, Importance importance);
 
     /// <summary>Subclass hook used by <see cref="RemoveDependency"/>.</summary>
-    private protected abstract bool RemoveDependencyCore(HealthNode service);
+    private protected abstract bool RemoveDependencyCore(HealthNode node);
 }

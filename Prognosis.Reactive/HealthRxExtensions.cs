@@ -63,7 +63,7 @@ public static class HealthRxExtensions
         TimeSpan throttle)
     {
         return graph.Services
-            .Select(s => s.StatusChanged)
+            .Select(n => n.StatusChanged)
             .Merge()
             .Throttle(throttle)
             .Select(_ =>
@@ -90,8 +90,8 @@ public static class HealthRxExtensions
     {
         var rootsArray = roots as HealthNode[] ?? roots.ToArray();
         return WalkNodes(rootsArray)
-            .Where(s => s.Dependencies.Count == 0)
-            .Select(s => s.StatusChanged)
+            .Where(n => n.Dependencies.Count == 0)
+            .Select(n => n.StatusChanged)
             .Merge()
             .Throttle(throttle)
             .Select(_ =>

@@ -57,13 +57,13 @@ public sealed class HealthTracker
     /// called at any time, including after evaluation has started. The new
     /// edge is visible to the next <see cref="Evaluate"/> call.
     /// </summary>
-    public HealthTracker DependsOn(HealthNode service, Importance importance)
+    public HealthTracker DependsOn(HealthNode node, Importance importance)
     {
         lock (_writeLock)
         {
             var updated = new List<HealthDependency>(_dependencies)
             {
-                new(service, importance)
+                new(node, importance)
             };
             _dependencies = updated;
         }
@@ -75,7 +75,7 @@ public sealed class HealthTracker
     /// Returns <see langword="true"/> if a dependency was removed;
     /// otherwise <see langword="false"/>.
     /// </summary>
-    public bool RemoveDependency(HealthNode service)
+    public bool RemoveDependency(HealthNode node)
     {
         lock (_writeLock)
         {
@@ -83,7 +83,7 @@ public sealed class HealthTracker
             var index = -1;
             for (var i = 0; i < current.Count; i++)
             {
-                if (ReferenceEquals(current[i].Service, service))
+                if (ReferenceEquals(current[i].Service, node))
                 {
                     index = i;
                     break;

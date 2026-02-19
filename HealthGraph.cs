@@ -22,11 +22,11 @@ namespace Prognosis;
 /// </remarks>
 public sealed class HealthGraph
 {
-    private readonly Dictionary<string, HealthNode> _services;
+    private readonly Dictionary<string, HealthNode> _nodes;
 
-    internal HealthGraph(Dictionary<string, HealthNode> services)
+    internal HealthGraph(Dictionary<string, HealthNode> nodes)
     {
-        _services = services;
+        _nodes = nodes;
     }
 
     /// <summary>
@@ -37,13 +37,13 @@ public sealed class HealthGraph
     /// </summary>
     public static HealthGraph Create(params HealthNode[] nodes)
     {
-        var services = new Dictionary<string, HealthNode>();
+        var nodesByName = new Dictionary<string, HealthNode>();
         var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
 
         foreach (var node in nodes)
-            Walk(node, visited, services);
+            Walk(node, visited, nodesByName);
 
-        return new HealthGraph(services);
+        return new HealthGraph(nodesByName);
     }
 
     /// <summary>
@@ -57,7 +57,7 @@ public sealed class HealthGraph
         get
         {
             var roots = new List<HealthNode>();
-            foreach (var node in _services.Values)
+            foreach (var node in _nodes.Values)
             {
                 if (!node.HasParents)
                     roots.Add(node);
@@ -73,14 +73,14 @@ public sealed class HealthGraph
     /// <exception cref="KeyNotFoundException">
     /// No service with the given name exists in the graph.
     /// </exception>
-    public HealthNode this[string name] => _services[name];
+    public HealthNode this[string name] => _nodes[name];
 
     /// <summary>
     /// Attempts to look up a node by name, returning <see langword="false"/>
     /// if no service with the given name exists.
     /// </summary>
-    public bool TryGetService(string name, out HealthNode service) =>
-        _services.TryGetValue(name, out service!);
+    public bool TryGetService(string name, out HealthNode node) =>
+        _nodes.TryGetValue(name, out node!);
 
     /// <summary>
     /// Looks up a service whose <see cref="HealthNode.Name"/> matches
@@ -90,13 +90,13 @@ public sealed class HealthGraph
     /// <typeparam name="T">
     /// The type whose <see cref="System.Type.Name"/> is used as the lookup key.
     /// </typeparam>
-    public bool TryGetService<T>(out HealthNode service) where T : class, IHealthAware =>
-        _services.TryGetValue(typeof(T).Name, out service!);
+    public bool TryGetService<T>(out HealthNode node) where T : class, IHealthAware =>
+        _nodes.TryGetValue(typeof(T).Name, out node!);
 
     /// <summary>
     /// All named services in the graph (leaves, composites, and delegates).
     /// </summary>
-    public IEnumerable<HealthNode> Services => _services.Values;
+    public IEnumerable<HealthNode> Services => _nodes.Values;
 
     /// <summary>Convenience: creates a point-in-time report from all roots.</summary>
     public HealthReport CreateReport() => HealthAggregator.CreateReport(Roots);
@@ -104,14 +104,14 @@ public sealed class HealthGraph
     private static void Walk(
         HealthNode node,
         HashSet<HealthNode> visited,
-        Dictionary<string, HealthNode> services)
+        Dictionary<string, HealthNode> nodesByName)
     {
         if (!visited.Add(node))
             return;
 
-        services[node.Name] = node;
+        nodesByName[node.Name] = node;
 
         foreach (var dep in node.Dependencies)
-            Walk(dep.Service, visited, services);
+            Walk(dep.Service, visited, nodesByName);
     }
 }

@@ -42,16 +42,16 @@ public sealed class HealthCheck : HealthNode
     public HealthCheck(string name)
         : this(name, () => HealthStatus.Healthy) { }
 
-    private protected override void AddDependency(HealthNode service, Importance importance)
-        => _tracker.DependsOn(service, importance);
+    private protected override void AddDependency(HealthNode node, Importance importance)
+        => _tracker.DependsOn(node, importance);
 
-    private protected override bool RemoveDependencyCore(HealthNode service)
-        => _tracker.RemoveDependency(service);
+    private protected override bool RemoveDependencyCore(HealthNode node)
+        => _tracker.RemoveDependency(node);
 
     /// <summary>Registers a dependency on another service.</summary>
-    public new HealthCheck DependsOn(HealthNode service, Importance importance)
+    public new HealthCheck DependsOn(HealthNode node, Importance importance)
     {
-        base.DependsOn(service, importance);
+        base.DependsOn(node, importance);
         return this;
     }
 

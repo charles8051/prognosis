@@ -125,8 +125,8 @@ public static class ServiceCollectionExtensions
     {
         if (edge.ServiceType is not null)
         {
-            return byType.TryGetValue(edge.ServiceType, out var svc)
-                ? svc
+            return byType.TryGetValue(edge.ServiceType, out var node)
+                ? node
                 : throw new InvalidOperationException(
                     $"Dependency type '{edge.ServiceType.Name}' was not found in the health graph.");
         }

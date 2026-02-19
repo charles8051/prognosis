@@ -221,39 +221,39 @@ public static class HealthAggregator
     }
 
     private static void DetectCyclesDfs(
-        HealthNode service,
+        HealthNode node,
         HashSet<HealthNode> gray,
         HashSet<HealthNode> black,
         List<HealthNode> path,
         List<IReadOnlyList<string>> cycles)
     {
-        if (black.Contains(service))
+        if (black.Contains(node))
             return;
 
-        if (!gray.Add(service))
+        if (!gray.Add(node))
         {
             // Back-edge found — extract the cycle from the path.
-            var cycleStart = path.IndexOf(service);
+            var cycleStart = path.IndexOf(node);
             var cycle = new List<string>(path.Count - cycleStart + 1);
             for (var i = cycleStart; i < path.Count; i++)
             {
                 cycle.Add(path[i].Name);
             }
-            cycle.Add(service.Name); // close the loop
+            cycle.Add(node.Name); // close the loop
             cycles.Add(cycle);
             return;
         }
 
-        path.Add(service);
+        path.Add(node);
 
-        foreach (var dep in service.Dependencies)
+        foreach (var dep in node.Dependencies)
         {
             DetectCyclesDfs(dep.Service, gray, black, path, cycles);
         }
 
         path.RemoveAt(path.Count - 1);
-        gray.Remove(service);
-        black.Add(service);
+        gray.Remove(node);
+        black.Add(node);
     }
 
     /// <summary>
@@ -270,34 +270,34 @@ public static class HealthAggregator
         }
     }
 
-    private static void NotifyGraphDfs(HealthNode service, HashSet<HealthNode> visited)
+    private static void NotifyGraphDfs(HealthNode node, HashSet<HealthNode> visited)
     {
-        if (!visited.Add(service))
+        if (!visited.Add(node))
             return;
 
         // Depth-first: notify leaves before parents.
-        foreach (var dep in service.Dependencies)
+        foreach (var dep in node.Dependencies)
         {
             NotifyGraphDfs(dep.Service, visited);
         }
 
-        service.NotifyChanged();
+        node.NotifyChanged();
     }
 
     private static void Walk(
-        HealthNode service,
+        HealthNode node,
         HashSet<HealthNode> visited,
         List<HealthSnapshot> results)
     {
-        if (!visited.Add(service))
+        if (!visited.Add(node))
             return;
 
-        foreach (var dep in service.Dependencies)
+        foreach (var dep in node.Dependencies)
         {
             Walk(dep.Service, visited, results);
         }
 
-        var eval = service.Evaluate();
-        results.Add(new HealthSnapshot(service.Name, eval.Status, service.Dependencies.Count, eval.Reason));
+        var eval = node.Evaluate();
+        results.Add(new HealthSnapshot(node.Name, eval.Status, node.Dependencies.Count, eval.Reason));
     }
 }

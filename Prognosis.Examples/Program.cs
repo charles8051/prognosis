@@ -95,19 +95,19 @@ Console.WriteLine(cycles.Count == 0
 Console.WriteLine();
 
 // Now introduce a deliberate cycle and detect it.
-var serviceA = new HealthCheck("ServiceA");
-var serviceB = new HealthCheck("ServiceB")
-    .DependsOn(serviceA, Importance.Required);
-serviceA.DependsOn(serviceB, Importance.Required); // A → B → A
+var nodeA = new HealthCheck("ServiceA");
+var nodeB = new HealthCheck("ServiceB")
+    .DependsOn(nodeA, Importance.Required);
+nodeA.DependsOn(nodeB, Importance.Required); // A → B → A
 
 Console.WriteLine("=== After introducing ServiceA ↔ ServiceB cycle ===");
-cycles = HealthAggregator.DetectCycles(serviceA);
+cycles = HealthAggregator.DetectCycles(nodeA);
 Console.WriteLine(string.Join(Environment.NewLine, cycles.Select(c => "  Cycle: " + string.Join(" → ", c))));
 Console.WriteLine();
 
 // Evaluation still works — the re-entrancy guard prevents a stack overflow.
-Console.WriteLine($"  ServiceA evaluates safely: {serviceA.Evaluate()}");
-Console.WriteLine($"  ServiceB evaluates safely: {serviceB.Evaluate()}");
+Console.WriteLine($"  ServiceA evaluates safely: {nodeA.Evaluate()}");
+Console.WriteLine($"  ServiceB evaluates safely: {nodeB.Evaluate()}");
 Console.WriteLine();
 
 // ── Serialization ────────────────────────────────────────────────────

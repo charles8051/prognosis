@@ -95,9 +95,9 @@ HealthReport report = graph.CreateReport();
 IHealthAware db = graph["Database"];
 
 // Enumerate all services.
-foreach (var svc in graph.Services)
+foreach (var node in graph.Services)
 {
-    Console.WriteLine($"{svc.Name}: {svc.Evaluate()}");
+    Console.WriteLine($"{node.Name}: {node.Evaluate()}");
 }
 ```
 
