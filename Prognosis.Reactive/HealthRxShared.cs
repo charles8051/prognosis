@@ -26,6 +26,12 @@ public enum ShareStrategy
 public static class HealthRxShared
 {
     public static IObservable<HealthReport> CreateSharedReportStream(
+        this HealthGraph graph,
+        TimeSpan interval,
+        ShareStrategy strategy = ShareStrategy.RefCount)
+        => CreateSharedReportStream(graph.Roots, interval, strategy);
+
+    public static IObservable<HealthReport> CreateSharedReportStream(
         this IReadOnlyList<HealthNode> roots,
         TimeSpan interval,
         ShareStrategy strategy = ShareStrategy.RefCount)
@@ -37,6 +43,12 @@ public static class HealthRxShared
             _ => source.Publish().RefCount(),
         };
     }
+
+    public static IObservable<HealthReport> CreateSharedObserveStream(
+        this HealthGraph graph,
+        TimeSpan throttle,
+        ShareStrategy strategy = ShareStrategy.RefCount)
+        => CreateSharedObserveStream(graph.Roots, throttle, strategy);
 
     public static IObservable<HealthReport> CreateSharedObserveStream(
         this IReadOnlyList<HealthNode> roots,

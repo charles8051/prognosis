@@ -16,6 +16,17 @@ public static class HealthRxExtensions
     /// Only emits when the report changes.
     /// </summary>
     public static IObservable<HealthReport> PollHealthReport(
+        this HealthGraph graph,
+        TimeSpan interval)
+        => PollHealthReport(graph.Roots, interval);
+
+    /// <summary>
+    /// Polls the full health graph on the given interval, calling
+    /// <see cref="HealthNode.NotifyChanged"/> on every node before
+    /// producing each <see cref="HealthReport"/>.
+    /// Only emits when the report changes.
+    /// </summary>
+    public static IObservable<HealthReport> PollHealthReport(
         this IReadOnlyList<HealthNode> roots,
         TimeSpan interval)
     {
@@ -28,6 +39,20 @@ public static class HealthRxExtensions
             })
             .DistinctUntilChanged(HealthReportComparer.Instance);
     }
+
+    /// <summary>
+    /// Produces a new <see cref="HealthReport"/> whenever any leaf node in
+    /// the graph signals a change, throttled to avoid evaluation storms.
+    /// Combines push-based triggers with the single-pass evaluation of
+    /// <see cref="HealthAggregator.CreateReport"/>.
+    /// Only leaf nodes (those with no dependencies) are observed as triggers,
+    /// since parent status changes are always a consequence of
+    /// <see cref="HealthAggregator.NotifyGraph"/>, not exogenous events.
+    /// </summary>
+    public static IObservable<HealthReport> ObserveHealthReport(
+        this HealthGraph graph,
+        TimeSpan throttle)
+        => ObserveHealthReport(graph.Roots, throttle);
 
     /// <summary>
     /// Produces a new <see cref="HealthReport"/> whenever any leaf node in
