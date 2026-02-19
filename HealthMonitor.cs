@@ -7,7 +7,7 @@ namespace Prognosis;
 /// </summary>
 public sealed class HealthMonitor : IAsyncDisposable, IDisposable
 {
-    private readonly HealthNode[] _roots;
+    private readonly Func<HealthNode[]> _getRoots;
     private readonly TimeSpan _interval;
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _pollingTask;
@@ -21,9 +21,22 @@ public sealed class HealthMonitor : IAsyncDisposable, IDisposable
     /// </summary>
     public IObservable<HealthReport> ReportChanged { get; }
 
+    /// <summary>
+    /// Creates a monitor that re-queries <see cref="HealthGraph.Roots"/> on
+    /// every tick, so runtime edge changes are reflected automatically.
+    /// </summary>
+    public HealthMonitor(HealthGraph graph, TimeSpan interval)
+    {
+        _getRoots = () => graph.Roots;
+        _interval = interval;
+        ReportChanged = new ReportObservable(this);
+        _pollingTask = PollLoopAsync(_cts.Token);
+    }
+
     public HealthMonitor(IEnumerable<HealthNode> roots, TimeSpan interval)
     {
-        _roots = roots.ToArray();
+        var frozenRoots = roots.ToArray();
+        _getRoots = () => frozenRoots;
         _interval = interval;
         ReportChanged = new ReportObservable(this);
         _pollingTask = PollLoopAsync(_cts.Token);
@@ -35,11 +48,13 @@ public sealed class HealthMonitor : IAsyncDisposable, IDisposable
     /// </summary>
     public void Poll()
     {
+        var roots = _getRoots();
+
         // Walk the graph depth-first and notify all observable services.
-        HealthAggregator.NotifyGraph(_roots);
+        HealthAggregator.NotifyGraph(roots);
 
         // Build a report and emit if changed.
-        var report = HealthAggregator.CreateReport(_roots);
+        var report = HealthAggregator.CreateReport(roots);
 
         List<IObserver<HealthReport>>? snapshot = null;
         lock (_lock)

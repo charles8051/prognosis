@@ -14,11 +14,22 @@ public static class HealthRxExtensions
     /// <see cref="HealthNode.NotifyChanged"/> on every node before
     /// producing each <see cref="HealthReport"/>.
     /// Only emits when the report changes.
+    /// Re-queries <see cref="HealthGraph.Roots"/> each tick so runtime
+    /// edge changes are reflected automatically.
     /// </summary>
     public static IObservable<HealthReport> PollHealthReport(
         this HealthGraph graph,
         TimeSpan interval)
-        => PollHealthReport(graph.Roots, interval);
+    {
+        return Observable.Interval(interval)
+            .Select(_ =>
+            {
+                var roots = graph.Roots;
+                HealthAggregator.NotifyGraph(roots);
+                return HealthAggregator.CreateReport(roots);
+            })
+            .DistinctUntilChanged(HealthReportComparer.Instance);
+    }
 
     /// <summary>
     /// Polls the full health graph on the given interval, calling
@@ -41,18 +52,28 @@ public static class HealthRxExtensions
     }
 
     /// <summary>
-    /// Produces a new <see cref="HealthReport"/> whenever any leaf node in
+    /// Produces a new <see cref="HealthReport"/> whenever any service in
     /// the graph signals a change, throttled to avoid evaluation storms.
-    /// Combines push-based triggers with the single-pass evaluation of
-    /// <see cref="HealthAggregator.CreateReport"/>.
-    /// Only leaf nodes (those with no dependencies) are observed as triggers,
-    /// since parent status changes are always a consequence of
-    /// <see cref="HealthAggregator.NotifyGraph"/>, not exogenous events.
+    /// Subscribes to all services (not just current leaves) so that runtime
+    /// edge changes are handled. Re-queries <see cref="HealthGraph.Roots"/>
+    /// when building each report.
     /// </summary>
     public static IObservable<HealthReport> ObserveHealthReport(
         this HealthGraph graph,
         TimeSpan throttle)
-        => ObserveHealthReport(graph.Roots, throttle);
+    {
+        return graph.Services
+            .Select(s => s.StatusChanged)
+            .Merge()
+            .Throttle(throttle)
+            .Select(_ =>
+            {
+                var roots = graph.Roots;
+                HealthAggregator.NotifyGraph(roots);
+                return HealthAggregator.CreateReport(roots);
+            })
+            .DistinctUntilChanged(HealthReportComparer.Instance);
+    }
 
     /// <summary>
     /// Produces a new <see cref="HealthReport"/> whenever any leaf node in

@@ -7,11 +7,14 @@ namespace Prognosis;
 /// <remarks>
 /// <para>
 /// Build a graph manually with <see cref="Create"/> or let the DI builder in
-/// <c>Prognosis.DependencyInjection</c> materialize one for you:
+/// <c>Prognosis.DependencyInjection</c> materialize one for you.
+/// Roots are computed dynamically — a root is any node that is not a
+/// dependency of another node. When edges are added or removed at runtime
+/// the set of roots updates automatically.
 /// </para>
 /// <code>
 /// // Manual:
-/// var graph = HealthGraph.Create(rootNode);
+/// var graph = HealthGraph.Create(topLevelNode);
 ///
 /// // DI:
 /// var graph = serviceProvider.GetRequiredService&lt;HealthGraph&gt;();
@@ -21,35 +24,48 @@ public sealed class HealthGraph
 {
     private readonly Dictionary<string, HealthNode> _services;
 
-    internal HealthGraph(HealthNode[] roots, Dictionary<string, HealthNode> services)
+    internal HealthGraph(Dictionary<string, HealthNode> services)
     {
-        Roots = roots;
         _services = services;
     }
 
     /// <summary>
     /// Creates a <see cref="HealthGraph"/> by walking the dependency graph
-    /// from the given roots and indexing every reachable node by
-    /// <see cref="HealthNode.Name"/>.
+    /// from the given entry-point nodes and indexing every reachable node by
+    /// <see cref="HealthNode.Name"/>. Roots are discovered automatically as
+    /// nodes that no other node depends on.
     /// </summary>
-    public static HealthGraph Create(params HealthNode[] roots)
+    public static HealthGraph Create(params HealthNode[] nodes)
     {
         var services = new Dictionary<string, HealthNode>();
         var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
 
-        foreach (var root in roots)
-            Walk(root, visited, services);
+        foreach (var node in nodes)
+            Walk(node, visited, services);
 
-        return new HealthGraph(roots, services);
+        return new HealthGraph(services);
     }
 
     /// <summary>
-    /// The top-level graph entry points. Pass directly to
-    /// <see cref="HealthAggregator.CreateReport"/>,
-    /// <see cref="HealthAggregator.EvaluateAll"/>, or the Rx
-    /// <c>PollHealthReport</c> / <c>ObserveHealthReport</c> extensions.
+    /// The current root nodes — nodes that are not a dependency of any other
+    /// node. Computed dynamically so that runtime edge changes (via
+    /// <see cref="HealthNode.DependsOn"/> / <see cref="HealthNode.RemoveDependency"/>)
+    /// are reflected automatically.
     /// </summary>
-    public HealthNode[] Roots { get; }
+    public HealthNode[] Roots
+    {
+        get
+        {
+            var roots = new List<HealthNode>();
+            foreach (var node in _services.Values)
+            {
+                if (!node.HasParents)
+                    roots.Add(node);
+            }
+
+            return roots.ToArray();
+        }
+    }
 
     /// <summary>
     /// Looks up any node in the graph by its <see cref="HealthNode.Name"/>.

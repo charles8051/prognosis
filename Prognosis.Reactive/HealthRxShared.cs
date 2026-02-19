@@ -29,7 +29,14 @@ public static class HealthRxShared
         this HealthGraph graph,
         TimeSpan interval,
         ShareStrategy strategy = ShareStrategy.RefCount)
-        => CreateSharedReportStream(graph.Roots, interval, strategy);
+    {
+        var source = graph.PollHealthReport(interval);
+        return strategy switch
+        {
+            ShareStrategy.ReplayLatest => source.Replay(1).RefCount(),
+            _ => source.Publish().RefCount(),
+        };
+    }
 
     public static IObservable<HealthReport> CreateSharedReportStream(
         this IReadOnlyList<HealthNode> roots,
@@ -48,7 +55,14 @@ public static class HealthRxShared
         this HealthGraph graph,
         TimeSpan throttle,
         ShareStrategy strategy = ShareStrategy.RefCount)
-        => CreateSharedObserveStream(graph.Roots, throttle, strategy);
+    {
+        var source = graph.ObserveHealthReport(throttle);
+        return strategy switch
+        {
+            ShareStrategy.ReplayLatest => source.Replay(1).RefCount(),
+            _ => source.Publish().RefCount(),
+        };
+    }
 
     public static IObservable<HealthReport> CreateSharedObserveStream(
         this IReadOnlyList<HealthNode> roots,
