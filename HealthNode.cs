@@ -16,8 +16,24 @@ namespace Prognosis;
 /// </summary>
 public abstract class HealthNode
 {
+    private volatile IReadOnlyList<HealthNode> _parents = Array.Empty<HealthNode>();
+    private readonly object _parentWriteLock = new();
+
     /// <summary>Display name for this node in the health graph.</summary>
     public abstract string Name { get; }
+
+    /// <summary>
+    /// The nodes that list this node as a dependency. Updated automatically
+    /// when edges are added or removed via <see cref="DependsOn"/> /
+    /// <see cref="RemoveDependency"/>. Thread-safe (copy-on-write).
+    /// </summary>
+    public IReadOnlyList<HealthNode> Parents => _parents;
+
+    /// <summary>
+    /// Returns <see langword="true"/> when at least one other node in the
+    /// graph lists this node as a dependency.
+    /// </summary>
+    public bool HasParents => _parents.Count > 0;
 
     /// <summary>
     /// Zero or more services this service depends on, each tagged with an
@@ -46,19 +62,63 @@ public abstract class HealthNode
     public abstract void NotifyChanged();
 
     /// <summary>
-    /// Registers a dependency on another service. Must be called before the
-    /// first <see cref="Evaluate"/> — the dependency list is frozen once
-    /// evaluation begins.
+    /// Registers a dependency on another service. Thread-safe and may be
+    /// called at any time, including after evaluation has started. The new
+    /// edge is visible to the next <see cref="Evaluate"/> call.
     /// </summary>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown if called after <see cref="Evaluate"/> has been invoked.
-    /// </exception>
     public HealthNode DependsOn(HealthNode service, Importance importance)
     {
         AddDependency(service, importance);
+        lock (service._parentWriteLock)
+        {
+            var updated = new List<HealthNode>(service._parents) { this };
+            service._parents = updated;
+        }
         return this;
+    }
+
+    /// <summary>
+    /// Removes the first dependency that references <paramref name="service"/>.
+    /// Returns <see langword="true"/> if a dependency was removed; otherwise
+    /// <see langword="false"/>. Orphaned subgraphs naturally stop appearing in
+    /// reports generated from the roots.
+    /// </summary>
+    public bool RemoveDependency(HealthNode service)
+    {
+        if (RemoveDependencyCore(service))
+        {
+            lock (service._parentWriteLock)
+            {
+                var current = service._parents;
+                var index = -1;
+                for (var i = 0; i < current.Count; i++)
+                {
+                    if (ReferenceEquals(current[i], this))
+                    {
+                        index = i;
+                        break;
+                    }
+                }
+
+                if (index >= 0)
+                {
+                    var updated = new List<HealthNode>(current.Count - 1);
+                    for (var i = 0; i < current.Count; i++)
+                    {
+                        if (i != index)
+                            updated.Add(current[i]);
+                    }
+                    service._parents = updated;
+                }
+            }
+            return true;
+        }
+        return false;
     }
 
     /// <summary>Subclass hook used by <see cref="DependsOn"/>.</summary>
     private protected abstract void AddDependency(HealthNode service, Importance importance);
+
+    /// <summary>Subclass hook used by <see cref="RemoveDependency"/>.</summary>
+    private protected abstract bool RemoveDependencyCore(HealthNode service);
 }

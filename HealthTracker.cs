@@ -18,11 +18,11 @@ public sealed class HealthTracker
 
     private readonly Func<HealthEvaluation> _intrinsicCheck;
     private readonly AggregationStrategy _aggregator;
-    private readonly List<HealthDependency> _dependencies = new();
-    private readonly object _lock = new();
+    private readonly object _writeLock = new();
+    private readonly object _observerLock = new();
     private readonly List<IObserver<HealthStatus>> _observers = new();
+    private volatile IReadOnlyList<HealthDependency> _dependencies = Array.Empty<HealthDependency>();
     private HealthStatus? _lastEmitted;
-    private bool _frozen;
 
     /// <param name="intrinsicCheck">
     /// A callback that returns the owning service's intrinsic health
@@ -53,21 +53,55 @@ public sealed class HealthTracker
     public IObservable<HealthStatus> StatusChanged { get; }
 
     /// <summary>
-    /// Registers a dependency on another service. Must be called before the
-    /// first <see cref="Evaluate"/> — the dependency list is frozen once
-    /// evaluation begins.
+    /// Registers a dependency on another service. Thread-safe and may be
+    /// called at any time, including after evaluation has started. The new
+    /// edge is visible to the next <see cref="Evaluate"/> call.
     /// </summary>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown if called after <see cref="Evaluate"/> has been invoked.
-    /// </exception>
     public HealthTracker DependsOn(HealthNode service, Importance importance)
     {
-        if (_frozen)
-            throw new InvalidOperationException(
-                "Dependencies cannot be modified after evaluation has started.");
-
-        _dependencies.Add(new HealthDependency(service, importance));
+        lock (_writeLock)
+        {
+            var updated = new List<HealthDependency>(_dependencies)
+            {
+                new(service, importance)
+            };
+            _dependencies = updated;
+        }
         return this;
+    }
+
+    /// <summary>
+    /// Removes the first dependency that references <paramref name="service"/>.
+    /// Returns <see langword="true"/> if a dependency was removed;
+    /// otherwise <see langword="false"/>.
+    /// </summary>
+    public bool RemoveDependency(HealthNode service)
+    {
+        lock (_writeLock)
+        {
+            var current = _dependencies;
+            var index = -1;
+            for (var i = 0; i < current.Count; i++)
+            {
+                if (ReferenceEquals(current[i].Service, service))
+                {
+                    index = i;
+                    break;
+                }
+            }
+
+            if (index < 0)
+                return false;
+
+            var updated = new List<HealthDependency>(current.Count - 1);
+            for (var i = 0; i < current.Count; i++)
+            {
+                if (i != index)
+                    updated.Add(current[i]);
+            }
+            _dependencies = updated;
+            return true;
+        }
     }
 
     /// <summary>
@@ -79,7 +113,7 @@ public sealed class HealthTracker
         var current = Evaluate().Status;
 
         List<IObserver<HealthStatus>>? snapshot = null;
-        lock (_lock)
+        lock (_observerLock)
         {
             if (current == _lastEmitted)
                 return;
@@ -99,8 +133,6 @@ public sealed class HealthTracker
 
     public HealthEvaluation Evaluate()
     {
-        _frozen = true;
-
         s_evaluating ??= new(ReferenceEqualityComparer.Instance);
 
         if (!s_evaluating.Add(this))
@@ -108,7 +140,10 @@ public sealed class HealthTracker
 
         try
         {
-            return _aggregator(_intrinsicCheck(), _dependencies);
+            // Capture the volatile snapshot once — iteration is safe because
+            // writers always replace the entire list (copy-on-write).
+            var deps = _dependencies;
+            return _aggregator(_intrinsicCheck(), deps);
         }
         finally
         {
@@ -118,7 +153,7 @@ public sealed class HealthTracker
 
     private void AddObserver(IObserver<HealthStatus> observer)
     {
-        lock (_lock)
+        lock (_observerLock)
         {
             _observers.Add(observer);
         }
@@ -126,7 +161,7 @@ public sealed class HealthTracker
 
     private void RemoveObserver(IObserver<HealthStatus> observer)
     {
-        lock (_lock)
+        lock (_observerLock)
         {
             _observers.Remove(observer);
         }

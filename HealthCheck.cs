@@ -45,10 +45,13 @@ public sealed class HealthCheck : HealthNode
     private protected override void AddDependency(HealthNode service, Importance importance)
         => _tracker.DependsOn(service, importance);
 
+    private protected override bool RemoveDependencyCore(HealthNode service)
+        => _tracker.RemoveDependency(service);
+
     /// <summary>Registers a dependency on another service.</summary>
     public new HealthCheck DependsOn(HealthNode service, Importance importance)
     {
-        AddDependency(service, importance);
+        base.DependsOn(service, importance);
         return this;
     }
 

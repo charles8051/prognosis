@@ -64,15 +64,46 @@ public class HealthTrackerTests
     }
 
     [Fact]
-    public void DependsOn_AfterEvaluate_Throws()
+    public void DependsOn_AfterEvaluate_IsAllowed()
+    {
+        var dep = new HealthCheck("Dep",
+            () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
+        var tracker = new HealthTracker(() => HealthStatus.Healthy);
+
+        // Evaluate first — this used to freeze the graph.
+        var before = tracker.Evaluate();
+        Assert.Equal(HealthStatus.Healthy, before.Status);
+
+        // Adding an edge at runtime now works.
+        tracker.DependsOn(dep, Importance.Required);
+        var after = tracker.Evaluate();
+        Assert.Equal(HealthStatus.Unhealthy, after.Status);
+    }
+
+    [Fact]
+    public void RemoveDependency_DetachesEdge()
+    {
+        var dep = new HealthCheck("Dep",
+            () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
+        var tracker = new HealthTracker(() => HealthStatus.Healthy);
+        tracker.DependsOn(dep, Importance.Required);
+
+        Assert.Equal(HealthStatus.Unhealthy, tracker.Evaluate().Status);
+
+        var removed = tracker.RemoveDependency(dep);
+
+        Assert.True(removed);
+        Assert.Empty(tracker.Dependencies);
+        Assert.Equal(HealthStatus.Healthy, tracker.Evaluate().Status);
+    }
+
+    [Fact]
+    public void RemoveDependency_UnknownService_ReturnsFalse()
     {
         var tracker = new HealthTracker();
-        tracker.Evaluate();
+        var unknown = new HealthCheck("Unknown");
 
-        var dep = new HealthCheck("Dep");
-
-        Assert.Throws<InvalidOperationException>(
-            () => tracker.DependsOn(dep, Importance.Required));
+        Assert.False(tracker.RemoveDependency(unknown));
     }
 
     // ── Circular dependency guard ────────────────────────────────────

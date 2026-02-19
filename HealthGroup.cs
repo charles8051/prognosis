@@ -36,17 +36,20 @@ public sealed class HealthGroup : HealthNode
     {
         foreach (var dep in dependencies)
         {
-            _tracker.DependsOn(dep.Service, dep.Importance);
+            DependsOn(dep.Service, dep.Importance);
         }
     }
 
     private protected override void AddDependency(HealthNode service, Importance importance)
         => _tracker.DependsOn(service, importance);
 
+    private protected override bool RemoveDependencyCore(HealthNode service)
+        => _tracker.RemoveDependency(service);
+
     /// <summary>Registers a dependency on another service.</summary>
     public new HealthGroup DependsOn(HealthNode service, Importance importance)
     {
-        AddDependency(service, importance);
+        base.DependsOn(service, importance);
         return this;
     }
 
