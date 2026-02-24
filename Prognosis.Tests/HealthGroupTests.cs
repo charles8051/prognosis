@@ -74,20 +74,25 @@ public class HealthGroupTests
     [Fact]
     public void NotifyChanged_EmitsOnStatusChange()
     {
+        var isUnhealthy = true;
         var dep = new HealthCheck("Dep",
-            () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
+            () => isUnhealthy
+                ? new HealthEvaluation(HealthStatus.Unhealthy, "down")
+                : HealthStatus.Healthy);
         var composite = new HealthGroup("Comp", new[]
         {
             new HealthDependency(dep, Importance.Required),
         });
-
+        // DependsOn in the constructor propagates immediately, so _lastEmitted
+        // is already Unhealthy. Subscribe and verify a status change emits.
         var emitted = new List<HealthStatus>();
         composite.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted.Add));
 
+        isUnhealthy = false;
         composite.NotifyChanged();
 
         Assert.Single(emitted);
-        Assert.Equal(HealthStatus.Unhealthy, emitted[0]);
+        Assert.Equal(HealthStatus.Healthy, emitted[0]);
     }
 }
 
