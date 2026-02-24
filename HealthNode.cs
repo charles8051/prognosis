@@ -62,9 +62,41 @@ public abstract class HealthNode
     public abstract void NotifyChanged();
 
     /// <summary>
+    /// Calls <see cref="NotifyChanged"/> on this node and propagates upward
+    /// through <see cref="Parents"/>, re-evaluating each ancestor exactly once.
+    /// Use this as the bottom-up alternative to the top-down
+    /// <see cref="HealthAggregator.NotifyGraph"/> pass: a leaf calls
+    /// <see cref="PropagateChange"/> and the status ripples up to every root
+    /// without external orchestration.
+    /// <para>
+    /// Diamond graphs (a shared ancestor reachable via multiple paths) are
+    /// handled correctly — each node is visited at most once per call.
+    /// </para>
+    /// </summary>
+    public void PropagateChange()
+    {
+        var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+        PropagateChangeCore(visited);
+    }
+
+    private void PropagateChangeCore(HashSet<HealthNode> visited)
+    {
+        if (!visited.Add(this))
+            return;
+
+        NotifyChanged();
+
+        foreach (var parent in _parents)
+            parent.PropagateChangeCore(visited);
+    }
+
+    /// <summary>
     /// Registers a dependency on another service. Thread-safe and may be
     /// called at any time, including after evaluation has started. The new
     /// edge is visible to the next <see cref="Evaluate"/> call.
+    /// Immediately calls <see cref="PropagateChange"/> so the new dependency's
+    /// current health is reflected in all ancestors without waiting for the
+    /// next poll cycle.
     /// </summary>
     public HealthNode DependsOn(HealthNode node, Importance importance)
     {
@@ -74,13 +106,16 @@ public abstract class HealthNode
             var updated = new List<HealthNode>(node._parents) { this };
             node._parents = updated;
         }
+        PropagateChange();
         return this;
     }
 
     /// <summary>
-    /// Removes the first dependency that references <paramref name="service"/>.
+    /// Removes the first dependency that references <paramref name="node"/>.
     /// Returns <see langword="true"/> if a dependency was removed; otherwise
-    /// <see langword="false"/>. Orphaned subgraphs naturally stop appearing in
+    /// <see langword="false"/>. Immediately calls <see cref="PropagateChange"/>
+    /// so the removal is reflected in all ancestors without waiting for the
+    /// next poll cycle. Orphaned subgraphs naturally stop appearing in
     /// reports generated from the roots.
     /// </summary>
     public bool RemoveDependency(HealthNode node)
@@ -111,6 +146,7 @@ public abstract class HealthNode
                     node._parents = updated;
                 }
             }
+            PropagateChange();
             return true;
         }
         return false;
