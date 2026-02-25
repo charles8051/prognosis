@@ -19,7 +19,7 @@ public static class HealthAggregator
 
         foreach (var dep in dependencies)
         {
-            var depEval = dep.Service.Evaluate();
+            var depEval = dep.Node.Evaluate();
 
             var contribution = dep.Importance switch
             {
@@ -43,8 +43,8 @@ public static class HealthAggregator
             {
                 effective = contribution;
                 reason = depEval.Reason is not null
-                    ? $"{dep.Service.Name}: {depEval.Reason}"
-                    : $"{dep.Service.Name} is {depEval.Status}";
+                    ? $"{dep.Node.Name}: {depEval.Reason}"
+                    : $"{dep.Node.Name} is {depEval.Status}";
             }
         }
 
@@ -75,7 +75,7 @@ public static class HealthAggregator
         for (var i = 0; i < depCount; i++)
         {
             var dep = dependencies[i];
-            var eval = dep.Service.Evaluate();
+            var eval = dep.Node.Evaluate();
             evals[i] = (dep, eval);
 
             if (dep.Importance != Importance.Optional && eval.Status == HealthStatus.Healthy)
@@ -112,8 +112,8 @@ public static class HealthAggregator
             {
                 effective = contribution;
                 reason = depEval.Reason is not null
-                    ? $"{dep.Service.Name}: {depEval.Reason}"
-                    : $"{dep.Service.Name} is {depEval.Status}";
+                    ? $"{dep.Node.Name}: {depEval.Reason}"
+                    : $"{dep.Node.Name} is {depEval.Status}";
             }
         }
 
@@ -248,7 +248,7 @@ public static class HealthAggregator
 
         foreach (var dep in node.Dependencies)
         {
-            DetectCyclesDfs(dep.Service, gray, black, path, cycles);
+            DetectCyclesDfs(dep.Node, gray, black, path, cycles);
         }
 
         path.RemoveAt(path.Count - 1);
@@ -278,7 +278,7 @@ public static class HealthAggregator
         // Depth-first: notify leaves before parents.
         foreach (var dep in node.Dependencies)
         {
-            NotifyGraphDfs(dep.Service, visited);
+            NotifyGraphDfs(dep.Node, visited);
         }
 
         node.NotifyChanged();
@@ -294,7 +294,7 @@ public static class HealthAggregator
 
         foreach (var dep in node.Dependencies)
         {
-            Walk(dep.Service, visited, results);
+            Walk(dep.Node, visited, results);
         }
 
         var eval = node.Evaluate();

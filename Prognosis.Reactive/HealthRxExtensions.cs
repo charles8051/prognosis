@@ -62,7 +62,7 @@ public static class HealthRxExtensions
         this HealthGraph graph,
         TimeSpan throttle)
     {
-        return graph.Services
+        return graph.Nodes
             .Select(n => n.StatusChanged)
             .Merge()
             .Throttle(throttle)
@@ -136,7 +136,7 @@ public static class HealthRxExtensions
                 observer.OnNext(current);
 
                 foreach (var dep in current.Dependencies)
-                    stack.Push(dep.Service);
+                    stack.Push(dep.Node);
             }
 
             observer.OnCompleted();

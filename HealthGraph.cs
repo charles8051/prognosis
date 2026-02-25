@@ -22,42 +22,35 @@ namespace Prognosis;
 /// </remarks>
 public sealed class HealthGraph
 {
-    private readonly Dictionary<string, HealthNode> _nodes;
+    private readonly HealthNode[] _seeds;
 
-    internal HealthGraph(Dictionary<string, HealthNode> nodes)
+    internal HealthGraph(params HealthNode[] seeds)
     {
-        _nodes = nodes;
+        _seeds = seeds;
     }
 
     /// <summary>
-    /// Creates a <see cref="HealthGraph"/> by walking the dependency graph
-    /// from the given entry-point nodes and indexing every reachable node by
-    /// <see cref="HealthNode.Name"/>. Roots are discovered automatically as
-    /// nodes that no other node depends on.
+    /// Creates a <see cref="HealthGraph"/> anchored at the given seed nodes.
+    /// The full topology — including roots, services, and lookup results — is
+    /// discovered dynamically by walking parent and dependency edges, so
+    /// runtime changes to the graph are always reflected.
     /// </summary>
-    public static HealthGraph Create(params HealthNode[] nodes)
-    {
-        var nodesByName = new Dictionary<string, HealthNode>();
-        var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
-
-        foreach (var node in nodes)
-            Walk(node, visited, nodesByName);
-
-        return new HealthGraph(nodesByName);
-    }
+    public static HealthGraph Create(params HealthNode[] nodes) => new HealthGraph(nodes);
 
     /// <summary>
     /// The current root nodes — nodes that are not a dependency of any other
-    /// node. Computed dynamically so that runtime edge changes (via
+    /// node. Discovered dynamically by exploring the full reachable graph
+    /// from the seeds, so runtime edge changes (via
     /// <see cref="HealthNode.DependsOn"/> / <see cref="HealthNode.RemoveDependency"/>)
-    /// are reflected automatically.
+    /// are always reflected.
     /// </summary>
     public HealthNode[] Roots
     {
         get
         {
+            var all = DiscoverAll();
             var roots = new List<HealthNode>();
-            foreach (var node in _nodes.Values)
+            foreach (var node in all)
             {
                 if (!node.HasParents)
                     roots.Add(node);
@@ -73,45 +66,80 @@ public sealed class HealthGraph
     /// <exception cref="KeyNotFoundException">
     /// No service with the given name exists in the graph.
     /// </exception>
-    public HealthNode this[string name] => _nodes[name];
+    public HealthNode this[string name]
+    {
+        get
+        {
+            if (TryGetNode(name, out var node))
+                return node;
+
+            throw new KeyNotFoundException(
+                $"No service named '{name}' exists in the graph.");
+        }
+    }
 
     /// <summary>
     /// Attempts to look up a node by name, returning <see langword="false"/>
-    /// if no service with the given name exists.
+    /// if no node with the given name exists.
     /// </summary>
-    public bool TryGetService(string name, out HealthNode node) =>
-        _nodes.TryGetValue(name, out node!);
+    public bool TryGetNode(string name, out HealthNode node)
+    {
+        foreach (var n in DiscoverAll())
+        {
+            if (n.Name == name)
+            {
+                node = n;
+                return true;
+            }
+        }
+
+        node = null!;
+        return false;
+    }
 
     /// <summary>
-    /// Looks up a service whose <see cref="HealthNode.Name"/> matches
+    /// Looks up a node whose <see cref="HealthNode.Name"/> matches
     /// <c>typeof(T).Name</c>. This is a convenience for the common convention
-    /// where service names are derived from their concrete types.
+    /// where node names are derived from their concrete types.
     /// </summary>
     /// <typeparam name="T">
     /// The type whose <see cref="System.Type.Name"/> is used as the lookup key.
     /// </typeparam>
-    public bool TryGetService<T>(out HealthNode node) where T : class, IHealthAware =>
-        _nodes.TryGetValue(typeof(T).Name, out node!);
+    public bool TryGetNode<T>(out HealthNode node) where T : class, IHealthAware =>
+        TryGetNode(typeof(T).Name, out node);
 
     /// <summary>
-    /// All named services in the graph (leaves, composites, and delegates).
+    /// All nodes reachable from the seed nodes (leaves, composites, and
+    /// delegates). Discovered dynamically from the current graph topology.
     /// </summary>
-    public IEnumerable<HealthNode> Services => _nodes.Values;
+    public IEnumerable<HealthNode> Nodes => DiscoverAll();
 
     /// <summary>Convenience: creates a point-in-time report from all roots.</summary>
     public HealthReport CreateReport() => HealthAggregator.CreateReport(Roots);
 
-    private static void Walk(
-        HealthNode node,
-        HashSet<HealthNode> visited,
-        Dictionary<string, HealthNode> nodesByName)
+    /// <summary>
+    /// Walks parent and dependency edges from every seed to discover all
+    /// reachable nodes in the graph. Bi-directional traversal ensures that
+    /// nodes added above or below the original seeds at runtime are found.
+    /// </summary>
+    private HashSet<HealthNode> DiscoverAll()
+    {
+        var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+        foreach (var seed in _seeds)
+            Explore(seed, visited);
+
+        return visited;
+    }
+
+    private static void Explore(HealthNode node, HashSet<HealthNode> visited)
     {
         if (!visited.Add(node))
             return;
 
-        nodesByName[node.Name] = node;
+        foreach (var parent in node.Parents)
+            Explore(parent, visited);
 
         foreach (var dep in node.Dependencies)
-            Walk(dep.Service, visited, nodesByName);
+            Explore(dep.Node, visited);
     }
 }

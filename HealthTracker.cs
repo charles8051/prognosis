@@ -83,7 +83,7 @@ public sealed class HealthTracker
             var index = -1;
             for (var i = 0; i < current.Count; i++)
             {
-                if (ReferenceEquals(current[i].Service, node))
+                if (ReferenceEquals(current[i].Node, node))
                 {
                     index = i;
                     break;

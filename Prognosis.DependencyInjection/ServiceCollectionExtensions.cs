@@ -86,17 +86,17 @@ public static class ServiceCollectionExtensions
         // Build composites (order matters — later composites can reference earlier ones).
         foreach (var def in builder.Composites)
         {
-            var deps = ResolveEdges(def.Edges, byType, byName);
-            var composite = new HealthGroup(def.Name, deps, def.Aggregator);
+            var composite = new HealthGroup(def.Name, def.Aggregator);
+            WireEdges(composite, def.Edges, byType, byName);
             byName[def.Name] = composite;
         }
 
         // Roots are discovered automatically from the graph topology.
-        return new HealthGraph(byName);
+        return new HealthGraph(byName.Values.ToArray());
     }
 
     private static void WireEdges(
-        HealthCheck target,
+        HealthNode target,
         List<EdgeDefinition> edges,
         Dictionary<Type, HealthNode> byType,
         Dictionary<string, HealthNode> byName)
@@ -106,16 +106,6 @@ public static class ServiceCollectionExtensions
             var dep = ResolveEdge(edge, byType, byName);
             target.DependsOn(dep, edge.Importance);
         }
-    }
-
-    private static List<HealthDependency> ResolveEdges(
-        List<EdgeDefinition> edges,
-        Dictionary<Type, HealthNode> byType,
-        Dictionary<string, HealthNode> byName)
-    {
-        return edges
-            .Select(e => new HealthDependency(ResolveEdge(e, byType, byName), e.Importance))
-            .ToList();
     }
 
     private static HealthNode ResolveEdge(
@@ -136,5 +126,5 @@ public static class ServiceCollectionExtensions
             : throw new InvalidOperationException(
                 $"Dependency '{edge.ServiceName}' was not found in the health graph.");
     }
-
     }
+

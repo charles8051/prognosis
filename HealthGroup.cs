@@ -28,18 +28,6 @@ public sealed class HealthGroup : HealthNode
         _tracker = new HealthTracker(() => HealthStatus.Healthy, aggregator);
     }
 
-    public HealthGroup(
-        string name,
-        IReadOnlyList<HealthDependency> dependencies,
-        AggregationStrategy? aggregator = null)
-        : this(name, aggregator)
-    {
-        foreach (var dep in dependencies)
-        {
-            DependsOn(dep.Service, dep.Importance);
-        }
-    }
-
     private protected override void AddDependency(HealthNode node, Importance importance)
         => _tracker.DependsOn(node, importance);
 
