@@ -6,10 +6,8 @@ public class HealthGroupTests
     public void Evaluate_AllHealthy_ReturnsHealthy()
     {
         var dep = new HealthCheck("Dep");
-        var composite = new HealthGroup("Comp", new[]
-        {
-            new HealthDependency(dep, Importance.Required),
-        });
+        var composite = new HealthGroup("Comp")
+            .DependsOn(dep, Importance.Required);
 
         Assert.Equal(HealthStatus.Healthy, composite.Evaluate().Status);
     }
@@ -19,10 +17,8 @@ public class HealthGroupTests
     {
         var dep = new HealthCheck("Dep",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var composite = new HealthGroup("Comp", new[]
-        {
-            new HealthDependency(dep, Importance.Required),
-        });
+        var composite = new HealthGroup("Comp")
+            .DependsOn(dep, Importance.Required);
 
         Assert.Equal(HealthStatus.Unhealthy, composite.Evaluate().Status);
     }
@@ -36,12 +32,10 @@ public class HealthGroupTests
         var optional = new HealthCheck("Opt",
             () => HealthStatus.Unhealthy);
 
-        var composite = new HealthGroup("Comp", new[]
-        {
-            new HealthDependency(required, Importance.Required),
-            new HealthDependency(important, Importance.Important),
-            new HealthDependency(optional, Importance.Optional),
-        });
+        var composite = new HealthGroup("Comp")
+            .DependsOn(required, Importance.Required)
+            .DependsOn(important, Importance.Important)
+            .DependsOn(optional, Importance.Optional);
 
         // Important+Unhealthy → Degraded. Optional ignored. Intrinsic = Unknown.
         // Degraded > Unknown, so Degraded wins.
@@ -51,22 +45,19 @@ public class HealthGroupTests
     [Fact]
     public void Name_ReturnsConstructorValue()
     {
-        var composite = new HealthGroup("MyComposite",
-            Array.Empty<HealthDependency>());
+        var composite = new HealthGroup("MyComposite");
 
         Assert.Equal("MyComposite", composite.Name);
     }
 
     [Fact]
-    public void Dependencies_ReflectsConstructorDeps()
+    public void Dependencies_ReflectsDependsOnCalls()
     {
         var a = new HealthCheck("A");
         var b = new HealthCheck("B");
-        var composite = new HealthGroup("Comp", new[]
-        {
-            new HealthDependency(a, Importance.Required),
-            new HealthDependency(b, Importance.Optional),
-        });
+        var composite = new HealthGroup("Comp")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Optional);
 
         Assert.Equal(2, composite.Dependencies.Count);
     }
@@ -79,11 +70,9 @@ public class HealthGroupTests
             () => isUnhealthy
                 ? new HealthEvaluation(HealthStatus.Unhealthy, "down")
                 : HealthStatus.Healthy);
-        var composite = new HealthGroup("Comp", new[]
-        {
-            new HealthDependency(dep, Importance.Required),
-        });
-        // DependsOn in the constructor propagates immediately, so _lastEmitted
+        var composite = new HealthGroup("Comp")
+            .DependsOn(dep, Importance.Required);
+        // DependsOn propagates immediately, so _lastEmitted
         // is already Unhealthy. Subscribe and verify a status change emits.
         var emitted = new List<HealthStatus>();
         composite.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted.Add));

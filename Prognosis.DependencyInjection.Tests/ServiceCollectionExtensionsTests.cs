@@ -20,8 +20,8 @@ public class ServiceCollectionExtensionsTests
         var sp = services.BuildServiceProvider();
         var graph = sp.GetRequiredService<HealthGraph>();
 
-        Assert.True(graph.TryGetService("TestDatabase", out _));
-        Assert.True(graph.TryGetService("TestCache", out _));
+        Assert.True(graph.TryGetNode("TestDatabase", out _));
+        Assert.True(graph.TryGetNode("TestCache", out _));
     }
 
     [Fact]
@@ -55,9 +55,9 @@ public class ServiceCollectionExtensionsTests
         var graph = sp.GetRequiredService<HealthGraph>();
 
         // TestAuthService has [DependsOn<TestDatabaseService>(Required)]
-        Assert.True(graph.TryGetService("TestAuth", out var auth));
+        Assert.True(graph.TryGetNode("TestAuth", out var auth));
         Assert.Single(auth.Dependencies);
-        Assert.Equal("TestDatabase", auth.Dependencies[0].Service.Name);
+        Assert.Equal("TestDatabase", auth.Dependencies[0].Node.Name);
         Assert.Equal(Importance.Required, auth.Dependencies[0].Importance);
     }
 
@@ -80,7 +80,7 @@ public class ServiceCollectionExtensionsTests
         var sp = services.BuildServiceProvider();
         var graph = sp.GetRequiredService<HealthGraph>();
 
-        Assert.True(graph.TryGetService("ExternalApi", out var node));
+        Assert.True(graph.TryGetNode("ExternalApi", out var node));
         Assert.Equal(HealthStatus.Healthy, node.Evaluate().Status);
     }
 
@@ -104,7 +104,7 @@ public class ServiceCollectionExtensionsTests
 
         client.IsUp = false;
 
-        Assert.True(graph.TryGetService("ExternalApi", out var node));
+        Assert.True(graph.TryGetNode("ExternalApi", out var node));
         Assert.Equal(HealthStatus.Unhealthy, node.Evaluate().Status);
     }
 
@@ -123,7 +123,7 @@ public class ServiceCollectionExtensionsTests
         var sp = services.BuildServiceProvider();
         var graph = sp.GetRequiredService<HealthGraph>();
 
-        Assert.True(graph.TryGetService(nameof(TestExternalClient), out _));
+        Assert.True(graph.TryGetNode(nameof(TestExternalClient), out _));
     }
 
     // ── AddComposite ────────────────────────────────────────────────
@@ -146,7 +146,7 @@ public class ServiceCollectionExtensionsTests
         var sp = services.BuildServiceProvider();
         var graph = sp.GetRequiredService<HealthGraph>();
 
-        Assert.True(graph.TryGetService("Platform", out var platform));
+        Assert.True(graph.TryGetNode("Platform", out var platform));
         Assert.Equal(2, platform.Dependencies.Count);
         Assert.Equal(HealthStatus.Healthy, platform.Evaluate().Status);
     }
@@ -171,9 +171,9 @@ public class ServiceCollectionExtensionsTests
         var sp = services.BuildServiceProvider();
         var graph = sp.GetRequiredService<HealthGraph>();
 
-        Assert.True(graph.TryGetService("Notifications", out var node));
+        Assert.True(graph.TryGetNode("Notifications", out var node));
         Assert.Single(node.Dependencies);
-        Assert.Equal("Email", node.Dependencies[0].Service.Name);
+        Assert.Equal("Email", node.Dependencies[0].Node.Name);
     }
 
     [Fact]
@@ -194,7 +194,7 @@ public class ServiceCollectionExtensionsTests
         var sp = services.BuildServiceProvider();
         var graph = sp.GetRequiredService<HealthGraph>();
 
-        Assert.True(graph.TryGetService("Redundant", out var node));
+        Assert.True(graph.TryGetNode("Redundant", out var node));
         Assert.Equal(HealthStatus.Healthy, node.Evaluate().Status);
     }
 

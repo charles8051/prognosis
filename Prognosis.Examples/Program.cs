@@ -26,27 +26,33 @@ var messageQueue = new HealthCheck("MessageQueue"); // always healthy for demo
 
 // ─────────────────────────────────────────────────────────────────────
 // Pattern 3 — Pure composite aggregation (no backing service).
+//             The fluent .DependsOn() API reads naturally and avoids
+//             having to wrap every edge in a HealthDependency object.
 // ─────────────────────────────────────────────────────────────────────
 var authService = new HealthCheck("AuthService")
     .DependsOn(database.Health, Importance.Required)
     .DependsOn(cache.Health, Importance.Important);
 
-var notificationSystem = new HealthGroup("NotificationSystem",
-[
-    new HealthDependency(messageQueue, Importance.Required),
-    new HealthDependency(emailHealth, Importance.Optional),
-]);
+var notificationSystem = new HealthGroup("NotificationSystem")
+    .DependsOn(messageQueue, Importance.Required)
+    .DependsOn(emailHealth, Importance.Optional);
 
-var app = new HealthGroup("Application",
-[
-    new HealthDependency(authService, Importance.Required),
-    new HealthDependency(notificationSystem, Importance.Important),
-]);
+var app = new HealthGroup("Application")
+    .DependsOn(authService, Importance.Required)
+    .DependsOn(notificationSystem, Importance.Important);
+
+// ─────────────────────────────────────────────────────────────────────
+// Pattern 4 — HealthGraph: hand the topology any entry-point node(s)
+//             and the graph discovers every reachable node. Roots are
+//             computed dynamically — no need to track them by hand.
+// ─────────────────────────────────────────────────────────────────────
+var graph = HealthGraph.Create(app);
 
 // ── Demo ─────────────────────────────────────────────────────────────
 void PrintHealth()
 {
-    foreach (var snapshot in HealthAggregator.EvaluateAll(app))
+    // Roots are discovered from the graph topology — no explicit list needed.
+    foreach (var snapshot in HealthAggregator.EvaluateAll(graph.Roots))
     {
         Console.WriteLine($"  {snapshot}");
     }
@@ -88,7 +94,7 @@ PrintHealth();
 
 // ── Cycle detection ──────────────────────────────────────────────────
 Console.WriteLine("=== Upfront cycle detection ===");
-var cycles = HealthAggregator.DetectCycles(app);
+var cycles = HealthAggregator.DetectCycles(graph.Roots);
 Console.WriteLine(cycles.Count == 0
     ? "  No cycles detected."
     : string.Join(Environment.NewLine, cycles.Select(c => "  Cycle: " + string.Join(" → ", c))));
@@ -113,7 +119,7 @@ Console.WriteLine();
 // ── Serialization ────────────────────────────────────────────────────
 Console.WriteLine("=== Serialized health report (JSON) ===");
 externalEmailApi.IsConnected = true; // reset for clean report
-var report = HealthAggregator.CreateReport(app);
+var report = graph.CreateReport();
 Console.WriteLine(JsonSerializer.Serialize(report, jsonOptions));
 Console.WriteLine();
 
@@ -130,7 +136,9 @@ using var dbSubscription = database.Health.StatusChanged.Subscribe(
     new StatusObserver("Database"));
 
 // Subscribe to graph-level report changes via HealthMonitor.
-await using var monitor = new HealthMonitor(new[] { app }, TimeSpan.FromSeconds(1));
+// The HealthGraph overload re-queries Roots each tick, so runtime
+// edge changes are reflected automatically.
+await using var monitor = new HealthMonitor(graph, TimeSpan.FromSeconds(1));
 using var reportSubscription = monitor.ReportChanged.Subscribe(
     new ReportObserver());
 

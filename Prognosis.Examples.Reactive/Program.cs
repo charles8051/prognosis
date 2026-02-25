@@ -21,19 +21,16 @@ var authService = new HealthCheck("AuthService")
     .DependsOn(database.Health, Importance.Required)
     .DependsOn(cache.Health, Importance.Important);
 
-var notificationSystem = new HealthGroup("NotificationSystem",
-[
-    new HealthDependency(messageQueue, Importance.Required),
-    new HealthDependency(emailHealth, Importance.Optional),
-]);
+var notificationSystem = new HealthGroup("NotificationSystem")
+    .DependsOn(messageQueue, Importance.Required)
+    .DependsOn(emailHealth, Importance.Optional);
 
-var app = new HealthGroup("Application",
-[
-    new HealthDependency(authService, Importance.Required),
-    new HealthDependency(notificationSystem, Importance.Important),
-]);
+var app = new HealthGroup("Application")
+    .DependsOn(authService, Importance.Required)
+    .DependsOn(notificationSystem, Importance.Important);
 
-var roots = new HealthNode[] { app };
+// Hand the graph any entry-point node — roots are discovered from the topology.
+var graph = HealthGraph.Create(app);
 
 // ─────────────────────────────────────────────────────────────────────
 // PollHealthReport — timer-driven, emits HealthReport on change.
@@ -42,7 +39,7 @@ var roots = new HealthNode[] { app };
 Console.WriteLine("=== PollHealthReport (polling every 1 second) ===");
 Console.WriteLine();
 
-using var pollSubscription = roots
+using var pollSubscription = graph
     .PollHealthReport(TimeSpan.FromSeconds(1))
     .Subscribe(report =>
         Console.WriteLine($"  [Poll] Overall={report.OverallStatus} " +
@@ -70,7 +67,7 @@ pollSubscription.Dispose();
 Console.WriteLine("=== ObserveHealthReport (push-triggered, 500ms throttle) ===");
 Console.WriteLine();
 
-using var observeSubscription = roots
+using var observeSubscription = graph
     .ObserveHealthReport(TimeSpan.FromMilliseconds(500))
     .Subscribe(report =>
         Console.WriteLine($"  [Observe] Overall={report.OverallStatus} " +
@@ -99,7 +96,7 @@ observeSubscription.Dispose();
 Console.WriteLine("=== SelectServiceChanges (diff-based change stream) ===");
 Console.WriteLine();
 
-using var changeSubscription = roots
+using var changeSubscription = graph
     .PollHealthReport(TimeSpan.FromSeconds(1))
     .SelectServiceChanges()
     .Subscribe(change =>

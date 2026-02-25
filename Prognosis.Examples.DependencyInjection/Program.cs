@@ -41,8 +41,9 @@ builder.Services.AddPrognosis(health =>
         app.DependsOn(ServiceNames.NotificationSystem, Importance.Important);
     });
 
-    // Mark the top-level node as a root for monitoring.
-    health.AddRoots(ServiceNames.Application);
+    // Roots are discovered automatically from the graph topology —
+    // any node that no other node depends on is a root.
+    // No need to register them explicitly.
 
     // Register HealthMonitor as a hosted service (polls every 2 seconds).
     health.UseMonitor(TimeSpan.FromSeconds(2));
@@ -114,14 +115,14 @@ Console.WriteLine();
 // ─────────────────────────────────────────────────────────────────────
 
 Console.WriteLine("=== HealthGraph lookup ===");
-foreach (var node in graph.Services)
+foreach (var node in graph.Nodes)
 {
     Console.WriteLine($"  {node.Name}: {node.Evaluate()}");
 }
 Console.WriteLine();
 
 // Type-safe lookup — uses typeof(AuthService).Name as the key.
-if (graph.TryGetService<AuthService>(out var auth))
+if (graph.TryGetNode<AuthService>(out var auth))
 {
     Console.WriteLine($"  AuthService has {auth.Dependencies.Count} dependencies");
 }

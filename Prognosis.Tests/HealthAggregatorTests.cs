@@ -9,9 +9,10 @@ public class HealthAggregatorTests
     [Fact]
     public void Aggregate_NoDependencies_ReturnsIntrinsic()
     {
-        var result = HealthAggregator.Aggregate(
-            new HealthEvaluation(HealthStatus.Degraded, "slow"),
-            Array.Empty<HealthDependency>());
+        var check = new HealthCheck("Svc",
+            () => new HealthEvaluation(HealthStatus.Degraded, "slow"));
+
+        var result = check.Evaluate();
 
         Assert.Equal(HealthStatus.Degraded, result.Status);
         Assert.Equal("slow", result.Reason);
@@ -31,11 +32,10 @@ public class HealthAggregatorTests
         HealthStatus depStatus, Importance importance, HealthStatus expected)
     {
         var dep = new HealthCheck("Dep", () => depStatus);
-        var result = HealthAggregator.Aggregate(
-            HealthStatus.Healthy,
-            new[] { new HealthDependency(dep, importance) });
+        var parent = new HealthCheck("Parent")
+            .DependsOn(dep, importance);
 
-        Assert.Equal(expected, result.Status);
+        Assert.Equal(expected, parent.Evaluate().Status);
     }
 
     [Fact]
@@ -46,12 +46,12 @@ public class HealthAggregatorTests
         var unhealthy = new HealthCheck("C",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
 
-        var result = HealthAggregator.Aggregate(HealthStatus.Healthy, new[]
-        {
-            new HealthDependency(healthy, Importance.Required),
-            new HealthDependency(degraded, Importance.Required),
-            new HealthDependency(unhealthy, Importance.Required),
-        });
+        var parent = new HealthCheck("Parent")
+            .DependsOn(healthy, Importance.Required)
+            .DependsOn(degraded, Importance.Required)
+            .DependsOn(unhealthy, Importance.Required);
+
+        var result = parent.Evaluate();
 
         Assert.Equal(HealthStatus.Unhealthy, result.Status);
         Assert.Contains("C", result.Reason!);
@@ -61,9 +61,11 @@ public class HealthAggregatorTests
     public void Aggregate_IntrinsicWorseThanDeps_IntrinsicWins()
     {
         var healthy = new HealthCheck("Dep");
-        var result = HealthAggregator.Aggregate(
-            new HealthEvaluation(HealthStatus.Unhealthy, "self broken"),
-            new[] { new HealthDependency(healthy, Importance.Required) });
+        var parent = new HealthCheck("Parent",
+            () => new HealthEvaluation(HealthStatus.Unhealthy, "self broken"))
+            .DependsOn(healthy, Importance.Required);
+
+        var result = parent.Evaluate();
 
         Assert.Equal(HealthStatus.Unhealthy, result.Status);
         Assert.Equal("self broken", result.Reason);

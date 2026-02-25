@@ -48,7 +48,7 @@ public class HealthTrackerTests
         tracker.DependsOn(dep, Importance.Important);
 
         Assert.Single(tracker.Dependencies);
-        Assert.Equal("Dep", tracker.Dependencies[0].Service.Name);
+        Assert.Equal("Dep", tracker.Dependencies[0].Node.Name);
         Assert.Equal(Importance.Important, tracker.Dependencies[0].Importance);
     }
 

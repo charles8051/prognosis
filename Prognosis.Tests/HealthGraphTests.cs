@@ -13,7 +13,7 @@ public class HealthGraphTests
 
         var graph = HealthGraph.Create(root);
 
-        Assert.Equal(2, graph.Services.Count());
+        Assert.Equal(2, graph.Nodes.Count());
         Assert.Same(root, graph["Root"]);
         Assert.Same(leaf, graph["Leaf"]);
     }
@@ -26,7 +26,7 @@ public class HealthGraphTests
 
         var graph = HealthGraph.Create(a, b);
 
-        Assert.Equal(2, graph.Services.Count());
+        Assert.Equal(2, graph.Nodes.Count());
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public class HealthGraphTests
 
         var graph = HealthGraph.Create(a, b);
 
-        Assert.Equal(3, graph.Services.Count());
+        Assert.Equal(3, graph.Nodes.Count());
         Assert.Same(shared, graph["Shared"]);
     }
 
@@ -51,7 +51,7 @@ public class HealthGraphTests
 
         var graph = HealthGraph.Create(a);
 
-        Assert.Equal(3, graph.Services.Count());
+        Assert.Equal(3, graph.Nodes.Count());
         Assert.Same(c, graph["C"]);
     }
 
@@ -146,7 +146,7 @@ public class HealthGraphTests
         var node = new HealthCheck("DB");
         var graph = HealthGraph.Create(node);
 
-        Assert.True(graph.TryGetService("DB", out var found));
+        Assert.True(graph.TryGetNode("DB", out var found));
         Assert.Same(node, found);
     }
 
@@ -155,7 +155,7 @@ public class HealthGraphTests
     {
         var graph = HealthGraph.Create(new HealthCheck("A"));
 
-        Assert.False(graph.TryGetService("Missing", out _));
+        Assert.False(graph.TryGetNode("Missing", out _));
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public class HealthGraphTests
         var node = new HealthCheck(typeof(StubHealthAware).Name);
         var graph = HealthGraph.Create(node);
 
-        Assert.True(graph.TryGetService<StubHealthAware>(out var found));
+        Assert.True(graph.TryGetNode<StubHealthAware>(out var found));
         Assert.Same(node, found);
     }
 
@@ -174,7 +174,7 @@ public class HealthGraphTests
     {
         var graph = HealthGraph.Create(new HealthCheck("Unrelated"));
 
-        Assert.False(graph.TryGetService<StubHealthAware>(out _));
+        Assert.False(graph.TryGetNode<StubHealthAware>(out _));
     }
 
     // ── Services ─────────────────────────────────────────────────────
@@ -186,7 +186,7 @@ public class HealthGraphTests
         var b = new HealthCheck("B");
         var graph = HealthGraph.Create(a, b);
 
-        var names = graph.Services.Select(n => n.Name).OrderBy(n => n).ToList();
+        var names = graph.Nodes.Select(n => n.Name).OrderBy(n => n).ToList();
         Assert.Equal(new[] { "A", "B" }, names);
     }
 
