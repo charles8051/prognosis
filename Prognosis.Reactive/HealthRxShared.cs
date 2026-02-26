@@ -49,4 +49,31 @@ public static class HealthRxShared
             _ => source.Publish().RefCount(),
         };
     }
+
+    // ── HealthGraph overloads ────────────────────────────────────────
+
+    public static IObservable<HealthReport> CreateSharedReportStream(
+        this HealthGraph graph,
+        TimeSpan interval,
+        ShareStrategy strategy = ShareStrategy.RefCount)
+    {
+        var source = graph.PollHealthReport(interval);
+        return strategy switch
+        {
+            ShareStrategy.ReplayLatest => source.Replay(1).RefCount(),
+            _ => source.Publish().RefCount(),
+        };
+    }
+
+    public static IObservable<HealthReport> CreateSharedObserveStream(
+        this HealthGraph graph,
+        ShareStrategy strategy = ShareStrategy.RefCount)
+    {
+        var source = graph.ObserveHealthReport();
+        return strategy switch
+        {
+            ShareStrategy.ReplayLatest => source.Replay(1).RefCount(),
+            _ => source.Publish().RefCount(),
+        };
+    }
 }

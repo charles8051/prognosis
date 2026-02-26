@@ -67,7 +67,6 @@ public static class HealthRxExtensions
     /// <see cref="StatusChange"/> events by diffing consecutive reports.
     /// Only services whose status actually changed are emitted.
     /// Composable with any report source — <see cref="PollHealthReport"/>,
-
     /// <see cref="ObserveHealthReport"/>, or custom pipelines.
     /// </summary>
     public static IObservable<StatusChange> SelectServiceChanges(
@@ -79,5 +78,50 @@ public static class HealthRxExtensions
                 (state, report) => (state.Current, report))
             .Where(state => state.Previous is not null)
             .SelectMany(state => state.Previous!.DiffTo(state.Current!));
+    }
+
+    // ── HealthGraph extensions ───────────────────────────────────────
+
+    /// <summary>
+    /// Polls the entire <see cref="HealthGraph"/> on the given interval,
+    /// calling <see cref="HealthGraph.NotifyAll"/> to re-evaluate every
+    /// node before producing each <see cref="HealthReport"/>.
+    /// Only emits when the report changes.
+    /// </summary>
+    public static IObservable<HealthReport> PollHealthReport(
+        this HealthGraph graph,
+        TimeSpan interval)
+    {
+        return Observable.Interval(interval)
+            .Select(_ =>
+            {
+                graph.NotifyAll();
+                return graph.CreateReport();
+            })
+            .DistinctUntilChanged(HealthReportComparer.Instance);
+    }
+
+    /// <summary>
+    /// Produces a new <see cref="HealthReport"/> for the entire graph each
+    /// time any root node's effective health changes.
+    /// <para>
+    /// Merges <see cref="HealthNode.StatusChanged"/> from all
+    /// <see cref="HealthGraph.Roots"/>. Because
+    /// <see cref="HealthNode.BubbleChange"/> propagates upward, a change
+    /// in any transitive dependency surfaces at the root and triggers a
+    /// fresh report. Only emitted when the report differs from the previous one.
+    /// </para>
+    /// </summary>
+    public static IObservable<HealthReport> ObserveHealthReport(
+        this HealthGraph graph)
+    {
+        return Observable.Defer(() =>
+        {
+            var rootStreams = graph.Roots.Select(r => r.StatusChanged);
+            return rootStreams
+                .Merge()
+                .Select(_ => graph.CreateReport())
+                .DistinctUntilChanged(HealthReportComparer.Instance);
+        });
     }
 }

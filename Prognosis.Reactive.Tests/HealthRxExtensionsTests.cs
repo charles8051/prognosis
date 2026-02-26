@@ -256,4 +256,96 @@ public class HealthRxExtensionsTests
 
         Assert.Empty(changes);
     }
+
+    // ── PollHealthReport (HealthGraph) ─────────────────────────────────
+
+    [Fact]
+    public async Task PollHealthReport_Graph_EmitsReportOnInterval()
+    {
+        var leaf = new HealthAdapter("Leaf");
+        var root = new HealthAdapter("Root")
+            .DependsOn(leaf, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        HealthReport? received = null;
+        using var sub = graph
+            .PollHealthReport(TimeSpan.FromMilliseconds(50))
+            .Subscribe(r => received = r);
+
+        await Task.Delay(TimeSpan.FromMilliseconds(200));
+
+        Assert.NotNull(received);
+        Assert.Equal(HealthStatus.Healthy, received!.OverallStatus);
+        Assert.Equal(2, received.Services.Count);
+    }
+
+    [Fact]
+    public async Task PollHealthReport_Graph_EmitsOnStateChange()
+    {
+        var isHealthy = true;
+        var leaf = new HealthAdapter("Leaf",
+            () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
+        var root = new HealthAdapter("Root")
+            .DependsOn(leaf, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        var reports = new List<HealthReport>();
+        using var sub = graph
+            .PollHealthReport(TimeSpan.FromMilliseconds(50))
+            .Subscribe(r => reports.Add(r));
+
+        await Task.Delay(TimeSpan.FromMilliseconds(150));
+        isHealthy = false;
+        await Task.Delay(TimeSpan.FromMilliseconds(150));
+
+        Assert.True(reports.Count >= 2);
+        Assert.Equal(HealthStatus.Healthy, reports[0].OverallStatus);
+        Assert.Contains(reports, r => r.OverallStatus == HealthStatus.Unhealthy);
+    }
+
+    // ── ObserveHealthReport (HealthGraph) ──────────────────────────────
+
+    [Fact]
+    public void ObserveHealthReport_Graph_EmitsOnStatusChange()
+    {
+        var isHealthy = true;
+        var leaf = new HealthAdapter("Leaf",
+            () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
+        var root = new HealthAdapter("Root")
+            .DependsOn(leaf, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        var reports = new List<HealthReport>();
+        using var sub = graph
+            .ObserveHealthReport()
+            .Subscribe(r => reports.Add(r));
+
+        isHealthy = false;
+        leaf.BubbleChange();
+
+        Assert.Single(reports);
+        Assert.Equal(HealthStatus.Unhealthy, reports[0].OverallStatus);
+        Assert.Equal(2, reports[0].Services.Count);
+    }
+
+    [Fact]
+    public void ObserveHealthReport_Graph_MultipleRoots_EmitsOnAnyRootChange()
+    {
+        var isHealthy = true;
+        var a = new HealthAdapter("A",
+            () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
+        var b = new HealthAdapter("B");
+        var graph = HealthGraph.Create(a, b);
+
+        var reports = new List<HealthReport>();
+        using var sub = graph
+            .ObserveHealthReport()
+            .Subscribe(r => reports.Add(r));
+
+        isHealthy = false;
+        a.BubbleChange();
+
+        Assert.Single(reports);
+        Assert.Equal(HealthStatus.Unhealthy, reports[0].OverallStatus);
+    }
 }
