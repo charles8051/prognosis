@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="README.md" />
+  </Folder>
   <Project Path="Prognosis.Benchmarks/Prognosis.Benchmarks.csproj" />
   <Project Path="Prognosis.csproj" />
   <Project Path="Prognosis.DependencyInjection.Tests/Prognosis.DependencyInjection.Tests.csproj" />
