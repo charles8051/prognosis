@@ -148,8 +148,8 @@ Wire services together with `DependsOn`:
 
 ```csharp
 var authService = new HealthCheck("AuthService")
-    .DependsOn(database.Health, Importance.Required)
-    .DependsOn(cache.Health, Importance.Important);
+    .DependsOn(database.HealthNode, Importance.Required)
+    .DependsOn(cache.HealthNode, Importance.Important);
 
 var app = new HealthGroup("Application")
     .DependsOn(authService, Importance.Required)
@@ -188,7 +188,7 @@ HealthReport report = graph.CreateReport();
 IReadOnlyList<IReadOnlyList<string>> cycles = graph.DetectCycles();
 
 // Diff two reports to find individual service changes
-IReadOnlyList<StatusChange> changes = before.Diff(after);
+IReadOnlyList<StatusChange> changes = before.DiffTo(after);
 ```
 
 ## Observable health monitoring
@@ -197,7 +197,7 @@ Every `HealthNode` node supports push-based notifications. Subscribe to individu
 
 ```csharp
 // Individual service notifications
-database.Health.StatusChanged.Subscribe(observer);
+database.HealthNode.StatusChanged.Subscribe(observer);
 
 // Graph-level polling with HealthMonitor
 await using var monitor = new HealthMonitor(graph, TimeSpan.FromSeconds(5));
@@ -354,7 +354,7 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 | `HealthTracker.cs` | Internal composable helper — dependency tracking, aggregation, and observability |
 | `HealthCheck.cs` | Wraps a `Func<HealthEvaluation>` — use for services with intrinsic health checks |
 | `HealthGroup.cs` | Pure aggregation point — health derived entirely from dependencies |
-| `HealthAggregator.cs` | Static helpers — `Aggregate`, `AggregateWithRedundancy`, `EvaluateAll`, `CreateReport`, `DetectCycles`, `Diff`, `NotifyGraph` |
+| `HealthAggregator.cs` | Static helpers — `Aggregate`, `AggregateWithRedundancy`, `EvaluateAll`, `CreateReport`, `DetectCycles`, `DiffTo`, `NotifyGraph` |
 | `HealthReport.cs` | Serialization-ready report DTO |
 | `HealthSnapshot.cs` | Serialization-ready per-service snapshot DTO |
 | `StatusChange.cs` | Record describing a single service's status transition |

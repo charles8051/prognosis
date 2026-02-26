@@ -102,7 +102,7 @@ database.IsConnected = false;
 graph.NotifyAll();
 var after = graph.CreateReport();
 
-var changes = before.Diff(after);
+var changes = before.DiffTo(after);
 foreach (var change in changes)
 {
     Console.WriteLine($"  {change.Name}: {change.Previous} → {change.Current} ({change.Reason})");
@@ -136,11 +136,11 @@ if (graph.TryGetNode<AuthService>(out var auth))
 /// </summary>
 class DatabaseService : IHealthAware
 {
-    public HealthNode Health { get; }
+    public HealthNode HealthNode { get; }
 
     public DatabaseService()
     {
-        Health = new HealthCheck("Database",
+        HealthNode = new HealthCheck("Database",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Connection lost"));
@@ -152,11 +152,11 @@ class DatabaseService : IHealthAware
 /// <summary>Another service you own, same pattern.</summary>
 class CacheService : IHealthAware
 {
-    public HealthNode Health { get; }
+    public HealthNode HealthNode { get; }
 
     public CacheService()
     {
-        Health = new HealthCheck("Cache",
+        HealthNode = new HealthCheck("Cache",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Redis timeout"));
@@ -173,13 +173,13 @@ class CacheService : IHealthAware
 [DependsOn<CacheService>(Importance.Important)]
 class AuthService : IHealthAware
 {
-    public HealthNode Health { get; } = new HealthCheck("AuthService");
+    public HealthNode HealthNode { get; } = new HealthCheck("AuthService");
 }
 
 /// <summary>Always-healthy placeholder for demo purposes.</summary>
 class MessageQueueService : IHealthAware
 {
-    public HealthNode Health { get; } = new HealthCheck(nameof(MessageQueueService));
+    public HealthNode HealthNode { get; } = new HealthCheck(nameof(MessageQueueService));
 }
 
 /// <summary>

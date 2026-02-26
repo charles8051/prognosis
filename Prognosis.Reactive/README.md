@@ -47,7 +47,7 @@ roots.PollHealthReport(TimeSpan.FromSeconds(30))
         Console.WriteLine($"{change.Name}: {change.Previous} → {change.Current}"));
 ```
 
-Each `StatusChange` includes the service name, previous status, current status, and optional reason — derived from `HealthAggregator.Diff` in the core library.
+Each `StatusChange` includes the service name, previous status, current status, and optional reason — derived from `HealthReport.DiffTo` in the core library.
 
 ### Sharing patterns
 

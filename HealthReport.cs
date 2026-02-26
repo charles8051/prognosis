@@ -10,11 +10,11 @@ public sealed record HealthReport(
     IReadOnlyList<HealthSnapshot> Services)
 {
     /// <summary>
-    /// Compares this report with another and returns a change record for every
-    /// service whose <see cref="HealthStatus"/> differs, including services
-    /// that appeared in or disappeared from the graph.
+    /// Compares this report (the baseline) with a <paramref name="newer"/> report
+    /// and returns a change record for every service whose <see cref="HealthStatus"/>
+    /// differs, including services that appeared in or disappeared from the graph.
     /// </summary>
-    public IReadOnlyList<StatusChange> Diff(HealthReport other)
+    public IReadOnlyList<StatusChange> DiffTo(HealthReport newer)
     {
         var previousByName = new Dictionary<string, HealthSnapshot>(Services.Count);
         foreach (var snapshot in Services)
@@ -24,7 +24,7 @@ public sealed record HealthReport(
 
         var changes = new List<StatusChange>();
 
-        foreach (var curr in other.Services)
+        foreach (var curr in newer.Services)
         {
             if (previousByName.TryGetValue(curr.Name, out var prev))
             {

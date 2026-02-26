@@ -78,6 +78,6 @@ public static class HealthRxExtensions
                 (Previous: (HealthReport?)null, Current: (HealthReport?)null),
                 (state, report) => (state.Current, report))
             .Where(state => state.Previous is not null)
-            .SelectMany(state => state.Previous!.Diff(state.Current!));
+            .SelectMany(state => state.Previous!.DiffTo(state.Current!));
     }
 }

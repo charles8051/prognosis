@@ -146,7 +146,7 @@ public class AggregationTests
             new HealthSnapshot("Svc", HealthStatus.Unhealthy, 0, "down"),
         });
 
-        var changes = before.Diff(after);
+        var changes = before.DiffTo(after);
 
         Assert.Single(changes);
         Assert.Equal("Svc", changes[0].Name);
@@ -160,7 +160,7 @@ public class AggregationTests
         var snapshot = new HealthSnapshot("Svc", HealthStatus.Healthy, 0);
         var report = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[] { snapshot });
 
-        var changes = report.Diff(report);
+        var changes = report.DiffTo(report);
 
         Assert.Empty(changes);
     }
@@ -175,7 +175,7 @@ public class AggregationTests
             new HealthSnapshot("New", HealthStatus.Healthy, 0),
         });
 
-        var changes = before.Diff(after);
+        var changes = before.DiffTo(after);
 
         Assert.Single(changes);
         Assert.Equal(HealthStatus.Unknown, changes[0].Previous);
@@ -192,7 +192,7 @@ public class AggregationTests
         var after = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy,
             Array.Empty<HealthSnapshot>());
 
-        var changes = before.Diff(after);
+        var changes = before.DiffTo(after);
 
         Assert.Single(changes);
         Assert.Equal("Old", changes[0].Name);
