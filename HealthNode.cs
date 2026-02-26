@@ -33,12 +33,12 @@ public abstract class HealthNode
     private HealthStatus? _lastEmitted;
 
     /// <summary>
-    /// Optional callback invoked every time <see cref="BubbleChange"/>
-    /// visits this node — regardless of whether the status actually changed.
-    /// Used by <see cref="HealthGraph"/> to detect topology changes
-    /// (e.g., new nodes added via <see cref="DependsOn"/> after construction).
+    /// Optional callback invoked when <see cref="BubbleChange"/> reaches
+    /// this node. Used by <see cref="HealthGraph"/> to refresh its internal
+    /// node collections when the topology changes (e.g., nodes added or
+    /// removed via <see cref="DependsOn"/> / <see cref="RemoveDependency"/>).
     /// </summary>
-    internal volatile Action? _bubbleCallback;
+    internal volatile Action? _topologyCallback;
 
     /// <param name="intrinsicCheck">
     /// A callback that returns the owning service's intrinsic health
@@ -137,7 +137,7 @@ public abstract class HealthNode
                 return;
 
             NotifyChangedCore();
-            _bubbleCallback?.Invoke();
+            _topologyCallback?.Invoke();
 
             foreach (var parent in _parents)
                 parent.BubbleChange();
@@ -357,7 +357,7 @@ public abstract class HealthNode
             WalkEvaluate(dep.Node, visited, results);
         }
 
-        var eval = node.Evaluate();
+        var eval = node._cachedEvaluation ?? node.Evaluate();
         results.Add(new HealthSnapshot(node.Name, eval.Status, eval.Reason));
     }
 

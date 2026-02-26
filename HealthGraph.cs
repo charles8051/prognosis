@@ -36,7 +36,7 @@ public sealed class HealthGraph
         foreach (var node in _allNodes)
             _nodesByName[node.Name] = node;
 
-        _root._bubbleCallback = RefreshNodes;
+        _root._topologyCallback = RefreshNodes;
     }
 
     /// <summary>
