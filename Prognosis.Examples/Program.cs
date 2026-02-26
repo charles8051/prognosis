@@ -5,7 +5,7 @@ var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
 
 // ─────────────────────────────────────────────────────────────────────
 // Pattern 1 — Implement IHealthAware on a class you own.
-//             Embed a HealthNode property — no forwarding needed.
+//             Embed a HealthNode property.
 //             DatabaseService uses a HealthGroup backed by
 //             fine-grained sub-nodes (connection, latency, pool).
 // ─────────────────────────────────────────────────────────────────────

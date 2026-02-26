@@ -39,7 +39,7 @@ var graph = HealthGraph.Create(app);
 Console.WriteLine("=== PollHealthReport (polling every 1 second) ===");
 Console.WriteLine();
 
-using var pollSubscription = graph
+using var pollSubscription = app
     .PollHealthReport(TimeSpan.FromSeconds(1))
     .Subscribe(report =>
         Console.WriteLine($"  [Poll] Overall={report.OverallStatus} " +
@@ -61,20 +61,20 @@ Console.WriteLine();
 pollSubscription.Dispose();
 
 // ─────────────────────────────────────────────────────────────────────
-// ObserveHealthReport — push-triggered via leaf StatusChanged streams.
+// ObserveHealthReport — push-triggered via node's StatusChanged stream.
 // ─────────────────────────────────────────────────────────────────────
 
-Console.WriteLine("=== ObserveHealthReport (push-triggered, 500ms throttle) ===");
+Console.WriteLine("=== ObserveHealthReport (push-triggered on node) ===");
 Console.WriteLine();
 
-using var observeSubscription = graph
-    .ObserveHealthReport(TimeSpan.FromMilliseconds(500))
+using var observeSubscription = app
+    .ObserveHealthReport()
     .Subscribe(report =>
         Console.WriteLine($"  [Observe] Overall={report.OverallStatus} " +
             $"({report.Services.Count} services @ {report.Timestamp:HH:mm:ss.fff})"));
 
-// Trigger a change — the leaf's StatusChanged fires immediately,
-// throttle elapses, then a single-pass evaluation runs.
+// Trigger a change — the leaf's NotifyChanged propagates to the root,
+// which fires StatusChanged, and a report is emitted immediately.
 Console.WriteLine("  Taking cache offline...");
 cache.IsConnected = false;
 cache.Health.NotifyChanged(); // push the change
@@ -96,7 +96,7 @@ observeSubscription.Dispose();
 Console.WriteLine("=== SelectServiceChanges (diff-based change stream) ===");
 Console.WriteLine();
 
-using var changeSubscription = graph
+using var changeSubscription = app
     .PollHealthReport(TimeSpan.FromSeconds(1))
     .SelectServiceChanges()
     .Subscribe(change =>

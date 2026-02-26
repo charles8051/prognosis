@@ -29,6 +29,7 @@ public abstract class HealthNode
     private readonly List<IObserver<HealthStatus>> _observers = new();
     private volatile IReadOnlyList<HealthNode> _parents = Array.Empty<HealthNode>();
     private volatile IReadOnlyList<HealthDependency> _dependencies = Array.Empty<HealthDependency>();
+    private volatile HealthEvaluation? _cachedEvaluation;
     private HealthStatus? _lastEmitted;
 
     /// <param name="intrinsicCheck">
@@ -88,6 +89,25 @@ public abstract class HealthNode
     }
 
     /// <summary>
+    /// Evaluates this node and its full dependency subtree and returns a
+    /// point-in-time <see cref="HealthReport"/>. Each node appears at most
+    /// once (depth-first post-order). The <see cref="HealthReport.OverallStatus"/>
+    /// reflects the worst status found in the subtree.
+    /// </summary>
+    public HealthReport CreateReport()
+    {
+        var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+        var results = new List<HealthSnapshot>();
+        WalkEvaluate(this, visited, results);
+
+        var overall = results.Count > 0
+            ? results.Max(s => s.Status)
+            : HealthStatus.Healthy;
+
+        return new HealthReport(DateTimeOffset.UtcNow, overall, results);
+    }
+
+    /// <summary>
     /// Emits the new <see cref="HealthStatus"/> each time the service's
     /// effective health changes.
     /// </summary>
@@ -129,11 +149,15 @@ public abstract class HealthNode
     /// Re-evaluates the current health and pushes a notification through
     /// <see cref="StatusChanged"/> if the status has changed.
     /// Does <b>not</b> propagate to parents — used internally by
-    /// <see cref="HealthGraph.NotifyAll"/> which walks the full graph itself.
+    /// <see cref="NotifySubtree"/> and <see cref="HealthGraph.NotifyAll"/>
+    /// which walk the graph themselves.
     /// </summary>
     internal void NotifyChangedCore()
     {
-        var current = Evaluate().Status;
+        var deps = _dependencies;
+        var eval = Aggregate(_intrinsicCheck(), deps, useCachedDependencies: true);
+        _cachedEvaluation = eval;
+        var current = eval.Status;
 
         List<IObserver<HealthStatus>>? snapshot = null;
         lock (_observerLock)
@@ -255,7 +279,8 @@ public abstract class HealthNode
     /// </summary>
     internal static HealthEvaluation Aggregate(
         HealthEvaluation intrinsic,
-        IReadOnlyList<HealthDependency> dependencies)
+        IReadOnlyList<HealthDependency> dependencies,
+        bool useCachedDependencies = false)
     {
         // First pass: evaluate all dependencies and check whether any
         // Resilient sibling is healthy (needed for the Resilient rule).
@@ -266,7 +291,9 @@ public abstract class HealthNode
         for (var i = 0; i < depCount; i++)
         {
             var dep = dependencies[i];
-            var eval = dep.Node.Evaluate();
+            var eval = useCachedDependencies
+                ? (dep.Node._cachedEvaluation ?? dep.Node.Evaluate())
+                : dep.Node.Evaluate();
             evals[i] = (dep, eval);
 
             if (dep.Importance == Importance.Resilient && eval.Status == HealthStatus.Healthy)
@@ -313,6 +340,23 @@ public abstract class HealthNode
         return new HealthEvaluation(effective, reason);
     }
 
+    internal static void WalkEvaluate(
+        HealthNode node,
+        HashSet<HealthNode> visited,
+        List<HealthSnapshot> results)
+    {
+        if (!visited.Add(node))
+            return;
+
+        foreach (var dep in node.Dependencies)
+        {
+            WalkEvaluate(dep.Node, visited, results);
+        }
+
+        var eval = node.Evaluate();
+        results.Add(new HealthSnapshot(node.Name, eval.Status, node.Dependencies.Count, eval.Reason));
+    }
+
     private void AddObserver(IObserver<HealthStatus> observer)
     {
         lock (_observerLock)
@@ -341,5 +385,36 @@ public abstract class HealthNode
     private sealed class Unsubscriber(HealthNode node, IObserver<HealthStatus> observer) : IDisposable
     {
         public void Dispose() => node.RemoveObserver(observer);
+    }
+
+    /// <summary>
+    /// Re-evaluates the intrinsic health of every node in this node's
+    /// dependency subtree (depth-first, leaves before parents), firing
+    /// <see cref="StatusChanged"/> on any node whose effective health changed.
+    /// <para>
+    /// Use this for poll-based scenarios where the underlying service state
+    /// may have changed without an explicit <see cref="NotifyChanged"/> call.
+    /// Unlike <see cref="NotifyChanged"/>, which propagates <em>upward</em>
+    /// from a single change, this method walks <em>downward</em> through all
+    /// dependencies to refresh the entire subtree.
+    /// </para>
+    /// </summary>
+    public void NotifySubtree()
+    {
+        var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+        NotifyDfs(this, visited);
+    }
+
+    internal static void NotifyDfs(HealthNode node, HashSet<HealthNode> visited)
+    {
+        if (!visited.Add(node))
+            return;
+
+        foreach (var dep in node.Dependencies)
+        {
+            NotifyDfs(dep.Node, visited);
+        }
+
+        node.NotifyChangedCore();
     }
 }

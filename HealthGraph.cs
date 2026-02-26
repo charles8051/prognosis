@@ -141,7 +141,7 @@ public sealed class HealthGraph
 
         foreach (var root in roots)
         {
-            WalkEvaluate(root, visited, results);
+            HealthNode.WalkEvaluate(root, visited, results);
         }
 
         return results;
@@ -173,7 +173,7 @@ public sealed class HealthGraph
 
     /// <summary>
     /// Walks the dependency graph depth-first from all roots and calls
-    /// <see cref="HealthNode.NotifyChanged"/> on every node encountered.
+    /// <see cref="HealthNode.NotifyChangedCore"/> on every node encountered.
     /// Leaves are notified before their parents.
     /// </summary>
     public void NotifyAll()
@@ -182,7 +182,7 @@ public sealed class HealthGraph
         var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
         foreach (var root in roots)
         {
-            NotifyDfs(root, visited);
+            HealthNode.NotifyDfs(root, visited);
         }
     }
 
@@ -210,23 +210,6 @@ public sealed class HealthGraph
 
         foreach (var dep in node.Dependencies)
             Explore(dep.Node, visited);
-    }
-
-    private static void WalkEvaluate(
-        HealthNode node,
-        HashSet<HealthNode> visited,
-        List<HealthSnapshot> results)
-    {
-        if (!visited.Add(node))
-            return;
-
-        foreach (var dep in node.Dependencies)
-        {
-            WalkEvaluate(dep.Node, visited, results);
-        }
-
-        var eval = node.Evaluate();
-        results.Add(new HealthSnapshot(node.Name, eval.Status, node.Dependencies.Count, eval.Reason));
     }
 
     private static void DetectCyclesDfs(
@@ -262,18 +245,5 @@ public sealed class HealthGraph
         path.RemoveAt(path.Count - 1);
         gray.Remove(node);
         black.Add(node);
-    }
-
-    private static void NotifyDfs(HealthNode node, HashSet<HealthNode> visited)
-    {
-        if (!visited.Add(node))
-            return;
-
-        foreach (var dep in node.Dependencies)
-        {
-            NotifyDfs(dep.Node, visited);
-        }
-
-        node.NotifyChangedCore();
     }
 }

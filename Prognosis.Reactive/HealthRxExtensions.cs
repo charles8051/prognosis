@@ -10,86 +10,56 @@ namespace Prognosis.Reactive;
 public static class HealthRxExtensions
 {
     /// <summary>
-    /// Polls the full health graph on the given interval, calling
-    /// <see cref="HealthNode.NotifyChanged"/> on every node before
-    /// producing each <see cref="HealthReport"/>.
+    /// Polls the node and its full dependency subtree on the given interval,
+    /// calling <see cref="HealthNode.NotifySubtree"/> to re-evaluate every
+    /// intrinsic check before producing each <see cref="HealthReport"/>.
     /// Only emits when the report changes.
-    /// Re-queries <see cref="HealthGraph.Roots"/> each tick so runtime
-    /// edge changes are reflected automatically.
     /// </summary>
     public static IObservable<HealthReport> PollHealthReport(
-        this HealthGraph graph,
+        this HealthNode node,
         TimeSpan interval)
     {
         return Observable.Interval(interval)
             .Select(_ =>
             {
-                graph.NotifyAll();
-                return graph.CreateReport();
+                node.NotifySubtree();
+                return node.CreateReport();
             })
             .DistinctUntilChanged(HealthReportComparer.Instance);
     }
 
     /// <summary>
-    /// Polls the full health graph on the given interval, calling
-    /// <see cref="HealthNode.NotifyChanged"/> on every node before
-    /// producing each <see cref="HealthReport"/>.
-    /// Only emits when the report changes.
+    /// Emits the node's <see cref="HealthEvaluation"/> (status and reason) each
+    /// time the effective health changes. Because
+    /// <see cref="HealthNode.NotifyChanged"/> propagates upward, this reflects
+    /// changes in the node's own intrinsic check as well as changes in any
+    /// transitive dependency.
     /// </summary>
-    public static IObservable<HealthReport> PollHealthReport(
-        this IReadOnlyList<HealthNode> roots,
-        TimeSpan interval)
+    public static IObservable<HealthEvaluation> ObserveStatus(
+        this HealthNode node)
     {
-        var graph = HealthGraph.Create(roots as HealthNode[] ?? roots.ToArray());
-        return graph.PollHealthReport(interval);
+        return Observable.Defer(() =>
+            node.StatusChanged
+                .Select(_ => node.Evaluate()));
     }
 
     /// <summary>
-    /// Produces a new <see cref="HealthReport"/> whenever any service in
-    /// the graph signals a change, throttled to avoid evaluation storms.
-    /// Subscribes to all services (not just current leaves) so that runtime
-    /// edge changes are handled. Re-queries <see cref="HealthGraph.Roots"/>
-    /// when building each report.
-    /// </summary>
-    public static IObservable<HealthReport> ObserveHealthReport(
-        this HealthGraph graph,
-        TimeSpan throttle)
-    {
-        return graph.Nodes
-            .Select(n => n.StatusChanged)
-            .Merge()
-            .Throttle(throttle)
-            .Select(_ =>
-            {
-                graph.NotifyAll();
-                return graph.CreateReport();
-            })
-            .DistinctUntilChanged(HealthReportComparer.Instance);
-    }
-
-    /// <summary>
-    /// Produces a new <see cref="HealthReport"/> whenever any leaf node in
-    /// the graph signals a change, throttled to avoid evaluation storms.
-    /// Only leaf nodes (those with no dependencies) are observed as triggers,
-    /// since parent status changes are always a consequence of
-    /// <see cref="HealthGraph.NotifyAll"/>, not exogenous events.
+    /// Produces a new <see cref="HealthReport"/> for the node and its full
+    /// dependency subtree each time the node's effective health changes.
+    /// <para>
+    /// Because <see cref="HealthNode.NotifyChanged"/> propagates upward,
+    /// subscribing to a single node captures changes from any transitive
+    /// dependency. The report is built via <see cref="HealthNode.CreateReport"/>
+    /// and only emitted when it differs from the previous one.
+    /// </para>
     /// </summary>
     public static IObservable<HealthReport> ObserveHealthReport(
-        this IReadOnlyList<HealthNode> roots,
-        TimeSpan throttle)
+        this HealthNode node)
     {
-        var graph = HealthGraph.Create(roots as HealthNode[] ?? roots.ToArray());
-        return WalkNodes(graph.Roots.ToArray())
-            .Where(n => n.Dependencies.Count == 0)
-            .Select(n => n.StatusChanged)
-            .Merge()
-            .Throttle(throttle)
-            .Select(_ =>
-            {
-                graph.NotifyAll();
-                return graph.CreateReport();
-            })
-            .DistinctUntilChanged(HealthReportComparer.Instance);
+        return Observable.Defer(() =>
+            node.StatusChanged
+                .Select(_ => node.CreateReport())
+                .DistinctUntilChanged(HealthReportComparer.Instance));
     }
 
     /// <summary>
@@ -97,6 +67,7 @@ public static class HealthRxExtensions
     /// <see cref="StatusChange"/> events by diffing consecutive reports.
     /// Only services whose status actually changed are emitted.
     /// Composable with any report source — <see cref="PollHealthReport"/>,
+
     /// <see cref="ObserveHealthReport"/>, or custom pipelines.
     /// </summary>
     public static IObservable<StatusChange> SelectServiceChanges(
@@ -108,29 +79,5 @@ public static class HealthRxExtensions
                 (state, report) => (state.Current, report))
             .Where(state => state.Previous is not null)
             .SelectMany(state => state.Previous!.Diff(state.Current!));
-    }
-
-    private static IObservable<HealthNode> WalkNodes(HealthNode[] roots)
-    {
-        return Observable.Create<HealthNode>(observer =>
-        {
-            var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
-            var stack = new Stack<HealthNode>(roots);
-
-            while (stack.Count > 0)
-            {
-                var current = stack.Pop();
-                if (!visited.Add(current))
-                    continue;
-
-                observer.OnNext(current);
-
-                foreach (var dep in current.Dependencies)
-                    stack.Push(dep.Node);
-            }
-
-            observer.OnCompleted();
-            return System.Reactive.Disposables.Disposable.Empty;
-        });
     }
 }
