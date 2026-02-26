@@ -7,7 +7,7 @@ public class HealthNodePropagateTests
     [Fact]
     public void PropagateChange_NotifiesSelf()
     {
-        var node = new HealthAdapter("Node",
+        var node = new DelegateHealthNode("Node",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
 
         var emitted = new List<HealthStatus>();
@@ -23,9 +23,9 @@ public class HealthNodePropagateTests
     public void PropagateChange_NotifiesParent()
     {
         var isUnhealthy = false;
-        var leaf = new HealthAdapter("Leaf",
+        var leaf = new DelegateHealthNode("Leaf",
             () => isUnhealthy ? HealthStatus.Unhealthy : HealthStatus.Healthy);
-        var parent = new HealthAdapter("Parent");
+        var parent = new DelegateHealthNode("Parent");
         parent.DependsOn(leaf, Importance.Required);
         // DependsOn propagates immediately: parent._lastEmitted = Healthy (leaf was Healthy at wire time).
 
@@ -44,10 +44,10 @@ public class HealthNodePropagateTests
     public void PropagateChange_PropagatesThroughChain()
     {
         var isUnhealthy = false;
-        var leaf = new HealthAdapter("Leaf",
+        var leaf = new DelegateHealthNode("Leaf",
             () => isUnhealthy ? HealthStatus.Unhealthy : HealthStatus.Healthy);
-        var middle = new HealthAdapter("Middle");
-        var root = new HealthAdapter("Root");
+        var middle = new DelegateHealthNode("Middle");
+        var root = new DelegateHealthNode("Root");
         middle.DependsOn(leaf, Importance.Required);
         root.DependsOn(middle, Importance.Required);
         // After wiring, root._lastEmitted = Healthy.
@@ -67,11 +67,11 @@ public class HealthNodePropagateTests
     {
         // leaf → A and leaf → B, both → root (diamond shape)
         var isUnhealthy = false;
-        var leaf = new HealthAdapter("Leaf",
+        var leaf = new DelegateHealthNode("Leaf",
             () => isUnhealthy ? HealthStatus.Unhealthy : HealthStatus.Healthy);
-        var a = new HealthAdapter("A");
-        var b = new HealthAdapter("B");
-        var root = new HealthAdapter("Root");
+        var a = new DelegateHealthNode("A");
+        var b = new DelegateHealthNode("B");
+        var root = new DelegateHealthNode("Root");
 
         a.DependsOn(leaf, Importance.Required);
         b.DependsOn(leaf, Importance.Required);
@@ -93,8 +93,8 @@ public class HealthNodePropagateTests
     [Fact]
     public void PropagateChange_Cycle_DoesNotStackOverflow()
     {
-        var a = new HealthAdapter("A");
-        var b = new HealthAdapter("B");
+        var a = new DelegateHealthNode("A");
+        var b = new DelegateHealthNode("B");
 
         // Deliberately create a cycle: A → B → A.
         a.DependsOn(b, Importance.Required);
@@ -108,7 +108,7 @@ public class HealthNodePropagateTests
     [Fact]
     public void PropagateChange_NoParents_OnlyNotifiesSelf()
     {
-        var node = new HealthAdapter("Lone",
+        var node = new DelegateHealthNode("Lone",
             () => new HealthEvaluation(HealthStatus.Degraded, "slow"));
 
         var emitted = new List<HealthStatus>();
@@ -125,9 +125,9 @@ public class HealthNodePropagateTests
     [Fact]
     public void DependsOn_ImmediatelyPropagatesToParent()
     {
-        var child = new HealthAdapter("Child",
+        var child = new DelegateHealthNode("Child",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var parent = new HealthAdapter("Parent");
+        var parent = new DelegateHealthNode("Parent");
 
         var emitted = new List<HealthStatus>();
         parent.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted.Add));
@@ -143,10 +143,10 @@ public class HealthNodePropagateTests
     [Fact]
     public void DependsOn_PropagatesUpThroughGrandparent()
     {
-        var child = new HealthAdapter("Child",
+        var child = new DelegateHealthNode("Child",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var parent = new HealthAdapter("Parent");
-        var grandparent = new HealthAdapter("Grandparent");
+        var parent = new DelegateHealthNode("Parent");
+        var grandparent = new DelegateHealthNode("Grandparent");
 
         // Wire grandparent → parent. DependsOn propagates immediately,
         // setting grandparent._lastEmitted = Healthy (parent had no deps yet).
@@ -165,9 +165,9 @@ public class HealthNodePropagateTests
     [Fact]
     public void RemoveDependency_ImmediatelyPropagatesToParent()
     {
-        var child = new HealthAdapter("Child",
+        var child = new DelegateHealthNode("Child",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var parent = new HealthAdapter("Parent");
+        var parent = new DelegateHealthNode("Parent");
 
         var emitted = new List<HealthStatus>();
         parent.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted.Add));

@@ -14,8 +14,8 @@ namespace Prognosis.Benchmarks;
 ///
 /// Each layer depends on 2-4 nodes from the layer below, mixing Required,
 /// Important, and Optional importance levels. Infrastructure nodes use
-/// HealthAdapter with synthetic health delegates; higher layers use
-/// HealthGroup composites. Some infrastructure nodes have sub-checks
+/// DelegateHealthNode with synthetic health delegates; higher layers use
+/// CompositeHealthNode composites. Some infrastructure nodes have sub-checks
 /// (connection, latency, pool) to model fine-grained health like
 /// DatabaseService in the examples.
 ///
@@ -41,10 +41,10 @@ internal static class RealisticGraphBuilder
         var infraNodes = new List<HealthNode>();
         foreach (var name in infraNames)
         {
-            var conn = new HealthAdapter($"{name}.Connection", RandomCheck(rng));
-            var latency = new HealthAdapter($"{name}.Latency", RandomCheck(rng));
-            var pool = new HealthAdapter($"{name}.Pool", RandomCheck(rng));
-            var group = new HealthGroup(name)
+            var conn = new DelegateHealthNode($"{name}.Connection", RandomCheck(rng));
+            var latency = new DelegateHealthNode($"{name}.Latency", RandomCheck(rng));
+            var pool = new DelegateHealthNode($"{name}.Pool", RandomCheck(rng));
+            var group = new CompositeHealthNode(name)
                 .DependsOn(conn, Importance.Required)
                 .DependsOn(latency, Importance.Important)
                 .DependsOn(pool, Importance.Required);
@@ -84,7 +84,7 @@ internal static class RealisticGraphBuilder
         }
 
         // ── Layer 4: Platform root ──────────────────────────────────
-        var root = new HealthGroup("Platform");
+        var root = new CompositeHealthNode("Platform");
         foreach (var gw in gatewayNodes)
         {
             root.DependsOn(gw, Importance.Required);
@@ -113,7 +113,7 @@ internal static class RealisticGraphBuilder
         {
             var name = $"{prefix}.{i:D3}";
             var depCount = rng.Next(2, Math.Min(5, dependencyPool.Count + 1));
-            var node = new HealthAdapter(name, RandomCheck(rng));
+            var node = new DelegateHealthNode(name, RandomCheck(rng));
 
             // Pick distinct random dependencies from the pool.
             var picked = new HashSet<int>();

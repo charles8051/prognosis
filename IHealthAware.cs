@@ -10,9 +10,9 @@ public interface IHealthAware
 {
     /// <summary>
     /// The <see cref="HealthNode"/> that represents this service in
-    /// the health graph. Typically a <see cref="HealthAdapter"/>
+    /// the health graph. Typically a <see cref="DelegateHealthNode"/>
     /// (when the service has its own intrinsic health check) or a
-    /// <see cref="HealthGroup"/> (when health is derived entirely
+    /// <see cref="CompositeHealthNode"/> (when health is derived entirely
     /// from sub-dependencies).
     /// </summary>
     HealthNode HealthNode { get; }

@@ -4,12 +4,12 @@ namespace Prognosis;
 /// A virtual service whose health is derived entirely from its dependencies.
 /// It has no underlying service of its own — it is a named aggregation point.
 /// </summary>
-public sealed class HealthGroup : HealthNode
+public sealed class CompositeHealthNode : HealthNode
 {
     public override string Name { get; }
 
     /// <param name="name">Display name for this composite in the health graph.</param>
-    public HealthGroup(string name)
+    public CompositeHealthNode(string name)
         : base(() => HealthStatus.Healthy)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -19,7 +19,7 @@ public sealed class HealthGroup : HealthNode
     }
 
     /// <summary>Registers a dependency on another service.</summary>
-    public new HealthGroup DependsOn(HealthNode node, Importance importance)
+    public new CompositeHealthNode DependsOn(HealthNode node, Importance importance)
     {
         base.DependsOn(node, importance);
         return this;

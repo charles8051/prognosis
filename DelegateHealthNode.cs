@@ -6,11 +6,11 @@ namespace Prognosis;
 /// modify the service class itself.
 /// <para>
 /// This is the recommended way for consumers to participate in the health graph.
-/// Embed a <see cref="HealthAdapter"/> as a property on your service
+/// Embed a <see cref="DelegateHealthNode"/> as a property on your service
 /// class and pass it when composing the graph.
 /// </para>
 /// </summary>
-public sealed class HealthAdapter : HealthNode
+public sealed class DelegateHealthNode : HealthNode
 {
     public override string Name { get; }
 
@@ -19,7 +19,7 @@ public sealed class HealthAdapter : HealthNode
     /// A delegate that returns the service's intrinsic health evaluation.
     /// Called every time <see cref="Evaluate"/> is invoked.
     /// </param>
-    public HealthAdapter(string name, Func<HealthEvaluation> healthCheck)
+    public DelegateHealthNode(string name, Func<HealthEvaluation> healthCheck)
         : base(healthCheck)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -29,11 +29,11 @@ public sealed class HealthAdapter : HealthNode
     }
 
     /// <summary>Shortcut: a service whose intrinsic status is always healthy.</summary>
-    public HealthAdapter(string name)
+    public DelegateHealthNode(string name)
         : this(name, () => HealthStatus.Healthy) { }
 
     /// <summary>Registers a dependency on another service.</summary>
-    public new HealthAdapter DependsOn(HealthNode node, Importance importance)
+    public new DelegateHealthNode DependsOn(HealthNode node, Importance importance)
     {
         base.DependsOn(node, importance);
         return this;

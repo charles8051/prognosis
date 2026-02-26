@@ -9,7 +9,7 @@ public class AggregationTests
     [Fact]
     public void Aggregate_NoDependencies_ReturnsIntrinsic()
     {
-        var check = new HealthAdapter("Svc",
+        var check = new DelegateHealthNode("Svc",
             () => new HealthEvaluation(HealthStatus.Degraded, "slow"));
 
         var result = check.Evaluate();
@@ -31,8 +31,8 @@ public class AggregationTests
     public void Aggregate_PropagatesAccordingToImportance(
         HealthStatus depStatus, Importance importance, HealthStatus expected)
     {
-        var dep = new HealthAdapter("Dep", () => depStatus);
-        var parent = new HealthAdapter("Parent")
+        var dep = new DelegateHealthNode("Dep", () => depStatus);
+        var parent = new DelegateHealthNode("Parent")
             .DependsOn(dep, importance);
 
         Assert.Equal(expected, parent.Evaluate().Status);
@@ -41,12 +41,12 @@ public class AggregationTests
     [Fact]
     public void Aggregate_PicksWorstAcrossMultipleDependencies()
     {
-        var healthy = new HealthAdapter("A");
-        var degraded = new HealthAdapter("B", () => HealthStatus.Degraded);
-        var unhealthy = new HealthAdapter("C",
+        var healthy = new DelegateHealthNode("A");
+        var degraded = new DelegateHealthNode("B", () => HealthStatus.Degraded);
+        var unhealthy = new DelegateHealthNode("C",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
 
-        var parent = new HealthAdapter("Parent")
+        var parent = new DelegateHealthNode("Parent")
             .DependsOn(healthy, Importance.Required)
             .DependsOn(degraded, Importance.Required)
             .DependsOn(unhealthy, Importance.Required);
@@ -60,8 +60,8 @@ public class AggregationTests
     [Fact]
     public void Aggregate_IntrinsicWorseThanDeps_IntrinsicWins()
     {
-        var healthy = new HealthAdapter("Dep");
-        var parent = new HealthAdapter("Parent",
+        var healthy = new DelegateHealthNode("Dep");
+        var parent = new DelegateHealthNode("Parent",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "self broken"))
             .DependsOn(healthy, Importance.Required);
 
@@ -76,8 +76,8 @@ public class AggregationTests
     [Fact]
     public void EvaluateAll_ReturnsPostOrder_LeavesBeforeParents()
     {
-        var leaf = new HealthAdapter("Leaf");
-        var parent = new HealthAdapter("Parent")
+        var leaf = new DelegateHealthNode("Leaf");
+        var parent = new DelegateHealthNode("Parent")
             .DependsOn(leaf, Importance.Required);
         var graph = HealthGraph.Create(parent);
 
@@ -91,10 +91,10 @@ public class AggregationTests
     [Fact]
     public void EvaluateAll_SharedDependency_AppearsOnce()
     {
-        var shared = new HealthAdapter("Shared");
-        var a = new HealthAdapter("A").DependsOn(shared, Importance.Required);
-        var b = new HealthAdapter("B").DependsOn(shared, Importance.Required);
-        var root = new HealthAdapter("Root")
+        var shared = new DelegateHealthNode("Shared");
+        var a = new DelegateHealthNode("A").DependsOn(shared, Importance.Required);
+        var b = new DelegateHealthNode("B").DependsOn(shared, Importance.Required);
+        var root = new DelegateHealthNode("Root")
             .DependsOn(a, Importance.Required)
             .DependsOn(b, Importance.Required);
         var graph = HealthGraph.Create(root);
@@ -110,10 +110,10 @@ public class AggregationTests
     [Fact]
     public void CreateReport_OverallStatus_IsWorstAcrossChildren()
     {
-        var healthy = new HealthAdapter("A");
-        var unhealthy = new HealthAdapter("B",
+        var healthy = new DelegateHealthNode("A");
+        var unhealthy = new DelegateHealthNode("B",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var root = new HealthGroup("Root")
+        var root = new CompositeHealthNode("Root")
             .DependsOn(healthy, Importance.Required)
             .DependsOn(unhealthy, Importance.Required);
         var graph = HealthGraph.Create(root);
@@ -127,7 +127,7 @@ public class AggregationTests
     [Fact]
     public void CreateReport_SingleHealthyNode_ReturnsHealthy()
     {
-        var graph = HealthGraph.Create(new HealthAdapter("Only"));
+        var graph = HealthGraph.Create(new DelegateHealthNode("Only"));
 
         var report = graph.CreateReport();
 
@@ -208,8 +208,8 @@ public class AggregationTests
     [Fact]
     public void DetectCycles_AcyclicGraph_ReturnsEmpty()
     {
-        var leaf = new HealthAdapter("Leaf");
-        var root = new HealthAdapter("Root")
+        var leaf = new DelegateHealthNode("Leaf");
+        var root = new DelegateHealthNode("Root")
             .DependsOn(leaf, Importance.Required);
         var graph = HealthGraph.Create(root);
 
@@ -221,8 +221,8 @@ public class AggregationTests
     [Fact]
     public void DetectCycles_DirectCycle_Detected()
     {
-        var a = new HealthAdapter("A");
-        var b = new HealthAdapter("B").DependsOn(a, Importance.Required);
+        var a = new DelegateHealthNode("A");
+        var b = new DelegateHealthNode("B").DependsOn(a, Importance.Required);
         a.DependsOn(b, Importance.Required);
         var graph = HealthGraph.Create(a);
 
@@ -238,9 +238,9 @@ public class AggregationTests
     [Fact]
     public void NotifyAll_CallsBubbleChangeOnAllObservableNodes()
     {
-        var leaf = new HealthAdapter("Leaf",
+        var leaf = new DelegateHealthNode("Leaf",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var root = new HealthAdapter("Root")
+        var root = new DelegateHealthNode("Root")
             .DependsOn(leaf, Importance.Required);
         var graph = HealthGraph.Create(root);
 

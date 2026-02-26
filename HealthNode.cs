@@ -2,14 +2,14 @@ namespace Prognosis;
 
 /// <summary>
 /// Base class for all nodes in the health graph. Concrete implementations are
-/// <see cref="HealthAdapter"/> (wraps a health-check delegate) and
-/// <see cref="HealthGroup"/> (aggregates dependencies with no
+/// <see cref="DelegateHealthNode"/> (wraps a health-check delegate) and
+/// <see cref="CompositeHealthNode"/> (aggregates dependencies with no
 /// backing service of its own).
 /// <para>
 /// Consumers who own a service class should implement <see cref="IHealthAware"/>
 /// and expose a <see cref="HealthNode"/> property — typically a
-/// <see cref="HealthAdapter"/> when the service has its own intrinsic
-/// check, or a <see cref="HealthGroup"/> when health is derived
+/// <see cref="DelegateHealthNode"/> when the service has its own intrinsic
+/// check, or a <see cref="CompositeHealthNode"/> when health is derived
 /// entirely from sub-dependencies. There is no need to subclass
 /// <see cref="HealthNode"/> directly.
 /// </para>

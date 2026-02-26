@@ -12,7 +12,7 @@ public class HealthRxExtensionsTests
     [Fact]
     public async Task PollHealthReport_EmitsReportOnInterval()
     {
-        var node = new HealthAdapter("Svc");
+        var node = new DelegateHealthNode("Svc");
 
         HealthReport? received = null;
         using var sub = node
@@ -28,7 +28,7 @@ public class HealthRxExtensionsTests
     [Fact]
     public async Task PollHealthReport_SameState_SuppressesDuplicate()
     {
-        var node = new HealthAdapter("Svc");
+        var node = new DelegateHealthNode("Svc");
 
         var count = 0;
         using var sub = node
@@ -45,9 +45,9 @@ public class HealthRxExtensionsTests
     public async Task PollHealthReport_EmitsOnStateChange()
     {
         var isHealthy = true;
-        var leaf = new HealthAdapter("Leaf",
+        var leaf = new DelegateHealthNode("Leaf",
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
-        var root = new HealthAdapter("Root")
+        var root = new DelegateHealthNode("Root")
             .DependsOn(leaf, Importance.Required);
 
         var reports = new List<HealthReport>();
@@ -67,8 +67,8 @@ public class HealthRxExtensionsTests
     [Fact]
     public async Task PollHealthReport_IncludesFullSubtree()
     {
-        var leaf = new HealthAdapter("Leaf");
-        var root = new HealthAdapter("Root")
+        var leaf = new DelegateHealthNode("Leaf");
+        var root = new DelegateHealthNode("Root")
             .DependsOn(leaf, Importance.Required);
 
         HealthReport? received = null;
@@ -88,7 +88,7 @@ public class HealthRxExtensionsTests
     public void ObserveStatus_EmitsEvaluationOnChange()
     {
         var isHealthy = true;
-        var node = new HealthAdapter("Svc",
+        var node = new DelegateHealthNode("Svc",
             () => isHealthy
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "down"));
@@ -117,9 +117,9 @@ public class HealthRxExtensionsTests
     public void ObserveHealthReport_EmitsOnStatusChange()
     {
         var isHealthy = true;
-        var leaf = new HealthAdapter("Leaf",
+        var leaf = new DelegateHealthNode("Leaf",
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
-        var root = new HealthAdapter("Root")
+        var root = new DelegateHealthNode("Root")
             .DependsOn(leaf, Importance.Required);
 
         var reports = new List<HealthReport>();
@@ -142,10 +142,10 @@ public class HealthRxExtensionsTests
     public void ObserveHealthReport_ReportIncludesFullSubtree()
     {
         var isHealthy = true;
-        var leaf = new HealthAdapter("Leaf",
+        var leaf = new DelegateHealthNode("Leaf",
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
-        var mid = new HealthAdapter("Mid").DependsOn(leaf, Importance.Required);
-        var root = new HealthAdapter("Root").DependsOn(mid, Importance.Required);
+        var mid = new DelegateHealthNode("Mid").DependsOn(leaf, Importance.Required);
+        var root = new DelegateHealthNode("Root").DependsOn(mid, Importance.Required);
 
         var reports = new List<HealthReport>();
         using var sub = root
@@ -262,8 +262,8 @@ public class HealthRxExtensionsTests
     [Fact]
     public async Task PollHealthReport_Graph_EmitsReportOnInterval()
     {
-        var leaf = new HealthAdapter("Leaf");
-        var root = new HealthAdapter("Root")
+        var leaf = new DelegateHealthNode("Leaf");
+        var root = new DelegateHealthNode("Root")
             .DependsOn(leaf, Importance.Required);
         var graph = HealthGraph.Create(root);
 
@@ -283,9 +283,9 @@ public class HealthRxExtensionsTests
     public async Task PollHealthReport_Graph_EmitsOnStateChange()
     {
         var isHealthy = true;
-        var leaf = new HealthAdapter("Leaf",
+        var leaf = new DelegateHealthNode("Leaf",
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
-        var root = new HealthAdapter("Root")
+        var root = new DelegateHealthNode("Root")
             .DependsOn(leaf, Importance.Required);
         var graph = HealthGraph.Create(root);
 
@@ -309,9 +309,9 @@ public class HealthRxExtensionsTests
     public void ObserveHealthReport_Graph_EmitsOnStatusChange()
     {
         var isHealthy = true;
-        var leaf = new HealthAdapter("Leaf",
+        var leaf = new DelegateHealthNode("Leaf",
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
-        var root = new HealthAdapter("Root")
+        var root = new DelegateHealthNode("Root")
             .DependsOn(leaf, Importance.Required);
         var graph = HealthGraph.Create(root);
 
@@ -332,10 +332,10 @@ public class HealthRxExtensionsTests
     public void ObserveHealthReport_Graph_RootReflectsDescendantChange()
     {
         var isHealthy = true;
-        var a = new HealthAdapter("A",
+        var a = new DelegateHealthNode("A",
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
-        var b = new HealthAdapter("B");
-        var root = new HealthGroup("Root")
+        var b = new DelegateHealthNode("B");
+        var root = new CompositeHealthNode("Root")
             .DependsOn(a, Importance.Required)
             .DependsOn(b, Importance.Required);
         var graph = HealthGraph.Create(root);

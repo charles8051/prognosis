@@ -1,11 +1,11 @@
 namespace Prognosis.Tests;
 
-public class HealthAdapterTests
+public class DelegateHealthNodeTests
 {
     [Fact]
     public void Constructor_SetsName()
     {
-        var svc = new HealthAdapter("MyService");
+        var svc = new DelegateHealthNode("MyService");
 
         Assert.Equal("MyService", svc.Name);
     }
@@ -13,7 +13,7 @@ public class HealthAdapterTests
     [Fact]
     public void Constructor_NameOnly_EvaluatesHealthy()
     {
-        var svc = new HealthAdapter("MyService");
+        var svc = new DelegateHealthNode("MyService");
 
         Assert.Equal(HealthStatus.Healthy, svc.Evaluate().Status);
     }
@@ -21,7 +21,7 @@ public class HealthAdapterTests
     [Fact]
     public void Constructor_WithHealthAdapter_DelegatesEvaluation()
     {
-        var svc = new HealthAdapter("Svc",
+        var svc = new DelegateHealthNode("Svc",
             () => new HealthEvaluation(HealthStatus.Degraded, "slow"));
 
         var eval = svc.Evaluate();
@@ -33,8 +33,8 @@ public class HealthAdapterTests
     [Fact]
     public void DependsOn_ReturnsSelf_ForFluentChaining()
     {
-        var dep = new HealthAdapter("Dep");
-        var svc = new HealthAdapter("Svc");
+        var dep = new DelegateHealthNode("Dep");
+        var svc = new DelegateHealthNode("Svc");
 
         var returned = svc.DependsOn(dep, Importance.Required);
 
@@ -44,9 +44,9 @@ public class HealthAdapterTests
     [Fact]
     public void DependsOn_WiresEdge_AffectsEvaluation()
     {
-        var dep = new HealthAdapter("Dep",
+        var dep = new DelegateHealthNode("Dep",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var svc = new HealthAdapter("Svc")
+        var svc = new DelegateHealthNode("Svc")
             .DependsOn(dep, Importance.Required);
 
         Assert.Equal(HealthStatus.Unhealthy, svc.Evaluate().Status);
@@ -55,9 +55,9 @@ public class HealthAdapterTests
     [Fact]
     public void DependsOn_ImportantCapsUnhealthyAtDegraded()
     {
-        var dep = new HealthAdapter("Dep",
+        var dep = new DelegateHealthNode("Dep",
             () => HealthStatus.Unhealthy);
-        var svc = new HealthAdapter("Svc")
+        var svc = new DelegateHealthNode("Svc")
             .DependsOn(dep, Importance.Important);
 
         Assert.Equal(HealthStatus.Degraded, svc.Evaluate().Status);
@@ -66,9 +66,9 @@ public class HealthAdapterTests
     [Fact]
     public void DependsOn_Optional_DoesNotAffectParent()
     {
-        var dep = new HealthAdapter("Dep",
+        var dep = new DelegateHealthNode("Dep",
             () => HealthStatus.Unhealthy);
-        var svc = new HealthAdapter("Svc")
+        var svc = new DelegateHealthNode("Svc")
             .DependsOn(dep, Importance.Optional);
 
         Assert.Equal(HealthStatus.Healthy, svc.Evaluate().Status);
@@ -77,7 +77,7 @@ public class HealthAdapterTests
     [Fact]
     public void StatusChanged_EmitsAfterBubbleChange()
     {
-        var svc = new HealthAdapter("Svc",
+        var svc = new DelegateHealthNode("Svc",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
 
         var emitted = new List<HealthStatus>();
@@ -92,7 +92,7 @@ public class HealthAdapterTests
     [Fact]
     public void ToString_IncludesNameAndStatus()
     {
-        var svc = new HealthAdapter("DB");
+        var svc = new DelegateHealthNode("DB");
         var str = svc.ToString();
 
         Assert.Contains("DB", str);
@@ -104,8 +104,8 @@ public class HealthAdapterTests
     [Fact]
     public void DependsOn_SetsParentOnChild()
     {
-        var child = new HealthAdapter("Child");
-        var parent = new HealthAdapter("Parent")
+        var child = new DelegateHealthNode("Child");
+        var parent = new DelegateHealthNode("Parent")
             .DependsOn(child, Importance.Required);
 
         Assert.True(child.HasParents);
@@ -116,9 +116,9 @@ public class HealthAdapterTests
     [Fact]
     public void DependsOn_MultipleParents_TracksAll()
     {
-        var child = new HealthAdapter("Child");
-        var p1 = new HealthAdapter("P1").DependsOn(child, Importance.Required);
-        var p2 = new HealthAdapter("P2").DependsOn(child, Importance.Important);
+        var child = new DelegateHealthNode("Child");
+        var p1 = new DelegateHealthNode("P1").DependsOn(child, Importance.Required);
+        var p2 = new DelegateHealthNode("P2").DependsOn(child, Importance.Important);
 
         Assert.Equal(2, child.Parents.Count);
     }
@@ -126,7 +126,7 @@ public class HealthAdapterTests
     [Fact]
     public void HasParents_FalseForOrphanedNode()
     {
-        var orphan = new HealthAdapter("Orphan");
+        var orphan = new DelegateHealthNode("Orphan");
 
         Assert.False(orphan.HasParents);
         Assert.Empty(orphan.Parents);
@@ -137,9 +137,9 @@ public class HealthAdapterTests
     [Fact]
     public void RemoveDependency_RemovesEdge()
     {
-        var child = new HealthAdapter("Child",
+        var child = new DelegateHealthNode("Child",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var parent = new HealthAdapter("Parent")
+        var parent = new DelegateHealthNode("Parent")
             .DependsOn(child, Importance.Required);
 
         Assert.Equal(HealthStatus.Unhealthy, parent.Evaluate().Status);
@@ -154,8 +154,8 @@ public class HealthAdapterTests
     [Fact]
     public void RemoveDependency_ClearsParentOnChild()
     {
-        var child = new HealthAdapter("Child");
-        var parent = new HealthAdapter("Parent")
+        var child = new DelegateHealthNode("Child");
+        var parent = new DelegateHealthNode("Parent")
             .DependsOn(child, Importance.Required);
 
         Assert.True(child.HasParents);
@@ -169,8 +169,8 @@ public class HealthAdapterTests
     [Fact]
     public void RemoveDependency_UnknownNode_ReturnsFalse()
     {
-        var parent = new HealthAdapter("Parent");
-        var unknown = new HealthAdapter("Unknown");
+        var parent = new DelegateHealthNode("Parent");
+        var unknown = new DelegateHealthNode("Unknown");
 
         Assert.False(parent.RemoveDependency(unknown));
     }

@@ -147,7 +147,7 @@ public static class ServiceCollectionExtensions
                 if (!byType.TryGetValue(attr.DependencyType, out var dep))
                     continue;
 
-                if (kvp.Value is HealthAdapter delegating)
+                if (kvp.Value is DelegateHealthNode delegating)
                 {
                     delegating.DependsOn(dep, attr.Importance);
                 }
@@ -157,7 +157,7 @@ public static class ServiceCollectionExtensions
         // Build delegate wrappers.
         foreach (var def in builder.Delegates)
         {
-            var d = new HealthAdapter(def.Name, () => def.HealthCheck(sp));
+            var d = new DelegateHealthNode(def.Name, () => def.HealthCheck(sp));
             WireEdges(d, def.Edges, byType, byName);
             byName[def.Name] = d;
         }
@@ -165,7 +165,7 @@ public static class ServiceCollectionExtensions
         // Build composites (order matters — later composites can reference earlier ones).
         foreach (var def in builder.Composites)
         {
-            var composite = new HealthGroup(def.Name);
+            var composite = new CompositeHealthNode(def.Name);
             WireEdges(composite, def.Edges, byType, byName);
             byName[def.Name] = composite;
         }

@@ -10,22 +10,22 @@ var database = new DatabaseService();
 var cache = new CacheService();
 var externalEmailApi = new ThirdPartyEmailClient();
 
-var emailHealth = new HealthAdapter("EmailProvider",
+var emailHealth = new DelegateHealthNode("EmailProvider",
     () => externalEmailApi.IsConnected
         ? HealthStatus.Healthy
         : new HealthEvaluation(HealthStatus.Unhealthy, "SMTP connection refused"));
 
-var messageQueue = new HealthAdapter("MessageQueue");
+var messageQueue = new DelegateHealthNode("MessageQueue");
 
-var authService = new HealthAdapter("AuthService")
+var authService = new DelegateHealthNode("AuthService")
     .DependsOn(database.HealthNode, Importance.Required)
     .DependsOn(cache.HealthNode, Importance.Important);
 
-var notificationSystem = new HealthGroup("NotificationSystem")
+var notificationSystem = new CompositeHealthNode("NotificationSystem")
     .DependsOn(messageQueue, Importance.Required)
     .DependsOn(emailHealth, Importance.Optional);
 
-var app = new HealthGroup("Application")
+var app = new CompositeHealthNode("Application")
     .DependsOn(authService, Importance.Required)
     .DependsOn(notificationSystem, Importance.Important);
 
@@ -213,7 +213,7 @@ class DatabaseService : IHealthAware
 
     public DatabaseService()
     {
-        HealthNode = new HealthAdapter("Database",
+        HealthNode = new DelegateHealthNode("Database",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Connection lost"));
@@ -228,7 +228,7 @@ class CacheService : IHealthAware
 
     public CacheService()
     {
-        HealthNode = new HealthAdapter("Cache",
+        HealthNode = new DelegateHealthNode("Cache",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Redis timeout"));

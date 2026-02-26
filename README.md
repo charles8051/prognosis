@@ -69,7 +69,7 @@ class CacheService : IHealthAware
 
     public CacheService()
     {
-        HealthNode = new HealthAdapter("Cache",
+        HealthNode = new DelegateHealthNode("Cache",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Redis timeout"));
@@ -79,7 +79,7 @@ class CacheService : IHealthAware
 }
 ```
 
-For services with fine-grained health attributes, use a `HealthGroup` backed by sub-nodes:
+For services with fine-grained health attributes, use a `CompositeHealthNode` backed by sub-nodes:
 
 ```csharp
 class DatabaseService : IHealthAware
@@ -92,12 +92,12 @@ class DatabaseService : IHealthAware
 
     public DatabaseService()
     {
-        var connection = new HealthAdapter("Database.Connection",
+        var connection = new DelegateHealthNode("Database.Connection",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Connection lost"));
 
-        var latency = new HealthAdapter("Database.Latency",
+        var latency = new DelegateHealthNode("Database.Latency",
             () => AverageLatencyMs switch
             {
                 > 500 => new HealthEvaluation(HealthStatus.Degraded,
@@ -105,7 +105,7 @@ class DatabaseService : IHealthAware
                 _ => HealthStatus.Healthy,
             });
 
-        var connectionPool = new HealthAdapter("Database.ConnectionPool",
+        var connectionPool = new DelegateHealthNode("Database.ConnectionPool",
             () => PoolUtilization switch
             {
                 >= 1.0 => new HealthEvaluation(HealthStatus.Unhealthy,
@@ -115,7 +115,7 @@ class DatabaseService : IHealthAware
                 _ => HealthStatus.Healthy,
             });
 
-        HealthNode = new HealthGroup("Database")
+        HealthNode = new CompositeHealthNode("Database")
             .DependsOn(connection, Importance.Required)
             .DependsOn(latency, Importance.Important)
             .DependsOn(connectionPool, Importance.Required);
@@ -133,10 +133,10 @@ AuthService: Degraded — Database: Database.Latency: ...
 
 ### 2. Wrap a service you can't modify
 
-Use `HealthAdapter` with a health-check delegate:
+Use `DelegateHealthNode` with a health-check delegate:
 
 ```csharp
-var emailHealth = new HealthAdapter("EmailProvider",
+var emailHealth = new DelegateHealthNode("EmailProvider",
     () => client.IsConnected
         ? HealthStatus.Healthy
         : new HealthEvaluation(HealthStatus.Unhealthy, "SMTP connection refused"));
@@ -147,11 +147,11 @@ var emailHealth = new HealthAdapter("EmailProvider",
 Wire services together with `DependsOn`:
 
 ```csharp
-var authService = new HealthAdapter("AuthService")
+var authService = new DelegateHealthNode("AuthService")
     .DependsOn(database.HealthNode, Importance.Required)
     .DependsOn(cache.HealthNode, Importance.Important);
 
-var app = new HealthGroup("Application")
+var app = new CompositeHealthNode("Application")
     .DependsOn(authService, Importance.Required)
     .DependsOn(notifications, Importance.Important);
 ```
@@ -163,7 +163,7 @@ Use `Importance.Resilient` when a parent has multiple paths to the same capabili
 ```csharp
 // If one goes down but the other is healthy, the parent is degraded (not unhealthy).
 // If both go down, the parent becomes unhealthy.
-var app = new HealthGroup("Application")
+var app = new CompositeHealthNode("Application")
     .DependsOn(primaryDb, Importance.Resilient)
     .DependsOn(replicaDb, Importance.Resilient);
 ```
@@ -290,7 +290,7 @@ Declare dependency edges on classes you own with attributes:
 [DependsOn<CacheService>(Importance.Important)]
 class AuthService : IHealthAware
 {
-    public HealthNode HealthNode { get; } = new HealthAdapter("AuthService");
+    public HealthNode HealthNode { get; } = new DelegateHealthNode("AuthService");
 }
 ```
 
@@ -382,8 +382,8 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 | `HealthEvaluation.cs` | Status + optional reason pair, with implicit conversion from `HealthStatus` |
 | `Importance.cs` | `Required`, `Important`, `Optional`, `Resilient` enum |
 | `HealthDependency.cs` | Record linking a `HealthNode` with its importance |
-| `HealthAdapter.cs` | Wraps a `Func<HealthEvaluation>` — use for services with intrinsic health checks |
-| `HealthGroup.cs` | Pure aggregation point — health derived entirely from dependencies |
+| `DelegateHealthNode.cs` | Wraps a `Func<HealthEvaluation>` — use for services with intrinsic health checks |
+| `CompositeHealthNode.cs` | Pure aggregation point — health derived entirely from dependencies |
 | `HealthReport.cs` | Serialization-ready report DTO with `DiffTo` for change detection |
 | `HealthSnapshot.cs` | Serialization-ready per-service snapshot DTO |
 | `StatusChange.cs` | Record describing a single service's status transition |

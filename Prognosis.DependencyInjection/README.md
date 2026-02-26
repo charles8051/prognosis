@@ -39,7 +39,7 @@ builder.Services.AddPrognosis(health =>
 [DependsOn<CacheService>(Importance.Important)]
 class AuthService : IHealthAware
 {
-    public HealthNode HealthNode { get; } = new HealthAdapter("AuthService");
+    public HealthNode HealthNode { get; } = new DelegateHealthNode("AuthService");
 }
 ```
 
