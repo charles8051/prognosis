@@ -36,10 +36,12 @@ public class HealthMonitorTests : IAsyncDisposable
         var statuses = new List<HealthStatus>();
         svc.StatusChanged.Subscribe(new TestObserver<HealthStatus>(statuses.Add));
 
-        _monitor.Poll();
+        _monitor.Poll(); // baseline: Healthy
 
-        Assert.Single(statuses);
-        Assert.Equal(HealthStatus.Unhealthy, statuses[0]);
+        isHealthy = false;
+        _monitor.Poll(); // state change → Unhealthy
+
+        Assert.Equal(HealthStatus.Unhealthy, statuses.Last());
     }
 
     [Fact]
