@@ -22,10 +22,20 @@ namespace Prognosis;
 public sealed class HealthGraph
 {
     private readonly HealthNode[] _roots;
+    private readonly HashSet<HealthNode> _allNodes;
+    private readonly Dictionary<string, HealthNode> _nodesByName;
 
     internal HealthGraph(params HealthNode[] roots)
     {
         _roots = roots;
+
+        _allNodes = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+        foreach (var root in roots)
+            Collect(root, _allNodes);
+
+        _nodesByName = new Dictionary<string, HealthNode>(_allNodes.Count, StringComparer.Ordinal);
+        foreach (var node in _allNodes)
+            _nodesByName[node.Name] = node;
     }
 
     /// <summary>
@@ -39,7 +49,7 @@ public sealed class HealthGraph
     /// The root nodes of the graph — the nodes passed to <see cref="Create"/>
     /// or provided by the DI builder.
     /// </summary>
-    public HealthNode[] Roots => _roots;
+    public IReadOnlyList<HealthNode> Roots => _roots;
 
     /// <summary>
     /// Looks up any node in the graph by its <see cref="HealthNode.Name"/>.
@@ -63,20 +73,8 @@ public sealed class HealthGraph
     /// Attempts to look up a node by name, returning <see langword="false"/>
     /// if no node with the given name exists.
     /// </summary>
-    public bool TryGetNode(string name, out HealthNode node)
-    {
-        foreach (var n in CollectAll())
-        {
-            if (n.Name == name)
-            {
-                node = n;
-                return true;
-            }
-        }
-
-        node = null!;
-        return false;
-    }
+    public bool TryGetNode(string name, out HealthNode node) =>
+        _nodesByName.TryGetValue(name, out node!);
 
     /// <summary>
     /// Looks up a node whose <see cref="HealthNode.Name"/> matches
@@ -90,10 +88,10 @@ public sealed class HealthGraph
         TryGetNode(typeof(T).Name, out node);
 
     /// <summary>
-    /// All nodes reachable from the roots by walking dependency edges
-    /// downward (leaves, composites, and delegates).
+    /// All nodes reachable from the roots, discovered at construction time
+    /// by walking dependency edges downward.
     /// </summary>
-    public IEnumerable<HealthNode> Nodes => CollectAll();
+    public IEnumerable<HealthNode> Nodes => _allNodes;
 
     /// <summary>
     /// Evaluates the full graph and packages the result as a serialization-ready
@@ -143,7 +141,7 @@ public sealed class HealthGraph
         var path = new List<HealthNode>();
         var cycles = new List<IReadOnlyList<string>>();
 
-        foreach (var node in Nodes)
+        foreach (var node in _allNodes)
         {
             DetectCyclesDfs(node, gray, black, path, cycles);
         }
@@ -163,19 +161,6 @@ public sealed class HealthGraph
         {
             HealthNode.NotifyDfs(root, visited);
         }
-    }
-
-    /// <summary>
-    /// Walks dependency edges downward from all roots and returns every
-    /// reachable node. Each node appears at most once.
-    /// </summary>
-    private HashSet<HealthNode> CollectAll()
-    {
-        var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
-        foreach (var root in _roots)
-            Collect(root, visited);
-
-        return visited;
     }
 
     private static void Collect(HealthNode node, HashSet<HealthNode> visited)

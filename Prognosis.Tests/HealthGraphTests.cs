@@ -81,7 +81,7 @@ public class HealthGraphTests
         var graph = HealthGraph.Create(a, b);
 
         var roots = graph.Roots;
-        Assert.Equal(2, roots.Length);
+        Assert.Equal(2, roots.Count);
         Assert.Contains(roots, r => r.Name == "A");
         Assert.Contains(roots, r => r.Name == "B");
     }
