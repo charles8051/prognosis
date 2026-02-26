@@ -108,28 +108,31 @@ public class AggregationTests
     // ── CreateReport ─────────────────────────────────────────────────
 
     [Fact]
-    public void CreateReport_OverallStatus_IsWorstAcrossRoots()
+    public void CreateReport_OverallStatus_IsWorstAcrossChildren()
     {
         var healthy = new HealthAdapter("A");
         var unhealthy = new HealthAdapter("B",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var graph = HealthGraph.Create(healthy, unhealthy);
+        var root = new HealthGroup("Root")
+            .DependsOn(healthy, Importance.Required)
+            .DependsOn(unhealthy, Importance.Required);
+        var graph = HealthGraph.Create(root);
 
         var report = graph.CreateReport();
 
         Assert.Equal(HealthStatus.Unhealthy, report.OverallStatus);
-        Assert.Equal(2, report.Services.Count);
+        Assert.Equal(3, report.Services.Count);
     }
 
     [Fact]
-    public void CreateReport_EmptyGraph_ReturnsHealthy()
+    public void CreateReport_SingleHealthyNode_ReturnsHealthy()
     {
-        var graph = HealthGraph.Create();
+        var graph = HealthGraph.Create(new HealthAdapter("Only"));
 
         var report = graph.CreateReport();
 
         Assert.Equal(HealthStatus.Healthy, report.OverallStatus);
-        Assert.Empty(report.Services);
+        Assert.Single(report.Services);
     }
 
     // ── Diff ─────────────────────────────────────────────────────────

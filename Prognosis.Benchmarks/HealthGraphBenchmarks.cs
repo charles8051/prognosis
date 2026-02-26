@@ -36,10 +36,10 @@ public class HealthGraphBenchmarks
     public HealthGraph Create() => HealthGraph.Create(_root);
 
     /// <summary>
-    /// Measures root access — returns the stored root list.
+    /// Measures root access — returns the stored root.
     /// </summary>
     [Benchmark]
-    public IReadOnlyList<HealthNode> Roots() => _graph.Roots;
+    public HealthNode Root() => _graph.Root;
 
     /// <summary>
     /// Measures <see cref="HealthGraph.EvaluateAll"/> — depth-first

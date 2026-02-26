@@ -19,14 +19,17 @@ public class HealthGraphTests
     }
 
     [Fact]
-    public void Create_MultipleEntryPoints_IndexesAll()
+    public void Create_MultipleChildren_IndexesAll()
     {
         var a = new HealthAdapter("A");
         var b = new HealthAdapter("B");
+        var root = new HealthGroup("Root")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Required);
 
-        var graph = HealthGraph.Create(a, b);
+        var graph = HealthGraph.Create(root);
 
-        Assert.Equal(2, graph.Nodes.Count());
+        Assert.Equal(3, graph.Nodes.Count());
     }
 
     [Fact]
@@ -35,10 +38,13 @@ public class HealthGraphTests
         var shared = new HealthAdapter("Shared");
         var a = new HealthAdapter("A").DependsOn(shared, Importance.Required);
         var b = new HealthAdapter("B").DependsOn(shared, Importance.Required);
+        var root = new HealthGroup("Root")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Required);
 
-        var graph = HealthGraph.Create(a, b);
+        var graph = HealthGraph.Create(root);
 
-        Assert.Equal(3, graph.Nodes.Count());
+        Assert.Equal(4, graph.Nodes.Count());
         Assert.Same(shared, graph["Shared"]);
     }
 
@@ -58,7 +64,7 @@ public class HealthGraphTests
     // ── Roots ────────────────────────────────────────────────────────
 
     [Fact]
-    public void Roots_ReturnsExactNodesPassed()
+    public void Root_ReturnsExactNodePassed()
     {
         var leaf = new HealthAdapter("Leaf");
         var root = new HealthAdapter("Root")
@@ -66,24 +72,23 @@ public class HealthGraphTests
 
         var graph = HealthGraph.Create(root);
 
-        var roots = graph.Roots;
-        Assert.Single(roots);
-        Assert.Same(root, roots[0]);
+        Assert.Same(root, graph.Root);
     }
 
     [Fact]
-    public void Roots_MultipleRoots_ReturnsAll()
+    public void Root_WithMultipleChildren_ReturnsRoot()
     {
         var shared = new HealthAdapter("Shared");
         var a = new HealthAdapter("A").DependsOn(shared, Importance.Required);
         var b = new HealthAdapter("B").DependsOn(shared, Importance.Required);
+        var root = new HealthGroup("Root")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Required);
 
-        var graph = HealthGraph.Create(a, b);
+        var graph = HealthGraph.Create(root);
 
-        var roots = graph.Roots;
-        Assert.Equal(2, roots.Count);
-        Assert.Contains(roots, r => r.Name == "A");
-        Assert.Contains(roots, r => r.Name == "B");
+        Assert.Same(root, graph.Root);
+        Assert.Equal(2, root.Dependencies.Count);
     }
 
     // ── Indexer ──────────────────────────────────────────────────────
@@ -151,10 +156,76 @@ public class HealthGraphTests
     {
         var a = new HealthAdapter("A");
         var b = new HealthAdapter("B");
-        var graph = HealthGraph.Create(a, b);
+        var root = new HealthGroup("Root")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Required);
+        var graph = HealthGraph.Create(root);
 
         var names = graph.Nodes.Select(n => n.Name).OrderBy(n => n).ToList();
-        Assert.Equal(new[] { "A", "B" }, names);
+        Assert.Equal(new[] { "A", "B", "Root" }, names);
+    }
+
+    // ── Dynamic topology refresh ─────────────────────────────────────
+
+    [Fact]
+    public void TryGetNode_AfterDependsOn_FindsNewNode()
+    {
+        var root = new HealthAdapter("Root");
+        var graph = HealthGraph.Create(root);
+
+        Assert.False(graph.TryGetNode("NewChild", out _));
+
+        var child = new HealthAdapter("NewChild");
+        root.DependsOn(child, Importance.Required);
+
+        Assert.True(graph.TryGetNode("NewChild", out var found));
+        Assert.Same(child, found);
+    }
+
+    [Fact]
+    public void Nodes_AfterDependsOn_IncludesNewNode()
+    {
+        var root = new HealthAdapter("Root");
+        var graph = HealthGraph.Create(root);
+
+        Assert.Single(graph.Nodes);
+
+        root.DependsOn(new HealthAdapter("Added"), Importance.Required);
+
+        Assert.Equal(2, graph.Nodes.Count());
+    }
+
+    [Fact]
+    public void Nodes_AfterRemoveDependency_ExcludesOrphanedNode()
+    {
+        var child = new HealthAdapter("Child");
+        var root = new HealthAdapter("Root")
+            .DependsOn(child, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        Assert.Equal(2, graph.Nodes.Count());
+
+        root.RemoveDependency(child);
+
+        Assert.Single(graph.Nodes);
+        Assert.False(graph.TryGetNode("Child", out _));
+    }
+
+    [Fact]
+    public void TryGetNode_AfterDeepDependsOn_FindsTransitiveNode()
+    {
+        var root = new HealthAdapter("Root");
+        var mid = new HealthAdapter("Mid");
+        var graph = HealthGraph.Create(root);
+
+        root.DependsOn(mid, Importance.Required);
+        Assert.True(graph.TryGetNode("Mid", out _));
+
+        var leaf = new HealthAdapter("Leaf");
+        mid.DependsOn(leaf, Importance.Required);
+
+        Assert.True(graph.TryGetNode("Leaf", out var found));
+        Assert.Same(leaf, found);
     }
 
     // ── CreateReport ─────────────────────────────────────────────────
@@ -175,14 +246,14 @@ public class HealthGraphTests
     }
 
     [Fact]
-    public void CreateReport_EmptyGraph_ReturnsHealthy()
+    public void CreateReport_SingleHealthyNode_ReturnsHealthy()
     {
-        var graph = HealthGraph.Create();
+        var graph = HealthGraph.Create(new HealthAdapter("Only"));
 
         var report = graph.CreateReport();
 
         Assert.Equal(HealthStatus.Healthy, report.OverallStatus);
-        Assert.Empty(report.Services);
+        Assert.Single(report.Services);
     }
 }
 

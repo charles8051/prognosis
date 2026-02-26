@@ -329,13 +329,16 @@ public class HealthRxExtensionsTests
     }
 
     [Fact]
-    public void ObserveHealthReport_Graph_MultipleRoots_EmitsOnAnyRootChange()
+    public void ObserveHealthReport_Graph_RootReflectsDescendantChange()
     {
         var isHealthy = true;
         var a = new HealthAdapter("A",
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
         var b = new HealthAdapter("B");
-        var graph = HealthGraph.Create(a, b);
+        var root = new HealthGroup("Root")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Required);
+        var graph = HealthGraph.Create(root);
 
         var reports = new List<HealthReport>();
         using var sub = graph

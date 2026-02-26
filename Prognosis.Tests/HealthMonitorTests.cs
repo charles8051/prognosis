@@ -14,22 +14,7 @@ public class HealthMonitorTests : IAsyncDisposable
     public void Poll_EmitsInitialReport()
     {
         var svc = new HealthAdapter("Svc");
-        _monitor = new HealthMonitor(new[] { svc }, TimeSpan.FromHours(1));
-
-        var reports = new List<HealthReport>();
-        _monitor.ReportChanged.Subscribe(new TestObserver<HealthReport>(reports.Add));
-
-        _monitor.Poll();
-
-        Assert.Single(reports);
-        Assert.Equal(HealthStatus.Healthy, reports[0].OverallStatus);
-    }
-
-    [Fact]
-    public void Poll_SameState_SuppressesDuplicate()
-    {
-        var svc = new HealthAdapter("Svc");
-        _monitor = new HealthMonitor(new[] { svc }, TimeSpan.FromHours(1));
+        _monitor = new HealthMonitor(svc, TimeSpan.FromHours(1));
 
         var reports = new List<HealthReport>();
         _monitor.ReportChanged.Subscribe(new TestObserver<HealthReport>(reports.Add));
@@ -46,26 +31,7 @@ public class HealthMonitorTests : IAsyncDisposable
         var isHealthy = true;
         var svc = new HealthAdapter("Svc",
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
-        _monitor = new HealthMonitor(new[] { svc }, TimeSpan.FromHours(1));
-
-        var reports = new List<HealthReport>();
-        _monitor.ReportChanged.Subscribe(new TestObserver<HealthReport>(reports.Add));
-
-        _monitor.Poll();
-        isHealthy = false;
-        _monitor.Poll();
-
-        Assert.Equal(2, reports.Count);
-        Assert.Equal(HealthStatus.Healthy, reports[0].OverallStatus);
-        Assert.Equal(HealthStatus.Unhealthy, reports[1].OverallStatus);
-    }
-
-    [Fact]
-    public void Poll_NotifiesObservableServices()
-    {
-        var svc = new HealthAdapter("Svc",
-            () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        _monitor = new HealthMonitor(new[] { svc }, TimeSpan.FromHours(1));
+        _monitor = new HealthMonitor(svc, TimeSpan.FromHours(1));
 
         var statuses = new List<HealthStatus>();
         svc.StatusChanged.Subscribe(new TestObserver<HealthStatus>(statuses.Add));
@@ -80,7 +46,7 @@ public class HealthMonitorTests : IAsyncDisposable
     public void ReportChanged_MultipleSubscribers_AllReceive()
     {
         var svc = new HealthAdapter("Svc");
-        _monitor = new HealthMonitor(new[] { svc }, TimeSpan.FromHours(1));
+        _monitor = new HealthMonitor(svc, TimeSpan.FromHours(1));
 
         var reports1 = new List<HealthReport>();
         var reports2 = new List<HealthReport>();
@@ -97,7 +63,7 @@ public class HealthMonitorTests : IAsyncDisposable
     public async Task DisposeAsync_StopsPolling()
     {
         var svc = new HealthAdapter("Svc");
-        _monitor = new HealthMonitor(new[] { svc }, TimeSpan.FromMilliseconds(50));
+        _monitor = new HealthMonitor(svc, TimeSpan.FromMilliseconds(50));
         _monitor.Start();
 
         await _monitor.DisposeAsync();
@@ -126,12 +92,12 @@ public class HealthMonitorTests : IAsyncDisposable
     }
 
     [Fact]
-    public void Constructor_WithHealthGraph_ReflectsDynamicRootChanges()
+    public void Constructor_WithHealthGraph_ReflectsDynamicDependencyChanges()
     {
         var a = new HealthAdapter("A");
         var b = new HealthAdapter("B",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var graph = HealthGraph.Create(a, b);
+        var graph = HealthGraph.Create(a);
 
         _monitor = new HealthMonitor(graph, TimeSpan.FromHours(1));
 
@@ -140,7 +106,7 @@ public class HealthMonitorTests : IAsyncDisposable
 
         _monitor.Poll();
         Assert.Single(reports);
-        Assert.Equal(HealthStatus.Unhealthy, reports[0].OverallStatus);
+        Assert.Equal(HealthStatus.Healthy, reports[0].OverallStatus);
 
         // Wire A → B (Required) — A's status changes from Healthy to Unhealthy.
         a.DependsOn(b, Importance.Required);

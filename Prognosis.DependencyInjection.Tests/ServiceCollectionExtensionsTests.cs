@@ -15,6 +15,12 @@ public class ServiceCollectionExtensionsTests
         services.AddPrognosis(health =>
         {
             health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+            health.AddComposite("Root", app =>
+            {
+                app.DependsOn<TestAuthService>(Importance.Required);
+                app.DependsOn<TestCacheService>(Importance.Required);
+            });
+            health.MarkAsRoot("Root");
         });
 
         var sp = services.BuildServiceProvider();
@@ -31,6 +37,7 @@ public class ServiceCollectionExtensionsTests
         services.AddPrognosis(health =>
         {
             health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+            health.MarkAsRoot<TestAuthService>();
         });
 
         var sp = services.BuildServiceProvider();
@@ -49,6 +56,12 @@ public class ServiceCollectionExtensionsTests
         services.AddPrognosis(health =>
         {
             health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+            health.AddComposite("Root", app =>
+            {
+                app.DependsOn<TestAuthService>(Importance.Required);
+                app.DependsOn<TestCacheService>(Importance.Required);
+            });
+            health.MarkAsRoot("Root");
         });
 
         var sp = services.BuildServiceProvider();
@@ -141,6 +154,8 @@ public class ServiceCollectionExtensionsTests
                 app.DependsOn<TestDatabaseService>(Importance.Required);
                 app.DependsOn<TestCacheService>(Importance.Important);
             });
+
+            health.MarkAsRoot("Platform");
         });
 
         var sp = services.BuildServiceProvider();
@@ -189,6 +204,8 @@ public class ServiceCollectionExtensionsTests
                 c.DependsOn<TestDatabaseService>(Importance.Resilient);
                 c.DependsOn<TestCacheService>(Importance.Resilient);
             });
+
+            health.MarkAsRoot("Resilient");
         });
 
         var sp = services.BuildServiceProvider();
@@ -204,7 +221,11 @@ public class ServiceCollectionExtensionsTests
     public void AddPrognosis_HealthGraph_IsSingleton()
     {
         var services = new ServiceCollection();
-        services.AddPrognosis(health => { });
+        services.AddSingleton(new TestExternalClient { IsUp = true });
+        services.AddPrognosis(health =>
+        {
+            health.AddDelegate<TestExternalClient>(c => HealthStatus.Healthy);
+        });
 
         var sp = services.BuildServiceProvider();
         var a = sp.GetRequiredService<HealthGraph>();
@@ -231,6 +252,38 @@ public class ServiceCollectionExtensionsTests
 
         Assert.Throws<InvalidOperationException>(
             () => sp.GetRequiredService<HealthGraph>());
+    }
+
+    [Fact]
+    public void AddPrognosis_MarkAsRoot_MissingName_Throws()
+    {
+        var services = new ServiceCollection();
+        services.AddPrognosis(health =>
+        {
+            health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+            health.MarkAsRoot("DoesNotExist");
+        });
+
+        var sp = services.BuildServiceProvider();
+
+        Assert.Throws<InvalidOperationException>(
+            () => sp.GetRequiredService<HealthGraph>());
+    }
+
+    [Fact]
+    public void AddPrognosis_MultipleRootCandidates_WithoutMarkAsRoot_Throws()
+    {
+        var services = new ServiceCollection();
+        services.AddPrognosis(health =>
+        {
+            health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+        });
+
+        var sp = services.BuildServiceProvider();
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => sp.GetRequiredService<HealthGraph>());
+        Assert.Contains("MarkAsRoot", ex.Message);
     }
 
     [Fact]
@@ -261,6 +314,7 @@ public class ServiceCollectionExtensionsTests
         services.AddPrognosis(health =>
         {
             health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+            health.MarkAsRoot<TestAuthService>();
             health.UseMonitor(TimeSpan.FromHours(1));
         });
 
