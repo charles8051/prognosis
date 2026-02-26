@@ -17,7 +17,7 @@ Polls the full health graph on a fixed interval, notifying all observable servic
 ```csharp
 using Prognosis.Reactive;
 
-var roots = new IHealthAware[] { app };
+var roots = new HealthNode[] { app };
 
 roots.PollHealthReport(TimeSpan.FromSeconds(30))
     .Subscribe(report =>
@@ -34,7 +34,7 @@ roots.ObserveHealthReport(TimeSpan.FromMilliseconds(500))
         Console.WriteLine($"Overall: {report.OverallStatus}"));
 ```
 
-Only leaf nodes are observed as triggers since parent status changes are always a consequence of `HealthAggregator.NotifyGraph`, not exogenous events.
+Only leaf nodes are observed as triggers since parent status changes are always a consequence of `HealthGraph.NotifyAll`, not exogenous events.
 
 ### `SelectServiceChanges` — diff-based change stream
 

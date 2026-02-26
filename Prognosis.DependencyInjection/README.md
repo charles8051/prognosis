@@ -36,15 +36,9 @@ builder.Services.AddPrognosis(health =>
 ```csharp
 [DependsOn<DatabaseService>(Importance.Required)]
 [DependsOn<CacheService>(Importance.Important)]
-class AuthService : IObservableHealthNode
+class AuthService : IHealthAware
 {
-    private readonly HealthTracker _health = new();
-
-    public string Name => "AuthService";
-    public IReadOnlyList<HealthDependency> Dependencies => _health.Dependencies;
-    public IObservable<HealthStatus> StatusChanged => _health.StatusChanged;
-    public void BubbleChange() => _health.BubbleChange();
-    public HealthEvaluation Evaluate() => _health.Evaluate();
+    public HealthNode HealthNode { get; } = new HealthAdapter("AuthService");
 }
 ```
 
@@ -88,16 +82,16 @@ var graph = serviceProvider.GetRequiredService<HealthGraph>();
 HealthReport report = graph.CreateReport();
 
 // Look up a service by name.
-IHealthAware db = graph["Database"];
+HealthNode db = graph["Database"];
 
-// Enumerate all services.
-foreach (var node in graph.Services)
+// Enumerate all nodes.
+foreach (var node in graph.Nodes)
 {
     Console.WriteLine($"{node.Name}: {node.Evaluate()}");
 }
 ```
 
-The `Roots` property is `IHealthAware[]`, directly compatible with the Rx extensions in `Prognosis.Reactive`:
+The `Roots` property is `IReadOnlyList<HealthNode>`, directly compatible with the Rx extensions in `Prognosis.Reactive`:
 
 ```csharp
 graph.Roots.PollHealthReport(TimeSpan.FromSeconds(30)).Subscribe(...);

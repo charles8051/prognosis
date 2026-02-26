@@ -65,11 +65,11 @@ Expose a `HealthNode` property — no forwarding boilerplate:
 ```csharp
 class CacheService : IHealthAware
 {
-    public HealthNode Health { get; }
+    public HealthNode HealthNode { get; }
 
     public CacheService()
     {
-        Health = new HealthAdapter("Cache",
+        HealthNode = new HealthAdapter("Cache",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Redis timeout"));
@@ -84,7 +84,7 @@ For services with fine-grained health attributes, use a `HealthGroup` backed by 
 ```csharp
 class DatabaseService : IHealthAware
 {
-    public HealthNode Health { get; }
+    public HealthNode HealthNode { get; }
 
     public bool IsConnected { get; set; } = true;
     public double AverageLatencyMs { get; set; } = 50;
@@ -115,7 +115,7 @@ class DatabaseService : IHealthAware
                 _ => HealthStatus.Healthy,
             });
 
-        Health = new HealthGroup("Database")
+        HealthNode = new HealthGroup("Database")
             .DependsOn(connection, Importance.Required)
             .DependsOn(latency, Importance.Important)
             .DependsOn(connectionPool, Importance.Required);
@@ -127,8 +127,8 @@ The sub-nodes show up automatically in `EvaluateAll`, `CreateReport`, and the JS
 
 ```
 Database.Latency: Degraded — Avg latency 600ms exceeds 500ms threshold
-Database: Degraded (3 dependencies) — Database.Latency: Avg latency 600ms exceeds 500ms threshold
-AuthService: Degraded (2 dependencies) — Database: Database.Latency: ...
+Database: Degraded — Database.Latency: Avg latency 600ms exceeds 500ms threshold
+AuthService: Degraded — Database: Database.Latency: ...
 ```
 
 ### 2. Wrap a service you can't modify
@@ -201,6 +201,7 @@ database.HealthNode.StatusChanged.Subscribe(observer);
 
 // Graph-level polling with HealthMonitor
 await using var monitor = new HealthMonitor(graph, TimeSpan.FromSeconds(5));
+monitor.Start();
 monitor.ReportChanged.Subscribe(reportObserver);
 
 // Manual poll (useful for testing or getting initial state)
@@ -239,7 +240,7 @@ builder.Services.AddPrognosis(health =>
     {
         db.DependsOn(nameof(PrimaryDb), Importance.Required);
         db.DependsOn(nameof(ReplicaDb), Importance.Required);
-    }, aggregator: HealthAggregator.AggregateWithRedundancy);
+    });
 
     // Roots are discovered automatically — any node that no other node
     // depends on is a root. No manual configuration is needed.
@@ -262,7 +263,7 @@ Declare dependency edges on classes you own with attributes:
 [DependsOn<CacheService>(Importance.Important)]
 class AuthService : IHealthAware
 {
-    public HealthNode Health { get; } = new HealthAdapter("AuthService");
+    public HealthNode HealthNode { get; } = new HealthAdapter("AuthService");
 }
 ```
 
@@ -273,11 +274,11 @@ var graph = serviceProvider.GetRequiredService<HealthGraph>();
 var report = graph.CreateReport();
 
 // Type-safe lookup — uses typeof(AuthService).Name as key.
-if (graph.TryGetService<AuthService>(out var auth))
+if (graph.TryGetNode<AuthService>(out var auth))
     Console.WriteLine($"AuthService has {auth.Dependencies.Count} deps");
 
 // String-based lookup still available.
-var dbService = graph["Database"];
+HealthNode dbService = graph["Database"];
 ```
 
 ## Reactive extensions
@@ -329,11 +330,11 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
   "Timestamp": "2026-02-13T18:30:00+00:00",
   "OverallStatus": "Healthy",
   "Services": [
-    { "Name": "Database.Connection", "Status": "Healthy", "DependencyCount": 0 },
-    { "Name": "Database.Latency", "Status": "Healthy", "DependencyCount": 0 },
-    { "Name": "Database.ConnectionPool", "Status": "Healthy", "DependencyCount": 0 },
-    { "Name": "Database", "Status": "Healthy", "DependencyCount": 3 },
-    { "Name": "AuthService", "Status": "Healthy", "DependencyCount": 2 }
+    { "Name": "Database.Connection", "Status": "Healthy" },
+    { "Name": "Database.Latency", "Status": "Healthy" },
+    { "Name": "Database.ConnectionPool", "Status": "Healthy" },
+    { "Name": "Database", "Status": "Healthy" },
+    { "Name": "AuthService", "Status": "Healthy" }
   ]
 }
 ```
@@ -345,17 +346,14 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 | File | Purpose |
 |---|---|
 | `HealthNode.cs` | Abstract base class — `Name`, `Dependencies`, `Evaluate()`, `StatusChanged`, `BubbleChange()`, `DependsOn()` |
-| `IHealthAware.cs` | Marker interface — implement on your classes with a single `HealthNode Health` property |
+| `IHealthAware.cs` | Marker interface — implement on your classes with a single `HealthNode` property |
 | `HealthStatus.cs` | `Healthy` → `Unknown` → `Degraded` → `Unhealthy` enum |
 | `HealthEvaluation.cs` | Status + optional reason pair, with implicit conversion from `HealthStatus` |
-| `Importance.cs` | `Required`, `Important`, `Optional` enum |
+| `Importance.cs` | `Required`, `Important`, `Optional`, `Resilient` enum |
 | `HealthDependency.cs` | Record linking a `HealthNode` with its importance |
-| `AggregationStrategy.cs` | Delegate type for pluggable propagation rules |
-| `HealthTracker.cs` | Internal composable helper — dependency tracking, aggregation, and observability |
 | `HealthAdapter.cs` | Wraps a `Func<HealthEvaluation>` — use for services with intrinsic health checks |
 | `HealthGroup.cs` | Pure aggregation point — health derived entirely from dependencies |
-| `HealthAggregator.cs` | Static helpers — `Aggregate`, `AggregateWithRedundancy`, `EvaluateAll`, `CreateReport`, `DetectCycles`, `DiffTo`, `NotifyGraph` |
-| `HealthReport.cs` | Serialization-ready report DTO |
+| `HealthReport.cs` | Serialization-ready report DTO with `DiffTo` for change detection |
 | `HealthSnapshot.cs` | Serialization-ready per-service snapshot DTO |
 | `StatusChange.cs` | Record describing a single service's status transition |
 | `HealthReportComparer.cs` | `IEqualityComparer<HealthReport>` for deduplicating reports |
