@@ -103,11 +103,9 @@ public static class HealthRxExtensions
 
     /// <summary>
     /// Produces a new <see cref="HealthReport"/> for the entire graph each
-    /// time any root node's effective health changes.
+    /// time the root node's effective health changes.
     /// <para>
-    /// Merges <see cref="HealthNode.StatusChanged"/> from all
-    /// <see cref="HealthGraph.Roots"/>. Because
-    /// <see cref="HealthNode.BubbleChange"/> propagates upward, a change
+    /// Because <see cref="HealthNode.BubbleChange"/> propagates upward, a change
     /// in any transitive dependency surfaces at the root and triggers a
     /// fresh report. Only emitted when the report differs from the previous one.
     /// </para>
@@ -116,12 +114,8 @@ public static class HealthRxExtensions
         this HealthGraph graph)
     {
         return Observable.Defer(() =>
-        {
-            var rootStreams = graph.Roots.Select(r => r.StatusChanged);
-            return rootStreams
-                .Merge()
+            graph.Root.StatusChanged
                 .Select(_ => graph.CreateReport())
-                .DistinctUntilChanged(HealthReportComparer.Instance);
-        });
+                .DistinctUntilChanged(HealthReportComparer.Instance));
     }
 }
