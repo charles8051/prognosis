@@ -41,9 +41,8 @@ builder.Services.AddPrognosis(health =>
         app.DependsOn(ServiceNames.NotificationSystem, Importance.Important);
     });
 
-    // Roots are discovered automatically from the graph topology —
+    // Roots are computed automatically by the DI builder —
     // any node that no other node depends on is a root.
-    // No need to register them explicitly.
 
     // Register HealthMonitor as a hosted service (polls every 2 seconds).
     health.UseMonitor(TimeSpan.FromSeconds(2));

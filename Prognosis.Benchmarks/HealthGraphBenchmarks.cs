@@ -29,15 +29,14 @@ public class HealthGraphBenchmarks
     }
 
     /// <summary>
-    /// Measures <see cref="HealthGraph.Create"/> — walks the full graph
-    /// from the root and indexes every reachable node by name.
+    /// Measures <see cref="HealthGraph.Create"/> — stores the root and
+    /// makes the graph available for queries.
     /// </summary>
     [Benchmark]
     public HealthGraph Create() => HealthGraph.Create(_root);
 
     /// <summary>
-    /// Measures dynamic root computation — scans all nodes and returns
-    /// those with no parents.
+    /// Measures root access — returns the stored root array.
     /// </summary>
     [Benchmark]
     public HealthNode[] Roots() => _graph.Roots;

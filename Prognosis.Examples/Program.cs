@@ -42,16 +42,14 @@ var app = new HealthGroup("Application")
     .DependsOn(notificationSystem, Importance.Important);
 
 // ─────────────────────────────────────────────────────────────────────
-// Pattern 4 — HealthGraph: hand the topology any entry-point node(s)
-//             and the graph discovers every reachable node. Roots are
-//             computed dynamically — no need to track them by hand.
+// Pattern 4 — HealthGraph: hand the topology root node(s) and the
+//             graph discovers every reachable dependency downward.
 // ─────────────────────────────────────────────────────────────────────
 var graph = HealthGraph.Create(app);
 
 // ── Demo ─────────────────────────────────────────────────────────────
 void PrintHealth()
 {
-    // Roots are discovered from the graph topology — no explicit list needed.
     foreach (var snapshot in graph.EvaluateAll())
     {
         Console.WriteLine($"  {snapshot}");
