@@ -354,7 +354,7 @@ public abstract class HealthNode
         }
 
         var eval = node.Evaluate();
-        results.Add(new HealthSnapshot(node.Name, eval.Status, node.Dependencies.Count, eval.Reason));
+        results.Add(new HealthSnapshot(node.Name, eval.Status, eval.Reason));
     }
 
     private void AddObserver(IObserver<HealthStatus> observer)

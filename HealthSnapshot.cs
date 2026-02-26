@@ -3,14 +3,8 @@ namespace Prognosis;
 /// <summary>
 /// A point-in-time capture of a single service's evaluated health.
 /// </summary>
-public sealed record HealthSnapshot(string Name, HealthStatus Status, int DependencyCount, string? Reason = null)
+public sealed record HealthSnapshot(string Name, HealthStatus Status, string? Reason = null)
 {
-    public override string ToString()
-    {
-        var summary = DependencyCount > 0
-            ? $"{Name}: {Status} ({DependencyCount} dependencies)"
-            : $"{Name}: {Status}";
-
-        return Reason is not null ? $"{summary} — {Reason}" : summary;
-    }
+    public override string ToString() =>
+        Reason is not null ? $"{Name}: {Status} — {Reason}" : $"{Name}: {Status}";
 }

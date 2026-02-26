@@ -139,11 +139,11 @@ public class AggregationTests
     {
         var before = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[]
         {
-            new HealthSnapshot("Svc", HealthStatus.Healthy, 0),
+            new HealthSnapshot("Svc", HealthStatus.Healthy),
         });
         var after = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Unhealthy, new[]
         {
-            new HealthSnapshot("Svc", HealthStatus.Unhealthy, 0, "down"),
+            new HealthSnapshot("Svc", HealthStatus.Unhealthy, "down"),
         });
 
         var changes = before.DiffTo(after);
@@ -157,7 +157,7 @@ public class AggregationTests
     [Fact]
     public void Diff_NoChanges_ReturnsEmpty()
     {
-        var snapshot = new HealthSnapshot("Svc", HealthStatus.Healthy, 0);
+        var snapshot = new HealthSnapshot("Svc", HealthStatus.Healthy);
         var report = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[] { snapshot });
 
         var changes = report.DiffTo(report);
@@ -172,7 +172,7 @@ public class AggregationTests
             Array.Empty<HealthSnapshot>());
         var after = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[]
         {
-            new HealthSnapshot("New", HealthStatus.Healthy, 0),
+            new HealthSnapshot("New", HealthStatus.Healthy),
         });
 
         var changes = before.DiffTo(after);
@@ -187,7 +187,7 @@ public class AggregationTests
     {
         var before = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[]
         {
-            new HealthSnapshot("Old", HealthStatus.Healthy, 0),
+            new HealthSnapshot("Old", HealthStatus.Healthy),
         });
         var after = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy,
             Array.Empty<HealthSnapshot>());

@@ -175,11 +175,11 @@ public class HealthRxExtensionsTests
 
         var report1 = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[]
         {
-            new HealthSnapshot("Svc", HealthStatus.Healthy, 0),
+            new HealthSnapshot("Svc", HealthStatus.Healthy),
         });
         var report2 = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Unhealthy, new[]
         {
-            new HealthSnapshot("Svc", HealthStatus.Unhealthy, 0, "down"),
+            new HealthSnapshot("Svc", HealthStatus.Unhealthy, "down"),
         });
 
         subject.OnNext(report1);
@@ -203,7 +203,7 @@ public class HealthRxExtensionsTests
 
         var report = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[]
         {
-            new HealthSnapshot("Svc", HealthStatus.Healthy, 0),
+            new HealthSnapshot("Svc", HealthStatus.Healthy),
         });
 
         subject.OnNext(report);
@@ -226,7 +226,7 @@ public class HealthRxExtensionsTests
             Array.Empty<HealthSnapshot>());
         var report2 = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[]
         {
-            new HealthSnapshot("New", HealthStatus.Healthy, 0),
+            new HealthSnapshot("New", HealthStatus.Healthy),
         });
 
         subject.OnNext(report1);
@@ -249,7 +249,7 @@ public class HealthRxExtensionsTests
 
         var report = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[]
         {
-            new HealthSnapshot("Svc", HealthStatus.Healthy, 0),
+            new HealthSnapshot("Svc", HealthStatus.Healthy),
         });
 
         subject.OnNext(report);
