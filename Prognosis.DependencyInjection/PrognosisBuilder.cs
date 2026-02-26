@@ -14,37 +14,53 @@ public sealed class PrognosisBuilder
     internal List<Assembly> ScanAssemblies { get; } = [];
     internal List<CompositeDefinition> Composites { get; } = [];
     internal List<DelegateDefinition> Delegates { get; } = [];
-    internal string? RootName { get; private set; }
+    internal List<RootDefinition> Roots { get; } = [];
 
     internal PrognosisBuilder(IServiceCollection services) => Services = services;
 
     /// <summary>
     /// Designates the node whose <see cref="HealthNode.Name"/> matches
-    /// <c>typeof(T).Name</c> as the single root of the health graph.
-    /// If not called, the builder will auto-detect the root (the unique
-    /// node that is not a dependency of any other node). An exception
-    /// is thrown at graph materialization if auto-detection finds zero
-    /// or more than one candidate.
+    /// <c>typeof(T).Name</c> as a root of the health graph and registers
+    /// a <see cref="HealthGraph{TRoot}"/> so the graph can be resolved
+    /// from DI without keyed services.
+    /// <para>
+    /// When only one root is declared, the graph is also registered as a
+    /// plain <see cref="HealthGraph"/> singleton.  When multiple roots are
+    /// declared, each is registered as a keyed <see cref="HealthGraph"/>
+    /// (keyed by the root name) and optionally as
+    /// <see cref="HealthGraph{TRoot}"/>.
+    /// </para>
     /// </summary>
     /// <typeparam name="T">
-    /// A type whose <see cref="System.Type.Name"/> identifies the root node.
-    /// Typically a composite or service class registered via
+    /// A marker type whose <see cref="System.Type.Name"/> identifies the
+    /// root node. Typically a composite or service class registered via
     /// <see cref="ScanForServices"/>, <see cref="AddComposite"/>, or
     /// <see cref="AddDelegate{TService}(Func{TService,HealthEvaluation},Action{DependencyConfigurator}?)"/>.
     /// </typeparam>
     public PrognosisBuilder MarkAsRoot<T>() where T : class
-        => MarkAsRoot(typeof(T).Name);
+    {
+        var name = typeof(T).Name;
+        Roots.Add(new RootDefinition(
+            name,
+            static (services, graphFactory) =>
+                services.AddSingleton(sp => new HealthGraph<T>(graphFactory(sp)))));
+        return this;
+    }
 
     /// <summary>
-    /// Designates the node with the given name as the single root of the
-    /// health graph. If not called, the builder will auto-detect the root
-    /// (the unique node that is not a dependency of any other node). An
-    /// exception is thrown at graph materialization if auto-detection
-    /// finds zero or more than one candidate.
+    /// Designates the node with the given name as a root of the health graph.
+    /// <para>
+    /// When only one root is declared, the graph is registered as a plain
+    /// <see cref="HealthGraph"/> singleton.  When multiple roots are
+    /// declared, each is registered as a keyed <see cref="HealthGraph"/>
+    /// (keyed by the root name).  To resolve a specific graph without
+    /// keyed services, use the generic <see cref="MarkAsRoot{T}"/>
+    /// overload instead.
+    /// </para>
     /// </summary>
     public PrognosisBuilder MarkAsRoot(string name)
     {
-        RootName = name;
+        Roots.Add(new RootDefinition(name, null));
         return this;
     }
 
@@ -158,3 +174,7 @@ internal sealed record DelegateDefinition(
     Type ServiceType,
     Func<IServiceProvider, HealthEvaluation> HealthCheck,
     List<EdgeDefinition> Edges);
+
+internal sealed record RootDefinition(
+    string Name,
+    Action<IServiceCollection, Func<IServiceProvider, HealthGraph>>? RegisterTyped);

@@ -11,10 +11,32 @@ namespace Prognosis.DependencyInjection;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Configures the Prognosis health graph and registers a
-    /// <see cref="HealthGraph"/> singleton that materializes the full graph
+    /// Configures the Prognosis health graph and registers one or more
+    /// <see cref="HealthGraph"/> singletons that materialize the full graph
     /// (scanned services, composites, delegates, attribute-declared edges)
     /// on first resolution.
+    /// <para>
+    /// Call <see cref="PrognosisBuilder.MarkAsRoot(string)"/> or
+    /// <see cref="PrognosisBuilder.MarkAsRoot{T}"/> one or more times to
+    /// designate roots. Each root produces a separate <see cref="HealthGraph"/>
+    /// that shares the same underlying nodes.
+    /// </para>
+    /// <list type="bullet">
+    ///   <item>
+    ///     <b>Zero roots</b> — the single root is auto-detected (the unique
+    ///     node that is not a dependency of any other node).
+    ///   </item>
+    ///   <item>
+    ///     <b>One root</b> — a plain <see cref="HealthGraph"/> singleton
+    ///     is registered (plus <see cref="HealthGraph{TRoot}"/> when
+    ///     <see cref="PrognosisBuilder.MarkAsRoot{T}"/> was used).
+    ///   </item>
+    ///   <item>
+    ///     <b>Multiple roots</b> — each graph is registered as a keyed
+    ///     <see cref="HealthGraph"/> (keyed by the root name) and optionally
+    ///     as <see cref="HealthGraph{TRoot}"/>.
+    ///   </item>
+    /// </list>
     /// </summary>
     public static IServiceCollection AddPrognosis(
         this IServiceCollection services,
@@ -39,16 +61,73 @@ public static class ServiceCollectionExtensions
             }
         }
 
-        // 2. Register HealthGraph — materializes the full graph on first resolution.
-        services.AddSingleton(sp => MaterializeGraph(sp, builder));
+        // 2. Build the shared node pool once (lazily, on first graph resolution).
+        //    Every HealthGraph rooted at a different node shares these nodes.
+        var poolLock = new object();
+        Dictionary<string, HealthNode>? pool = null;
+
+        Dictionary<string, HealthNode> EnsurePool(IServiceProvider sp)
+        {
+            if (pool is not null) return pool;
+            lock (poolLock)
+            {
+                return pool ??= BuildNodePool(sp, builder);
+            }
+        }
+
+        // 3. Determine roots to register.
+        var roots = builder.Roots;
+
+        if (roots.Count == 0)
+        {
+            // Auto-detect: register as plain HealthGraph.
+            services.AddSingleton(sp =>
+            {
+                var p = EnsurePool(sp);
+                var rootName = AutoDetectSingleRoot(p);
+                return new HealthGraph(p[rootName]);
+            });
+        }
+        else if (roots.Count == 1)
+        {
+            // Single declared root: register as plain HealthGraph.
+            var name = roots[0].Name;
+            services.AddSingleton(sp =>
+            {
+                var p = EnsurePool(sp);
+                return ResolveRootGraph(p, name);
+            });
+
+            // Also register HealthGraph<T> if the generic overload was used.
+            roots[0].RegisterTyped?.Invoke(services,
+                sp => sp.GetRequiredService<HealthGraph>());
+        }
+        else
+        {
+            // Multiple roots: register keyed HealthGraph per root.
+            foreach (var rootDef in roots)
+            {
+                var name = rootDef.Name;
+                services.AddKeyedSingleton<HealthGraph>(name, (sp, _) =>
+                {
+                    var p = EnsurePool(sp);
+                    return ResolveRootGraph(p, name);
+                });
+
+                // Also register HealthGraph<T> if the generic overload was used.
+                rootDef.RegisterTyped?.Invoke(services,
+                    sp => sp.GetRequiredKeyedService<HealthGraph>(name));
+            }
+        }
 
         return services;
     }
 
-    private static HealthGraph MaterializeGraph(IServiceProvider sp, PrognosisBuilder builder)
+    // ── Node pool construction ───────────────────────────────────────
+
+    private static Dictionary<string, HealthNode> BuildNodePool(
+        IServiceProvider sp, PrognosisBuilder builder)
     {
-        // Collect all scanned IHealthAware instances, keyed by their
-        // concrete type and by the Health node's name.
         var byType = new Dictionary<Type, HealthNode>();
         var byName = new Dictionary<string, HealthNode>();
 
@@ -91,17 +170,24 @@ public static class ServiceCollectionExtensions
             byName[def.Name] = composite;
         }
 
-        // Determine the root node.
-        if (builder.RootName is not null)
-        {
-            if (!byName.TryGetValue(builder.RootName, out var explicitRoot))
-                throw new InvalidOperationException(
-                    $"MarkAsRoot specified '{builder.RootName}', but no node with that name exists in the health graph.");
-            return new HealthGraph(explicitRoot);
-        }
+        return byName;
+    }
 
-        // Auto-detect: the unique node that is not a dependency of any other node.
-        var allNodes = byName.Values.ToArray();
+    // ── Root resolution helpers ──────────────────────────────────────
+
+    private static HealthGraph ResolveRootGraph(
+        Dictionary<string, HealthNode> pool, string rootName)
+    {
+        if (!pool.TryGetValue(rootName, out var rootNode))
+            throw new InvalidOperationException(
+                $"MarkAsRoot specified '{rootName}', but no node with that name exists in the health graph.");
+
+        return new HealthGraph(rootNode);
+    }
+
+    private static string AutoDetectSingleRoot(Dictionary<string, HealthNode> pool)
+    {
+        var allNodes = pool.Values.ToArray();
         var children = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
         foreach (var node in allNodes)
         {
@@ -121,8 +207,10 @@ public static class ServiceCollectionExtensions
                 $"Multiple root candidates found ({string.Join(", ", roots.Select(r => $"'{r.Name}'"))}). " +
                 "Use MarkAsRoot to designate a single root, or add a composite node that depends on all top-level nodes.");
 
-        return new HealthGraph(roots[0]);
+        return roots[0].Name;
     }
+
+    // ── Edge wiring ──────────────────────────────────────────────────
 
     private static void WireEdges(
         HealthNode target,
