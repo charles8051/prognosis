@@ -42,7 +42,7 @@ var app = new HealthGroup("Application")
     .DependsOn(notificationSystem, Importance.Important);
 
 // ─────────────────────────────────────────────────────────────────────
-// Pattern 4 — HealthGraph: hand the topology root node(s) and the
+// Pattern 4 — HealthGraph: hand the topology a single root node and the
 //             graph discovers every reachable dependency downward.
 // ─────────────────────────────────────────────────────────────────────
 var graph = HealthGraph.Create(app);

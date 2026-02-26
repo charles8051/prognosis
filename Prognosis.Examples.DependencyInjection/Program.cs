@@ -41,8 +41,8 @@ builder.Services.AddPrognosis(health =>
         app.DependsOn(ServiceNames.NotificationSystem, Importance.Important);
     });
 
-    // Roots are computed automatically by the DI builder —
-    // any node that no other node depends on is a root.
+    // Designate the root — required when multiple top-level nodes exist.
+    health.MarkAsRoot(ServiceNames.Application);
 
     // Register HealthMonitor as a hosted service (polls every 2 seconds).
     health.UseMonitor(TimeSpan.FromSeconds(2));

@@ -29,7 +29,7 @@ var app = new HealthGroup("Application")
     .DependsOn(authService, Importance.Required)
     .DependsOn(notificationSystem, Importance.Important);
 
-// Hand the graph any entry-point node — roots are discovered from the topology.
+// Hand the graph a single root node — the full topology is discovered downward.
 var graph = HealthGraph.Create(app);
 
 // ─────────────────────────────────────────────────────────────────────
