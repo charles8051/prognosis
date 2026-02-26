@@ -3,7 +3,7 @@ namespace Prognosis;
 /// <summary>
 /// Polls the health graph on a configurable interval, calls
 /// <see cref="HealthNode.BubbleChange"/> on every node in the graph,
-/// and emits a <see cref="HealthReport"/> when the overall state changes.
+/// and emits a <see cref="HealthReport"/> when the state changes.
 /// </summary>
 public sealed class HealthMonitor : IAsyncDisposable, IDisposable
 {

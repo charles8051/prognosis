@@ -98,17 +98,14 @@ public sealed class HealthGraph
     public IEnumerable<HealthNode> Nodes => _allNodes;
 
     /// <summary>
-    /// Evaluates the full graph and packages the result as a serialization-ready
-    /// <see cref="HealthReport"/> with a timestamp and overall status.
+    /// Evaluates the full graph and packages the result as a
+    /// <see cref="HealthReport"/>.
     /// </summary>
     public HealthReport CreateReport()
     {
-        var services = EvaluateAll();
-        var overall = services.Count > 0
-            ? services.Max(s => s.Status)
-            : HealthStatus.Healthy;
+        var nodes = EvaluateAll();
 
-        return new HealthReport(DateTimeOffset.UtcNow, overall, services);
+        return new HealthReport(nodes);
     }
 
     /// <summary>

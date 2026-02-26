@@ -108,11 +108,7 @@ public abstract class HealthNode
         var results = new List<HealthSnapshot>();
         WalkEvaluate(this, visited, results);
 
-        var overall = results.Count > 0
-            ? results.Max(s => s.Status)
-            : HealthStatus.Healthy;
-
-        return new HealthReport(DateTimeOffset.UtcNow, overall, results);
+        return new HealthReport(results);
     }
 
     /// <summary>
