@@ -241,7 +241,8 @@ builder.Services.AddPrognosis(health =>
         db.DependsOn(nameof(ReplicaDb), Importance.Required);
     }, aggregator: HealthAggregator.AggregateWithRedundancy);
 
-    health.AddRoots(ServiceNames.Application);
+    // Roots are discovered automatically — any node that no other node
+    // depends on is a root. No manual configuration is needed.
     health.UseMonitor(TimeSpan.FromSeconds(30));
 });
 
@@ -372,7 +373,7 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 | File | Purpose |
 |---|---|
 | `ServiceCollectionExtensions.cs` | `AddPrognosis` entry point — assembly scanning and graph materialization |
-| `PrognosisBuilder.cs` | Fluent builder — `ScanForServices`, `AddDelegate<T>`, `AddComposite`, `AddRoots` |
+| `PrognosisBuilder.cs` | Fluent builder — `ScanForServices`, `AddDelegate<T>`, `AddComposite` |
 | `DependencyConfigurator.cs` | Fluent edge declaration — `DependsOn<T>`, `DependsOn(name)` |
 | `DependsOnAttribute.cs` | `[DependsOn<T>]` attribute for declarative dependency edges |
 | `HealthGraph.cs` | Materialized graph container — `Roots`, indexer, `CreateReport()` |

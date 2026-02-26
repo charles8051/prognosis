@@ -75,11 +75,7 @@ health.AddDelegate<ThirdPartyEmailClient>("EmailProvider",
 
 ### Roots
 
-Mark named services as top-level graph entry points for monitoring and report generation:
-
-```csharp
-health.AddRoots("Application");
-```
+Roots are discovered automatically — any node that no other node depends on is a root. No manual configuration is needed.
 
 ### `HealthGraph`
 

@@ -109,17 +109,6 @@ public sealed class PrognosisBuilder
         Composites.Add(new CompositeDefinition(name, configurator.Edges));
         return this;
     }
-
-    /// <summary>
-    /// Previously used to mark named services as roots. Roots are now
-    /// discovered automatically as nodes that no other node depends on.
-    /// This method is retained for source compatibility but has no effect.
-    /// </summary>
-    [Obsolete("Roots are now discovered automatically from the graph topology. This method has no effect.")]
-    public PrognosisBuilder AddRoots(params string[] names)
-    {
-        return this;
-    }
 }
 
 // ── Internal definition records ──────────────────────────────────────
