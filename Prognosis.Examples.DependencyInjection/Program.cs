@@ -267,7 +267,7 @@ class ReportObserver : IObserver<HealthReport>
 {
     public void OnNext(HealthReport value) =>
         Console.WriteLine($"    >> Report changed: Overall={value.OverallStatus} " +
-            $"({value.Services.Count} services @ {value.Timestamp:HH:mm:ss.fff})");
+            $"({value.Nodes.Count} nodes)");
     public void OnError(Exception error) { }
     public void OnCompleted() { }
 }
