@@ -10,38 +10,59 @@ dotnet add package Prognosis.Reactive
 
 ## API
 
+All extensions are available on both `HealthGraph` (whole graph) and `HealthNode` (single subtree). Use `HealthGraph` when you want a report covering all roots; use `HealthNode` when you only care about one service and its dependencies.
+
 ### `PollHealthReport` — timer-driven polling
 
-Polls the full health graph on a fixed interval, notifying all observable services and emitting a `HealthReport` whenever the graph state changes:
+Polls on a fixed interval, re-evaluates every node, and emits a `HealthReport` whenever the graph state changes:
 
 ```csharp
 using Prognosis.Reactive;
 
-var roots = new HealthNode[] { app };
+// Whole graph — calls NotifyAll() + CreateReport() on each tick.
+var graph = HealthGraph.Create(app);
+graph.PollHealthReport(TimeSpan.FromSeconds(30))
+    .Subscribe(report =>
+        Console.WriteLine($"Overall: {report.OverallStatus}"));
 
-roots.PollHealthReport(TimeSpan.FromSeconds(30))
+// Single subtree — calls NotifyDescendants() + CreateReport() on the node.
+app.PollHealthReport(TimeSpan.FromSeconds(30))
     .Subscribe(report =>
         Console.WriteLine($"Overall: {report.OverallStatus}"));
 ```
 
 ### `ObserveHealthReport` — push-triggered evaluation
 
-Reacts to `StatusChanged` events from leaf nodes (services with no dependencies), throttles to avoid evaluation storms, then runs a single-pass graph evaluation:
+Reacts to `StatusChanged` events and produces a fresh report immediately — no polling delay. Changes in any transitive dependency bubble up to the subscribed node/root automatically.
 
 ```csharp
-roots.ObserveHealthReport(TimeSpan.FromMilliseconds(500))
+// Whole graph — merges StatusChanged from all roots.
+graph.ObserveHealthReport()
+    .Subscribe(report =>
+        Console.WriteLine($"Overall: {report.OverallStatus}"));
+
+// Single subtree — subscribes to the node's own StatusChanged stream.
+app.ObserveHealthReport()
     .Subscribe(report =>
         Console.WriteLine($"Overall: {report.OverallStatus}"));
 ```
 
-Only leaf nodes are observed as triggers since parent status changes are always a consequence of `HealthGraph.NotifyAll`, not exogenous events.
+### `ObserveStatus` — per-node evaluation stream
+
+Emits the node's `HealthEvaluation` (status + reason) each time its effective health changes:
+
+```csharp
+database.HealthNode.ObserveStatus()
+    .Subscribe(eval =>
+        Console.WriteLine($"Database: {eval.Status} — {eval.Reason}"));
+```
 
 ### `SelectServiceChanges` — diff-based change stream
 
 Projects consecutive `HealthReport` emissions into individual `StatusChange` events by diffing the reports. Composable with any report source:
 
 ```csharp
-roots.PollHealthReport(TimeSpan.FromSeconds(30))
+graph.PollHealthReport(TimeSpan.FromSeconds(30))
     .SelectServiceChanges()
     .Subscribe(change =>
         Console.WriteLine($"{change.Name}: {change.Previous} → {change.Current}"));
@@ -49,32 +70,21 @@ roots.PollHealthReport(TimeSpan.FromSeconds(30))
 
 Each `StatusChange` includes the service name, previous status, current status, and optional reason — derived from `HealthReport.DiffTo` in the core library.
 
-### Sharing patterns
+### Sharing streams across subscribers
 
-The Rx helpers in this package produce cold `IObservable<HealthReport>` streams — each subscription runs an independent pipeline and triggers its own evaluations. To avoid duplicate work across multiple subscribers, multicast the stream with one of the common patterns:
-
-- Auto-start while there are subscribers (stop when last unsubscribes):
+The Rx helpers produce cold `IObservable<HealthReport>` streams — each subscription runs an independent pipeline and triggers its own evaluations. To share a single evaluation across multiple subscribers:
 
 ```csharp
-var shared = roots.ObserveHealthReport(TimeSpan.FromMilliseconds(500))
-    .Publish()
-    .RefCount();
+// Convenience helpers — available on both HealthGraph and HealthNode.
+var shared = graph.CreateSharedReportStream(TimeSpan.FromSeconds(30));
+var shared = graph.CreateSharedObserveStream();
 
-shared.Subscribe(...);
-shared.Subscribe(...);
+// With replay for late subscribers:
+var shared = graph.CreateSharedReportStream(TimeSpan.FromSeconds(30),
+    ShareStrategy.ReplayLatest);
 ```
 
-- Replay the latest report to late subscribers:
-
-```csharp
-var shared = roots.ObserveHealthReport(TimeSpan.FromMilliseconds(500))
-    .Replay(1)
-    .RefCount();
-
-shared.Subscribe(...); // immediate get latest
-```
-
-If you prefer a convenience helper, this package also provides `CreateSharedReportStream` and `CreateSharedObserveStream` which wrap these patterns. They are opt-in and live in `Prognosis.Reactive`.
+Or use standard Rx multicast operators directly: `Publish().RefCount()` or `Replay(1).RefCount()`.
 
 ## Dependencies
 

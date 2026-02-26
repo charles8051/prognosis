@@ -283,24 +283,28 @@ HealthNode dbService = graph["Database"];
 
 ## Reactive extensions
 
-The `Prognosis.Reactive` package provides Rx-based alternatives to polling:
+The `Prognosis.Reactive` package provides Rx-based alternatives to polling. All extensions work on both `HealthGraph` (whole graph) and `HealthNode` (single subtree):
 
 ```csharp
-var roots = new HealthNode[] { app };
+var graph = HealthGraph.Create(app);
 
 // Timer-driven polling — emits HealthReport on change.
-roots.PollHealthReport(TimeSpan.FromSeconds(30))
+graph.PollHealthReport(TimeSpan.FromSeconds(30))
     .Subscribe(report => Console.WriteLine(report.OverallStatus));
 
-// Push-triggered — reacts to leaf StatusChanged events, throttled.
-roots.ObserveHealthReport(TimeSpan.FromMilliseconds(500))
+// Push-triggered — reacts to StatusChanged events from roots, no polling delay.
+graph.ObserveHealthReport()
     .Subscribe(report => Console.WriteLine(report.OverallStatus));
 
 // Diff-based change stream — composable with any report source.
-roots.PollHealthReport(TimeSpan.FromSeconds(30))
+graph.PollHealthReport(TimeSpan.FromSeconds(30))
     .SelectServiceChanges()
     .Subscribe(change =>
         Console.WriteLine($"{change.Name}: {change.Previous} → {change.Current}"));
+
+// Per-node evaluation stream.
+database.HealthNode.ObserveStatus()
+    .Subscribe(eval => Console.WriteLine($"Database: {eval.Status}"));
 ```
 
 ### Sharing streams across subscribers
@@ -309,14 +313,14 @@ The Rx helpers produce cold observables — each subscription runs its own pipel
 
 ```csharp
 // Auto-stop when last subscriber unsubscribes.
-var shared = roots.CreateSharedReportStream(TimeSpan.FromSeconds(30));
+var shared = graph.CreateSharedReportStream(TimeSpan.FromSeconds(30));
 
 // Replay latest report to late subscribers.
-var shared = roots.CreateSharedReportStream(TimeSpan.FromSeconds(30),
+var shared = graph.CreateSharedReportStream(TimeSpan.FromSeconds(30),
     ShareStrategy.ReplayLatest);
 
 // Push-triggered variant.
-var shared = roots.CreateSharedObserveStream(TimeSpan.FromMilliseconds(500));
+var shared = graph.CreateSharedObserveStream();
 ```
 
 Or use standard Rx multicast operators directly: `Publish().RefCount()` or `Replay(1).RefCount()`.

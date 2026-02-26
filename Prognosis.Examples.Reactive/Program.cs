@@ -33,10 +33,89 @@ var app = new HealthGroup("Application")
 var graph = HealthGraph.Create(app);
 
 // ─────────────────────────────────────────────────────────────────────
-// PollHealthReport — timer-driven, emits HealthReport on change.
+// HealthGraph.PollHealthReport — timer-driven, whole-graph polling.
 // ─────────────────────────────────────────────────────────────────────
 
-Console.WriteLine("=== PollHealthReport (polling every 1 second) ===");
+Console.WriteLine("=== HealthGraph.PollHealthReport (polling every 1 second) ===");
+Console.WriteLine();
+
+using var graphPollSub = graph
+    .PollHealthReport(TimeSpan.FromSeconds(1))
+    .Subscribe(report =>
+        Console.WriteLine($"  [Graph Poll] Overall={report.OverallStatus} " +
+            $"({report.Services.Count} services @ {report.Timestamp:HH:mm:ss.fff})"));
+
+await Task.Delay(TimeSpan.FromSeconds(1.5));
+
+Console.WriteLine("  Taking database offline...");
+database.IsConnected = false;
+await Task.Delay(TimeSpan.FromSeconds(1.5));
+
+Console.WriteLine("  Restoring database...");
+database.IsConnected = true;
+await Task.Delay(TimeSpan.FromSeconds(1.5));
+Console.WriteLine();
+
+graphPollSub.Dispose();
+
+// ─────────────────────────────────────────────────────────────────────
+// HealthGraph.ObserveHealthReport — push-triggered, whole-graph report.
+// ─────────────────────────────────────────────────────────────────────
+
+Console.WriteLine("=== HealthGraph.ObserveHealthReport (push-triggered) ===");
+Console.WriteLine();
+
+using var graphObserveSub = graph
+    .ObserveHealthReport()
+    .Subscribe(report =>
+        Console.WriteLine($"  [Graph Observe] Overall={report.OverallStatus} " +
+            $"({report.Services.Count} services @ {report.Timestamp:HH:mm:ss.fff})"));
+
+Console.WriteLine("  Taking cache offline...");
+cache.IsConnected = false;
+cache.HealthNode.BubbleChange();
+await Task.Delay(TimeSpan.FromSeconds(1));
+
+Console.WriteLine("  Restoring cache...");
+cache.IsConnected = true;
+cache.HealthNode.BubbleChange();
+await Task.Delay(TimeSpan.FromSeconds(1));
+Console.WriteLine();
+
+graphObserveSub.Dispose();
+
+// ─────────────────────────────────────────────────────────────────────
+// HealthGraph + SelectServiceChanges — diff-based change stream.
+// ─────────────────────────────────────────────────────────────────────
+
+Console.WriteLine("=== HealthGraph.PollHealthReport + SelectServiceChanges ===");
+Console.WriteLine();
+
+using var graphChangeSub = graph
+    .PollHealthReport(TimeSpan.FromSeconds(1))
+    .SelectServiceChanges()
+    .Subscribe(change =>
+        Console.WriteLine($"  [Graph Change] {change.Name}: {change.Previous} → {change.Current}" +
+            (change.Reason is not null ? $" ({change.Reason})" : "")));
+
+await Task.Delay(TimeSpan.FromSeconds(1.5));
+
+Console.WriteLine("  Taking database offline...");
+database.IsConnected = false;
+await Task.Delay(TimeSpan.FromSeconds(1.5));
+
+Console.WriteLine("  Restoring database...");
+database.IsConnected = true;
+await Task.Delay(TimeSpan.FromSeconds(1.5));
+Console.WriteLine();
+
+graphChangeSub.Dispose();
+
+// ─────────────────────────────────────────────────────────────────────
+// HealthNode extensions — same API on a single subtree.
+// ─────────────────────────────────────────────────────────────────────
+
+Console.WriteLine("=== HealthNode.PollHealthReport (single subtree, polling every 1 second) ===");
 Console.WriteLine();
 
 using var pollSubscription = app
@@ -61,10 +140,10 @@ Console.WriteLine();
 pollSubscription.Dispose();
 
 // ─────────────────────────────────────────────────────────────────────
-// ObserveHealthReport — push-triggered via node's StatusChanged stream.
+// HealthNode.ObserveHealthReport — push-triggered on a single node.
 // ─────────────────────────────────────────────────────────────────────
 
-Console.WriteLine("=== ObserveHealthReport (push-triggered on node) ===");
+Console.WriteLine("=== HealthNode.ObserveHealthReport (push-triggered on node) ===");
 Console.WriteLine();
 
 using var observeSubscription = app
@@ -89,11 +168,11 @@ Console.WriteLine();
 observeSubscription.Dispose();
 
 // ─────────────────────────────────────────────────────────────────────
-// SelectServiceChanges — diffs consecutive reports into individual
-// StatusChange events.
+// HealthNode.SelectServiceChanges — diffs consecutive reports into
+// individual StatusChange events.
 // ─────────────────────────────────────────────────────────────────────
 
-Console.WriteLine("=== SelectServiceChanges (diff-based change stream) ===");
+Console.WriteLine("=== HealthNode.PollHealthReport + SelectServiceChanges ===");
 Console.WriteLine();
 
 using var changeSubscription = app
