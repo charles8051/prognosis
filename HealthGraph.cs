@@ -8,9 +8,8 @@ namespace Prognosis;
 /// <para>
 /// Build a graph manually with <see cref="Create"/> or let the DI builder in
 /// <c>Prognosis.DependencyInjection</c> materialize one for you.
-/// Roots are computed dynamically — a root is any node that is not a
-/// dependency of another node. When edges are added or removed at runtime
-/// the set of roots updates automatically.
+/// The nodes you pass in are the roots — the full topology is discovered
+/// by walking their dependency edges downward.
 /// </para>
 /// <code>
 /// // Manual:
@@ -22,43 +21,25 @@ namespace Prognosis;
 /// </remarks>
 public sealed class HealthGraph
 {
-    private readonly HealthNode[] _seeds;
+    private readonly HealthNode[] _roots;
 
-    internal HealthGraph(params HealthNode[] seeds)
+    internal HealthGraph(params HealthNode[] roots)
     {
-        _seeds = seeds;
+        _roots = roots;
     }
 
     /// <summary>
-    /// Creates a <see cref="HealthGraph"/> anchored at the given seed nodes.
-    /// The full topology — including roots, services, and lookup results — is
-    /// discovered dynamically by walking parent and dependency edges, so
-    /// runtime changes to the graph are always reflected.
+    /// Creates a <see cref="HealthGraph"/> rooted at the given nodes.
+    /// The full topology is discovered by walking dependency edges downward,
+    /// so all transitive dependencies are included automatically.
     /// </summary>
-    public static HealthGraph Create(params HealthNode[] nodes) => new HealthGraph(nodes);
+    public static HealthGraph Create(params HealthNode[] roots) => new HealthGraph(roots);
 
     /// <summary>
-    /// The current root nodes — nodes that are not a dependency of any other
-    /// node. Discovered dynamically by exploring the full reachable graph
-    /// from the seeds, so runtime edge changes (via
-    /// <see cref="HealthNode.DependsOn"/> / <see cref="HealthNode.RemoveDependency"/>)
-    /// are always reflected.
+    /// The root nodes of the graph — the nodes passed to <see cref="Create"/>
+    /// or provided by the DI builder.
     /// </summary>
-    public HealthNode[] Roots
-    {
-        get
-        {
-            var all = DiscoverAll();
-            var roots = new List<HealthNode>();
-            foreach (var node in all)
-            {
-                if (!node.HasParents)
-                    roots.Add(node);
-            }
-
-            return roots.ToArray();
-        }
-    }
+    public HealthNode[] Roots => _roots;
 
     /// <summary>
     /// Looks up any node in the graph by its <see cref="HealthNode.Name"/>.
@@ -84,7 +65,7 @@ public sealed class HealthGraph
     /// </summary>
     public bool TryGetNode(string name, out HealthNode node)
     {
-        foreach (var n in DiscoverAll())
+        foreach (var n in CollectAll())
         {
             if (n.Name == name)
             {
@@ -109,10 +90,10 @@ public sealed class HealthGraph
         TryGetNode(typeof(T).Name, out node);
 
     /// <summary>
-    /// All nodes reachable from the seed nodes (leaves, composites, and
-    /// delegates). Discovered dynamically from the current graph topology.
+    /// All nodes reachable from the roots by walking dependency edges
+    /// downward (leaves, composites, and delegates).
     /// </summary>
-    public IEnumerable<HealthNode> Nodes => DiscoverAll();
+    public IEnumerable<HealthNode> Nodes => CollectAll();
 
     /// <summary>
     /// Evaluates the full graph and packages the result as a serialization-ready
@@ -135,11 +116,10 @@ public sealed class HealthGraph
     /// </summary>
     public IReadOnlyList<HealthSnapshot> EvaluateAll()
     {
-        var roots = Roots;
         var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
         var results = new List<HealthSnapshot>();
 
-        foreach (var root in roots)
+        foreach (var root in _roots)
         {
             HealthNode.WalkEvaluate(root, visited, results);
         }
@@ -178,38 +158,33 @@ public sealed class HealthGraph
     /// </summary>
     public void NotifyAll()
     {
-        var roots = Roots;
         var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
-        foreach (var root in roots)
+        foreach (var root in _roots)
         {
             HealthNode.NotifyDfs(root, visited);
         }
     }
 
     /// <summary>
-    /// Walks parent and dependency edges from every seed to discover all
-    /// reachable nodes in the graph. Bi-directional traversal ensures that
-    /// nodes added above or below the original seeds at runtime are found.
+    /// Walks dependency edges downward from all roots and returns every
+    /// reachable node. Each node appears at most once.
     /// </summary>
-    private HashSet<HealthNode> DiscoverAll()
+    private HashSet<HealthNode> CollectAll()
     {
         var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
-        foreach (var seed in _seeds)
-            Explore(seed, visited);
+        foreach (var root in _roots)
+            Collect(root, visited);
 
         return visited;
     }
 
-    private static void Explore(HealthNode node, HashSet<HealthNode> visited)
+    private static void Collect(HealthNode node, HashSet<HealthNode> visited)
     {
         if (!visited.Add(node))
             return;
 
-        foreach (var parent in node.Parents)
-            Explore(parent, visited);
-
         foreach (var dep in node.Dependencies)
-            Explore(dep.Node, visited);
+            Collect(dep.Node, visited);
     }
 
     private static void DetectCyclesDfs(
