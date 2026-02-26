@@ -1,27 +1,19 @@
 namespace Prognosis.Tests;
 
-public class HealthTrackerTests
+public class HealthNodeTests
 {
     // ── Evaluate ─────────────────────────────────────────────────────
 
     [Fact]
     public void Evaluate_NoDependencies_ReturnsIntrinsicCheck()
     {
-        var tracker = new HealthTracker(
+        var node = new HealthCheck("Svc",
             () => new HealthEvaluation(HealthStatus.Degraded, "slow"));
 
-        var result = tracker.Evaluate();
+        var result = node.Evaluate();
 
         Assert.Equal(HealthStatus.Degraded, result.Status);
         Assert.Equal("slow", result.Reason);
-    }
-
-    [Fact]
-    public void Evaluate_DefaultConstructor_ReturnsUnknown()
-    {
-        var tracker = new HealthTracker();
-
-        Assert.Equal(HealthStatus.Unknown, tracker.Evaluate().Status);
     }
 
     [Fact]
@@ -29,10 +21,10 @@ public class HealthTrackerTests
     {
         var dep = new HealthCheck("Dep",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var tracker = new HealthTracker(() => HealthStatus.Healthy);
-        tracker.DependsOn(dep, Importance.Required);
+        var node = new HealthCheck("Svc")
+            .DependsOn(dep, Importance.Required);
 
-        var result = tracker.Evaluate();
+        var result = node.Evaluate();
 
         Assert.Equal(HealthStatus.Unhealthy, result.Status);
     }
@@ -42,25 +34,25 @@ public class HealthTrackerTests
     [Fact]
     public void DependsOn_AddsDependency()
     {
-        var tracker = new HealthTracker();
+        var node = new HealthCheck("Svc");
         var dep = new HealthCheck("Dep");
 
-        tracker.DependsOn(dep, Importance.Important);
+        node.DependsOn(dep, Importance.Important);
 
-        Assert.Single(tracker.Dependencies);
-        Assert.Equal("Dep", tracker.Dependencies[0].Node.Name);
-        Assert.Equal(Importance.Important, tracker.Dependencies[0].Importance);
+        Assert.Single(node.Dependencies);
+        Assert.Equal("Dep", node.Dependencies[0].Node.Name);
+        Assert.Equal(Importance.Important, node.Dependencies[0].Importance);
     }
 
     [Fact]
     public void DependsOn_ReturnsSelf_ForChaining()
     {
-        var tracker = new HealthTracker();
+        var node = new HealthCheck("Svc");
         var dep = new HealthCheck("Dep");
 
-        var returned = tracker.DependsOn(dep, Importance.Required);
+        var returned = node.DependsOn(dep, Importance.Required);
 
-        Assert.Same(tracker, returned);
+        Assert.Same(node, returned);
     }
 
     [Fact]
@@ -68,15 +60,15 @@ public class HealthTrackerTests
     {
         var dep = new HealthCheck("Dep",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var tracker = new HealthTracker(() => HealthStatus.Healthy);
+        var node = new HealthCheck("Svc");
 
         // Evaluate first — this used to freeze the graph.
-        var before = tracker.Evaluate();
+        var before = node.Evaluate();
         Assert.Equal(HealthStatus.Healthy, before.Status);
 
         // Adding an edge at runtime now works.
-        tracker.DependsOn(dep, Importance.Required);
-        var after = tracker.Evaluate();
+        node.DependsOn(dep, Importance.Required);
+        var after = node.Evaluate();
         Assert.Equal(HealthStatus.Unhealthy, after.Status);
     }
 
@@ -85,25 +77,25 @@ public class HealthTrackerTests
     {
         var dep = new HealthCheck("Dep",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var tracker = new HealthTracker(() => HealthStatus.Healthy);
-        tracker.DependsOn(dep, Importance.Required);
+        var node = new HealthCheck("Svc")
+            .DependsOn(dep, Importance.Required);
 
-        Assert.Equal(HealthStatus.Unhealthy, tracker.Evaluate().Status);
+        Assert.Equal(HealthStatus.Unhealthy, node.Evaluate().Status);
 
-        var removed = tracker.RemoveDependency(dep);
+        var removed = node.RemoveDependency(dep);
 
         Assert.True(removed);
-        Assert.Empty(tracker.Dependencies);
-        Assert.Equal(HealthStatus.Healthy, tracker.Evaluate().Status);
+        Assert.Empty(node.Dependencies);
+        Assert.Equal(HealthStatus.Healthy, node.Evaluate().Status);
     }
 
     [Fact]
     public void RemoveDependency_UnknownService_ReturnsFalse()
     {
-        var tracker = new HealthTracker();
+        var node = new HealthCheck("Svc");
         var unknown = new HealthCheck("Unknown");
 
-        Assert.False(tracker.RemoveDependency(unknown));
+        Assert.False(node.RemoveDependency(unknown));
     }
 
     // ── Circular dependency guard ────────────────────────────────────
@@ -127,24 +119,24 @@ public class HealthTrackerTests
     public void NotifyChanged_EmitsOnStatusChange()
     {
         var isHealthy = true;
-        var tracker = new HealthTracker(
+        var node = new HealthCheck("Svc",
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
 
         var emitted = new List<HealthStatus>();
-        tracker.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted.Add));
+        node.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted.Add));
 
         // First notify — emits initial status.
-        tracker.NotifyChanged();
+        node.NotifyChanged();
         Assert.Single(emitted);
         Assert.Equal(HealthStatus.Healthy, emitted[0]);
 
         // Same status — no duplicate emission.
-        tracker.NotifyChanged();
+        node.NotifyChanged();
         Assert.Single(emitted);
 
         // Status changes — emits new status.
         isHealthy = false;
-        tracker.NotifyChanged();
+        node.NotifyChanged();
         Assert.Equal(2, emitted.Count);
         Assert.Equal(HealthStatus.Unhealthy, emitted[1]);
     }
@@ -152,13 +144,13 @@ public class HealthTrackerTests
     [Fact]
     public void StatusChanged_Unsubscribe_StopsEmitting()
     {
-        var tracker = new HealthTracker(() => HealthStatus.Healthy);
+        var node = new HealthCheck("Svc");
         var emitted = new List<HealthStatus>();
 
-        var subscription = tracker.StatusChanged.Subscribe(
+        var subscription = node.StatusChanged.Subscribe(
             new TestObserver<HealthStatus>(emitted.Add));
 
-        tracker.NotifyChanged();
+        node.NotifyChanged();
         Assert.Single(emitted);
 
         subscription.Dispose();
@@ -166,12 +158,12 @@ public class HealthTrackerTests
         // Force a change so NotifyChanged would emit if still subscribed.
         // We need to reset _lastEmitted by changing status.
         // Since the intrinsic is always Healthy and _lastEmitted is Healthy,
-        // changing won't trigger. Use a new tracker instead.
-        var tracker2 = new HealthTracker(() => HealthStatus.Degraded);
+        // changing won't trigger. Use a new node instead.
+        var node2 = new HealthCheck("Svc2", () => HealthStatus.Degraded);
         var emitted2 = new List<HealthStatus>();
-        var sub2 = tracker2.StatusChanged.Subscribe(
+        var sub2 = node2.StatusChanged.Subscribe(
             new TestObserver<HealthStatus>(emitted2.Add));
-        tracker2.NotifyChanged();
+        node2.NotifyChanged();
         Assert.Single(emitted2);
 
         sub2.Dispose();
@@ -179,23 +171,23 @@ public class HealthTrackerTests
         // (Status doesn't change so NotifyChanged wouldn't emit anyway.)
         // Verify the subscription list is cleaned up by subscribing again.
         var emitted3 = new List<HealthStatus>();
-        tracker2.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted3.Add));
-        tracker2.NotifyChanged(); // _lastEmitted == Degraded, no change
+        node2.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted3.Add));
+        node2.NotifyChanged(); // _lastEmitted == Degraded, no change
         Assert.Empty(emitted3);
     }
 
     [Fact]
     public void StatusChanged_MultipleSubscribers_AllReceive()
     {
-        var tracker = new HealthTracker(
+        var node = new HealthCheck("Svc",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
 
         var emitted1 = new List<HealthStatus>();
         var emitted2 = new List<HealthStatus>();
-        tracker.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted1.Add));
-        tracker.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted2.Add));
+        node.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted1.Add));
+        node.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted2.Add));
 
-        tracker.NotifyChanged();
+        node.NotifyChanged();
 
         Assert.Single(emitted1);
         Assert.Single(emitted2);

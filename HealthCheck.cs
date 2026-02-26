@@ -12,13 +12,7 @@ namespace Prognosis;
 /// </summary>
 public sealed class HealthCheck : HealthNode
 {
-    private readonly HealthTracker _tracker;
-
     public override string Name { get; }
-
-    public override IReadOnlyList<HealthDependency> Dependencies => _tracker.Dependencies;
-
-    public override IObservable<HealthStatus> StatusChanged => _tracker.StatusChanged;
 
     /// <param name="name">Display name for the service.</param>
     /// <param name="healthCheck">
@@ -26,23 +20,17 @@ public sealed class HealthCheck : HealthNode
     /// Called every time <see cref="Evaluate"/> is invoked.
     /// </param>
     public HealthCheck(string name, Func<HealthEvaluation> healthCheck)
+        : base(healthCheck)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("A service must have a name.", nameof(name));
 
         Name = name;
-        _tracker = new HealthTracker(healthCheck);
     }
 
     /// <summary>Shortcut: a service whose intrinsic status is always healthy.</summary>
     public HealthCheck(string name)
         : this(name, () => HealthStatus.Healthy) { }
-
-    private protected override void AddDependency(HealthNode node, Importance importance)
-        => _tracker.DependsOn(node, importance);
-
-    private protected override bool RemoveDependencyCore(HealthNode node)
-        => _tracker.RemoveDependency(node);
 
     /// <summary>Registers a dependency on another service.</summary>
     public new HealthCheck DependsOn(HealthNode node, Importance importance)
@@ -50,10 +38,6 @@ public sealed class HealthCheck : HealthNode
         base.DependsOn(node, importance);
         return this;
     }
-
-    internal override void NotifyChangedCore() => _tracker.NotifyChanged();
-
-    public override HealthEvaluation Evaluate() => _tracker.Evaluate();
 
     public override string ToString() => $"{Name}: {Evaluate()}";
 }
