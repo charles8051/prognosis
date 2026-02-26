@@ -314,7 +314,7 @@ public class ServiceCollectionExtensionsTests
         services.AddPrognosis(health =>
         {
             health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
-            health.MarkAsRoot<TestAuthService>();
+            health.MarkAsRoot("TestAuth");
             health.UseMonitor(TimeSpan.FromHours(1));
         });
 
@@ -323,6 +323,158 @@ public class ServiceCollectionExtensionsTests
 
         Assert.NotNull(monitor);
         monitor.Dispose();
+    }
+
+    // ── Multi-root ──────────────────────────────────────────────────
+
+    [Fact]
+    public void AddPrognosis_SingleRoot_GenericMarkAsRoot_RegistersPlainHealthGraph()
+    {
+        var services = new ServiceCollection();
+        services.AddPrognosis(health =>
+        {
+            health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+            health.AddComposite(nameof(TestRootMarkerA), app =>
+            {
+                app.DependsOn<TestAuthService>(Importance.Required);
+                app.DependsOn<TestCacheService>(Importance.Required);
+            });
+            health.MarkAsRoot<TestRootMarkerA>();
+        });
+
+        var sp = services.BuildServiceProvider();
+
+        // Plain HealthGraph is available (single root — no forced generic).
+        var graph = sp.GetRequiredService<HealthGraph>();
+        Assert.Equal(nameof(TestRootMarkerA), graph.Root.Name);
+
+        // HealthGraph<T> is also available.
+        var typed = sp.GetRequiredService<HealthGraph<TestRootMarkerA>>();
+        Assert.Same(graph, typed.Graph);
+    }
+
+    [Fact]
+    public void AddPrognosis_MultipleRoots_KeyedResolution()
+    {
+        var services = new ServiceCollection();
+        services.AddPrognosis(health =>
+        {
+            health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+
+            health.AddComposite("Ops", app =>
+            {
+                app.DependsOn<TestDatabaseService>(Importance.Required);
+                app.DependsOn<TestCacheService>(Importance.Required);
+            });
+
+            health.AddComposite("Customer", app =>
+            {
+                app.DependsOn<TestAuthService>(Importance.Required);
+            });
+
+            health.MarkAsRoot("Ops");
+            health.MarkAsRoot("Customer");
+        });
+
+        var sp = services.BuildServiceProvider();
+
+        var opsGraph = sp.GetRequiredKeyedService<HealthGraph>("Ops");
+        Assert.Equal("Ops", opsGraph.Root.Name);
+
+        var customerGraph = sp.GetRequiredKeyedService<HealthGraph>("Customer");
+        Assert.Equal("Customer", customerGraph.Root.Name);
+
+        Assert.NotSame(opsGraph, customerGraph);
+    }
+
+    [Fact]
+    public void AddPrognosis_MultipleRoots_SharedNodes()
+    {
+        var services = new ServiceCollection();
+        services.AddPrognosis(health =>
+        {
+            health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+
+            health.AddComposite("Ops", app =>
+            {
+                app.DependsOn<TestDatabaseService>(Importance.Required);
+            });
+
+            health.AddComposite("Customer", app =>
+            {
+                app.DependsOn<TestDatabaseService>(Importance.Required);
+                app.DependsOn<TestCacheService>(Importance.Important);
+            });
+
+            health.MarkAsRoot("Ops");
+            health.MarkAsRoot("Customer");
+        });
+
+        var sp = services.BuildServiceProvider();
+
+        var opsGraph = sp.GetRequiredKeyedService<HealthGraph>("Ops");
+        var customerGraph = sp.GetRequiredKeyedService<HealthGraph>("Customer");
+
+        // Both graphs share the same underlying TestDatabase node instance.
+        Assert.True(opsGraph.TryGetNode("TestDatabase", out var opsDb));
+        Assert.True(customerGraph.TryGetNode("TestDatabase", out var custDb));
+        Assert.Same(opsDb, custDb);
+    }
+
+    [Fact]
+    public void AddPrognosis_MultipleRoots_GenericResolution()
+    {
+        var services = new ServiceCollection();
+        services.AddPrognosis(health =>
+        {
+            health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+
+            health.AddComposite(nameof(TestRootMarkerA), app =>
+            {
+                app.DependsOn<TestDatabaseService>(Importance.Required);
+            });
+
+            health.AddComposite(nameof(TestRootMarkerB), app =>
+            {
+                app.DependsOn<TestCacheService>(Importance.Required);
+            });
+
+            health.MarkAsRoot<TestRootMarkerA>();
+            health.MarkAsRoot<TestRootMarkerB>();
+        });
+
+        var sp = services.BuildServiceProvider();
+
+        var graphA = sp.GetRequiredService<HealthGraph<TestRootMarkerA>>();
+        Assert.Equal(nameof(TestRootMarkerA), graphA.Root.Name);
+
+        var graphB = sp.GetRequiredService<HealthGraph<TestRootMarkerB>>();
+        Assert.Equal(nameof(TestRootMarkerB), graphB.Root.Name);
+
+        // Also available via keyed resolution.
+        var keyedA = sp.GetRequiredKeyedService<HealthGraph>(nameof(TestRootMarkerA));
+        Assert.Same(graphA.Graph, keyedA);
+    }
+
+    [Fact]
+    public void AddPrognosis_MultipleRoots_PlainHealthGraph_NotRegistered()
+    {
+        var services = new ServiceCollection();
+        services.AddPrognosis(health =>
+        {
+            health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+
+            health.AddComposite("A", app => app.DependsOn<TestDatabaseService>(Importance.Required));
+            health.AddComposite("B", app => app.DependsOn<TestCacheService>(Importance.Required));
+
+            health.MarkAsRoot("A");
+            health.MarkAsRoot("B");
+        });
+
+        var sp = services.BuildServiceProvider();
+
+        // Plain HealthGraph should NOT be registered for multi-root.
+        Assert.Null(sp.GetService<HealthGraph>());
     }
 }
 
@@ -348,3 +500,7 @@ public class TestExternalClient
 {
     public bool IsUp { get; set; } = true;
 }
+
+// Marker types for multi-root tests.
+public class TestRootMarkerA;
+public class TestRootMarkerB;
