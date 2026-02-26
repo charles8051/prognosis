@@ -10,7 +10,7 @@ dotnet add package Prognosis.Reactive
 
 ## API
 
-All extensions are available on both `HealthGraph` (whole graph) and `HealthNode` (single subtree). Use `HealthGraph` when you want a report covering all roots; use `HealthNode` when you only care about one service and its dependencies.
+All extensions are available on both `HealthGraph` (whole graph) and `HealthNode` (single subtree). Use `HealthGraph` when you want a report covering the full graph from its root; use `HealthNode` when you only care about one service and its dependencies.
 
 ### `PollHealthReport` — timer-driven polling
 
@@ -33,10 +33,10 @@ app.PollHealthReport(TimeSpan.FromSeconds(30))
 
 ### `ObserveHealthReport` — push-triggered evaluation
 
-Reacts to `StatusChanged` events and produces a fresh report immediately — no polling delay. Changes in any transitive dependency bubble up to the subscribed node/root automatically.
+Reacts to `StatusChanged` events and produces a fresh report immediately — no polling delay. Changes in any transitive dependency bubble up to the root automatically.
 
 ```csharp
-// Whole graph — merges StatusChanged from all roots.
+// Whole graph — subscribes to StatusChanged on the root node.
 graph.ObserveHealthReport()
     .Subscribe(report =>
         Console.WriteLine($"Overall: {report.OverallStatus}"));

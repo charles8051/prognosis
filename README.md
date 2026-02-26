@@ -228,32 +228,59 @@ builder.Services.AddPrognosis(health =>
             : new HealthEvaluation(HealthStatus.Unhealthy, "SMTP refused"));
 
     // Define composite aggregation nodes.
-    // Use nameof for concrete types, constants for virtual nodes.
+    health.AddComposite(ServiceNames.NotificationSystem, n =>
+    {
+        n.DependsOn(nameof(MessageQueueService), Importance.Required);
+        n.DependsOn("EmailProvider", Importance.Optional);
+    });
+
     health.AddComposite(ServiceNames.Application, app =>
     {
         app.DependsOn<AuthService>(Importance.Required);
         app.DependsOn(ServiceNames.NotificationSystem, Importance.Important);
     });
 
-    // Composites with custom aggregation strategies.
-    health.AddComposite(ServiceNames.DatabaseCluster, db =>
-    {
-        db.DependsOn(nameof(PrimaryDb), Importance.Required);
-        db.DependsOn(nameof(ReplicaDb), Importance.Required);
-    });
+    // Designate the root of the graph. When only one root is declared,
+    // a plain HealthGraph singleton is registered.
+    health.MarkAsRoot(ServiceNames.Application);
 
-    // Roots are discovered automatically — any node that no other node
-    // depends on is a root. No manual configuration is needed.
     health.UseMonitor(TimeSpan.FromSeconds(30));
 });
+```
 
-// Central constants for virtual/composite service names.
-static class ServiceNames
+#### Multiple roots (shared nodes, separate graphs)
+
+Call `MarkAsRoot` more than once to materialize several graphs from a single shared node pool. Each graph is registered as a keyed `HealthGraph` (keyed by the root name). Use the generic `MarkAsRoot<T>()` overload to also register a strongly-typed `HealthGraph<T>` for consumers that don't have keyed service support:
+
+```csharp
+builder.Services.AddPrognosis(health =>
 {
-    public const string Application = nameof(Application);
-    public const string NotificationSystem = nameof(NotificationSystem);
-    public const string DatabaseCluster = nameof(DatabaseCluster);
-}
+    health.ScanForServices(typeof(Program).Assembly);
+
+    health.AddComposite(ServiceNames.OpsDashboard, ops =>
+    {
+        ops.DependsOn<DatabaseService>(Importance.Required);
+        ops.DependsOn<CacheService>(Importance.Required);
+    });
+
+    health.AddComposite(ServiceNames.CustomerView, cust =>
+    {
+        cust.DependsOn<AuthService>(Importance.Required);
+    });
+
+    // Each MarkAsRoot call produces a separate HealthGraph.
+    // Nodes (e.g. DatabaseService) are shared across graphs.
+    health.MarkAsRoot<OpsDashboard>();      // registers keyed + HealthGraph<OpsDashboard>
+    health.MarkAsRoot<CustomerView>();      // registers keyed + HealthGraph<CustomerView>
+});
+
+// Keyed resolution (requires Microsoft.Extensions.DependencyInjection 8+):
+var opsGraph    = sp.GetRequiredKeyedService<HealthGraph>("OpsDashboard");
+var custGraph   = sp.GetRequiredKeyedService<HealthGraph>("CustomerView");
+
+// Generic resolution (works on any DI container):
+var opsGraph    = sp.GetRequiredService<HealthGraph<OpsDashboard>>().Graph;
+var custGraph   = sp.GetRequiredService<HealthGraph<CustomerView>>().Graph;
 ```
 
 Declare dependency edges on classes you own with attributes:
@@ -292,7 +319,7 @@ var graph = HealthGraph.Create(app);
 graph.PollHealthReport(TimeSpan.FromSeconds(30))
     .Subscribe(report => Console.WriteLine(report.OverallStatus));
 
-// Push-triggered — reacts to StatusChanged events from roots, no polling delay.
+// Push-triggered — reacts to StatusChanged events from the root, no polling delay.
 graph.ObserveHealthReport()
     .Subscribe(report => Console.WriteLine(report.OverallStatus));
 
@@ -375,10 +402,11 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 | File | Purpose |
 |---|---|
 | `ServiceCollectionExtensions.cs` | `AddPrognosis` entry point — assembly scanning and graph materialization |
-| `PrognosisBuilder.cs` | Fluent builder — `ScanForServices`, `AddDelegate<T>`, `AddComposite` |
+| `PrognosisBuilder.cs` | Fluent builder — `ScanForServices`, `AddDelegate<T>`, `AddComposite`, `MarkAsRoot` |
 | `DependencyConfigurator.cs` | Fluent edge declaration — `DependsOn<T>`, `DependsOn(name)` |
 | `DependsOnAttribute.cs` | `[DependsOn<T>]` attribute for declarative dependency edges |
-| `HealthGraph.cs` | Materialized graph container — `Roots`, indexer, `CreateReport()` |
+| `HealthGraph.cs` | Type forwarder for core `HealthGraph` (`Root`, indexer, `CreateReport()`) |
+| `HealthGraphOfT.cs` | `HealthGraph<TRoot>` typed wrapper for multi-root DI resolution |
 | `PrognosisMonitorExtensions.cs` | `UseMonitor` extension + `IHostedService` adapter |
 
 ## Requirements

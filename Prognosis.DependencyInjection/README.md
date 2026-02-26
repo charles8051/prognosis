@@ -23,6 +23,7 @@ builder.Services.AddPrognosis(health =>
         app.DependsOn("NotificationSystem", Importance.Important);
     });
 
+    health.MarkAsRoot("Application");
     health.UseMonitor(TimeSpan.FromSeconds(30));
 });
 ```
@@ -69,11 +70,57 @@ health.AddDelegate<ThirdPartyEmailClient>("EmailProvider",
 
 ### Roots
 
-Roots are discovered automatically — any node that no other node depends on is a root. No manual configuration is needed.
+Designate the root of the health graph with `MarkAsRoot`. When only one root is declared (or auto-detected), a plain `HealthGraph` singleton is registered:
+
+```csharp
+health.MarkAsRoot("Application");       // by name
+health.MarkAsRoot<ApplicationRoot>();   // by type — also registers HealthGraph<ApplicationRoot>
+```
+
+If `MarkAsRoot` is not called and exactly one node has no parent, it is chosen automatically. If there are zero or more than one candidate, an exception is thrown at graph materialization with guidance to call `MarkAsRoot`.
+
+#### Multiple roots (shared nodes, separate graphs)
+
+Call `MarkAsRoot` more than once to materialize several `HealthGraph` instances from a single shared node pool. Each graph walks a different root but the underlying `HealthNode` instances (and their health state) are shared:
+
+```csharp
+builder.Services.AddPrognosis(health =>
+{
+    health.ScanForServices(typeof(Program).Assembly);
+
+    health.AddComposite("Ops", ops =>
+    {
+        ops.DependsOn<DatabaseService>(Importance.Required);
+        ops.DependsOn<CacheService>(Importance.Required);
+    });
+
+    health.AddComposite("Customer", cust =>
+    {
+        cust.DependsOn<AuthService>(Importance.Required);
+    });
+
+    health.MarkAsRoot("Ops");
+    health.MarkAsRoot("Customer");
+});
+```
+
+With multiple roots:
+
+- Each graph is registered as a **keyed** `HealthGraph` (keyed by the root name).
+- Use `MarkAsRoot<T>()` to also register a `HealthGraph<T>` for consumers without keyed service support.
+
+```csharp
+// Keyed resolution (Microsoft.Extensions.DependencyInjection 8+):
+var opsGraph  = sp.GetRequiredKeyedService<HealthGraph>("Ops");
+var custGraph = sp.GetRequiredKeyedService<HealthGraph>("Customer");
+
+// Generic resolution (any DI container):
+var opsGraph  = sp.GetRequiredService<HealthGraph<OpsRoot>>().Graph;
+```
 
 ### `HealthGraph`
 
-The materialized graph is registered as a singleton. Inject it to access the roots, look up services by name, or create reports:
+The materialized graph is registered as a singleton (single root) or as keyed singletons (multiple roots). Inject it to access the root, look up services by name, or create reports:
 
 ```csharp
 var graph = serviceProvider.GetRequiredService<HealthGraph>();
@@ -84,17 +131,17 @@ HealthReport report = graph.CreateReport();
 // Look up a service by name.
 HealthNode db = graph["Database"];
 
-// Enumerate all nodes.
+// Enumerate all nodes reachable from the root.
 foreach (var node in graph.Nodes)
 {
     Console.WriteLine($"{node.Name}: {node.Evaluate()}");
 }
 ```
 
-The `Roots` property is `IReadOnlyList<HealthNode>`, directly compatible with the Rx extensions in `Prognosis.Reactive`:
+The `Root` property gives direct access to the root node, compatible with the Rx extensions in `Prognosis.Reactive`:
 
 ```csharp
-graph.Roots.PollHealthReport(TimeSpan.FromSeconds(30)).Subscribe(...);
+graph.Root.PollHealthReport(TimeSpan.FromSeconds(30)).Subscribe(...);
 ```
 
 ### Hosted monitoring
@@ -105,7 +152,7 @@ graph.Roots.PollHealthReport(TimeSpan.FromSeconds(30)).Subscribe(...);
 health.UseMonitor(TimeSpan.FromSeconds(30));
 ```
 
-This is optional — Rx users can skip it and build their own pipeline from `HealthGraph.Roots`.
+This is optional — Rx users can skip it and build their own pipeline from `HealthGraph.Root`.
 
 ## Dependencies
 
