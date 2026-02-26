@@ -6,7 +6,7 @@ namespace Prognosis.DependencyInjection;
 /// <summary>
 /// Optional extension for integrating <see cref="HealthMonitor"/> as a
 /// hosted service. Rx users can skip this and build their own pipeline
-/// from <see cref="HealthGraph.Roots"/> instead.
+/// from <see cref="HealthGraph.Root"/> instead.
 /// </summary>
 public static class PrognosisMonitorExtensions
 {
@@ -18,7 +18,7 @@ public static class PrognosisMonitorExtensions
     /// Rx users can skip this entirely and build their own pipeline:
     /// <code>
     /// var graph = serviceProvider.GetRequiredService&lt;HealthGraph&gt;();
-    /// graph.Roots.PollHealthReport(TimeSpan.FromSeconds(30)).Subscribe(...);
+    /// graph.Root.PollHealthReport(TimeSpan.FromSeconds(30)).Subscribe(...);
     /// </code>
     /// </para>
     /// </summary>

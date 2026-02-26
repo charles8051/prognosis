@@ -91,7 +91,16 @@ public static class ServiceCollectionExtensions
             byName[def.Name] = composite;
         }
 
-        // Compute roots — nodes that are not a dependency of any other node.
+        // Determine the root node.
+        if (builder.RootName is not null)
+        {
+            if (!byName.TryGetValue(builder.RootName, out var explicitRoot))
+                throw new InvalidOperationException(
+                    $"MarkAsRoot specified '{builder.RootName}', but no node with that name exists in the health graph.");
+            return new HealthGraph(explicitRoot);
+        }
+
+        // Auto-detect: the unique node that is not a dependency of any other node.
         var allNodes = byName.Values.ToArray();
         var children = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
         foreach (var node in allNodes)
@@ -101,7 +110,18 @@ public static class ServiceCollectionExtensions
         }
 
         var roots = allNodes.Where(n => !children.Contains(n)).ToArray();
-        return new HealthGraph(roots);
+
+        if (roots.Length == 0)
+            throw new InvalidOperationException(
+                "No root node could be determined — every node is a dependency of another. " +
+                "Use MarkAsRoot to designate the root explicitly.");
+
+        if (roots.Length > 1)
+            throw new InvalidOperationException(
+                $"Multiple root candidates found ({string.Join(", ", roots.Select(r => $"'{r.Name}'"))}). " +
+                "Use MarkAsRoot to designate a single root, or add a composite node that depends on all top-level nodes.");
+
+        return new HealthGraph(roots[0]);
     }
 
     private static void WireEdges(

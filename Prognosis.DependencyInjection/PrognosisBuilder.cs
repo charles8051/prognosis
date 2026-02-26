@@ -14,8 +14,39 @@ public sealed class PrognosisBuilder
     internal List<Assembly> ScanAssemblies { get; } = [];
     internal List<CompositeDefinition> Composites { get; } = [];
     internal List<DelegateDefinition> Delegates { get; } = [];
+    internal string? RootName { get; private set; }
 
     internal PrognosisBuilder(IServiceCollection services) => Services = services;
+
+    /// <summary>
+    /// Designates the node whose <see cref="HealthNode.Name"/> matches
+    /// <c>typeof(T).Name</c> as the single root of the health graph.
+    /// If not called, the builder will auto-detect the root (the unique
+    /// node that is not a dependency of any other node). An exception
+    /// is thrown at graph materialization if auto-detection finds zero
+    /// or more than one candidate.
+    /// </summary>
+    /// <typeparam name="T">
+    /// A type whose <see cref="System.Type.Name"/> identifies the root node.
+    /// Typically a composite or service class registered via
+    /// <see cref="ScanForServices"/>, <see cref="AddComposite"/>, or
+    /// <see cref="AddDelegate{TService}(Func{TService,HealthEvaluation},Action{DependencyConfigurator}?)"/>.
+    /// </typeparam>
+    public PrognosisBuilder MarkAsRoot<T>() where T : class
+        => MarkAsRoot(typeof(T).Name);
+
+    /// <summary>
+    /// Designates the node with the given name as the single root of the
+    /// health graph. If not called, the builder will auto-detect the root
+    /// (the unique node that is not a dependency of any other node). An
+    /// exception is thrown at graph materialization if auto-detection
+    /// finds zero or more than one candidate.
+    /// </summary>
+    public PrognosisBuilder MarkAsRoot(string name)
+    {
+        RootName = name;
+        return this;
+    }
 
     /// <summary>
     /// Scans the given assemblies for all concrete <see cref="IHealthAware"/>
