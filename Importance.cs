@@ -25,4 +25,12 @@ public enum Importance
     /// Its failure has no effect on the parent's reported health.
     /// </summary>
     Optional,
+
+    /// <summary>
+    /// The dependency is required but has resilient peers.
+    /// If at least one sibling <see cref="Resilient"/> dependency is healthy,
+    /// an unhealthy status is capped at <c>Degraded</c> rather than propagating directly.
+    /// If all <see cref="Resilient"/> siblings are unhealthy, the parent becomes unhealthy.
+    /// </summary>
+    Resilient,
 }

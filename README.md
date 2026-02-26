@@ -49,13 +49,12 @@ Ordered worst-is-highest so comparisons naturally surface the most severe status
 
 ### Dependency importance
 
-| Importance | Default propagation rule |
+| Importance | Propagation rule |
 |---|---|
 | `Required` | Dependency status passes through unchanged — an unhealthy dependency makes the parent unhealthy |
 | `Important` | Unhealthy is capped at `Degraded` for the parent; `Unknown` and `Degraded` pass through |
 | `Optional` | Dependency health is ignored entirely |
-
-These rules describe the default strategy (`HealthAggregator.Aggregate`). Propagation behavior can be changed per-service by supplying a custom [aggregation strategy](#aggregation-strategies).
+| `Resilient` | Like `Required`, but if at least one sibling `Resilient` dependency is healthy, unhealthy is capped at `Degraded`. All `Resilient` siblings must be unhealthy before the parent becomes unhealthy |
 
 ## Usage patterns
 
@@ -145,29 +144,31 @@ var emailHealth = new HealthCheck("EmailProvider",
 
 ### 3. Compose the graph
 
-Wire services together with `DependsOn` or `HealthDependency` lists:
+Wire services together with `DependsOn`:
 
 ```csharp
 var authService = new HealthCheck("AuthService")
     .DependsOn(database.Health, Importance.Required)
     .DependsOn(cache.Health, Importance.Important);
 
-// List style
-var app = new HealthGroup("Application",
-[
-    new HealthDependency(authService, Importance.Required),
-    new HealthDependency(notifications, Importance.Important),
-]);
-
-// Fluent style
 var app = new HealthGroup("Application")
     .DependsOn(authService, Importance.Required)
     .DependsOn(notifications, Importance.Important);
 ```
 
-## Aggregation strategies
+### Resilient dependencies
 
-By default, health propagation follows the rules in [Dependency importance](#dependency-importance) via `HealthAggregator.Aggregate`. You can swap the strategy per-service to change how dependency statuses combine.
+Use `Importance.Resilient` when a parent has multiple paths to the same capability (e.g. primary + replica database). Losing one degrades — but doesn't kill — the parent:
+
+```csharp
+// If one goes down but the other is healthy, the parent is degraded (not unhealthy).
+// If both go down, the parent becomes unhealthy.
+var app = new HealthGroup("Application")
+    .DependsOn(primaryDb, Importance.Resilient)
+    .DependsOn(replicaDb, Importance.Resilient);
+```
+
+Only `Resilient`-marked siblings participate in the resilience check — `Required`, `Important`, and `Optional` dependencies are unaffected.
 
 ### Built-in strategies
 

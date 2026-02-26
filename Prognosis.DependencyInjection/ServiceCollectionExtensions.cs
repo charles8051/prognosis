@@ -86,7 +86,7 @@ public static class ServiceCollectionExtensions
         // Build composites (order matters — later composites can reference earlier ones).
         foreach (var def in builder.Composites)
         {
-            var composite = new HealthGroup(def.Name, def.Aggregator);
+            var composite = new HealthGroup(def.Name);
             WireEdges(composite, def.Edges, byType, byName);
             byName[def.Name] = composite;
         }

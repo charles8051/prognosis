@@ -2,33 +2,33 @@ using Prognosis;
 
 namespace Prognosis.Tests;
 
-public class AggregateWithRedundancyTests
+public class ResilientImportanceTests
 {
     [Fact]
-    public void OneUnhealthy_OneHealthy_Required_ReturnsDegraded()
+    public void OneUnhealthy_OneHealthy_Resilient_ReturnsDegraded()
     {
         var healthy = new HealthCheck("A");
         var unhealthy = new HealthCheck("B",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
 
-        var parent = new HealthGroup("Root", HealthAggregator.AggregateWithRedundancy)
-            .DependsOn(healthy, Importance.Required)
-            .DependsOn(unhealthy, Importance.Required);
+        var parent = new HealthGroup("Root")
+            .DependsOn(healthy, Importance.Resilient)
+            .DependsOn(unhealthy, Importance.Resilient);
 
         Assert.Equal(HealthStatus.Degraded, parent.Evaluate().Status);
     }
 
     [Fact]
-    public void AllUnhealthy_Required_ReturnsUnhealthy()
+    public void AllUnhealthy_Resilient_ReturnsUnhealthy()
     {
         var a = new HealthCheck("A",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
         var b = new HealthCheck("B",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
 
-        var parent = new HealthGroup("Root", HealthAggregator.AggregateWithRedundancy)
-            .DependsOn(a, Importance.Required)
-            .DependsOn(b, Importance.Required);
+        var parent = new HealthGroup("Root")
+            .DependsOn(a, Importance.Resilient)
+            .DependsOn(b, Importance.Resilient);
 
         Assert.Equal(HealthStatus.Unhealthy, parent.Evaluate().Status);
     }
@@ -39,61 +39,58 @@ public class AggregateWithRedundancyTests
         var a = new HealthCheck("A");
         var b = new HealthCheck("B");
 
-        var parent = new HealthGroup("Root", HealthAggregator.AggregateWithRedundancy)
-            .DependsOn(a, Importance.Required)
-            .DependsOn(b, Importance.Required);
+        var parent = new HealthGroup("Root")
+            .DependsOn(a, Importance.Resilient)
+            .DependsOn(b, Importance.Resilient);
 
         Assert.Equal(HealthStatus.Healthy, parent.Evaluate().Status);
     }
 
     [Fact]
-    public void SingleUnhealthy_Required_NoSiblings_ReturnsUnhealthy()
+    public void SingleUnhealthy_Resilient_NoSiblings_ReturnsUnhealthy()
     {
         var unhealthy = new HealthCheck("A",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
 
-        var parent = new HealthGroup("Root", HealthAggregator.AggregateWithRedundancy)
-            .DependsOn(unhealthy, Importance.Required);
+        var parent = new HealthGroup("Root")
+            .DependsOn(unhealthy, Importance.Resilient);
 
         Assert.Equal(HealthStatus.Unhealthy, parent.Evaluate().Status);
     }
 
     [Fact]
-    public void Important_Unhealthy_StillCappedAtDegraded()
+    public void Resilient_DoesNotCountNonResilientSiblings()
     {
         var unhealthy = new HealthCheck("A",
-            () => HealthStatus.Unhealthy);
-
-        var parent = new HealthGroup("Root", HealthAggregator.AggregateWithRedundancy)
-            .DependsOn(unhealthy, Importance.Important);
-
-        Assert.Equal(HealthStatus.Degraded, parent.Evaluate().Status);
-    }
-
-    [Fact]
-    public void Optional_Unhealthy_Ignored()
-    {
-        var unhealthy = new HealthCheck("A",
-            () => HealthStatus.Unhealthy);
-
-        var parent = new HealthGroup("Root", HealthAggregator.AggregateWithRedundancy)
-            .DependsOn(unhealthy, Importance.Optional);
-
-        Assert.Equal(HealthStatus.Healthy, parent.Evaluate().Status);
-    }
-
-    [Fact]
-    public void HealthGroup_UsesInjectedStrategy()
-    {
-        var healthy = new HealthCheck("Primary");
-        var unhealthy = new HealthCheck("Secondary",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
+        var healthyRequired = new HealthCheck("B");
 
-        var composite = new HealthGroup("Root", HealthAggregator.AggregateWithRedundancy)
-            .DependsOn(healthy, Importance.Required)
-            .DependsOn(unhealthy, Importance.Required);
+        // B is healthy but Required, not Resilient — should not cap A's unhealthy.
+        var parent = new HealthGroup("Root")
+            .DependsOn(unhealthy, Importance.Resilient)
+            .DependsOn(healthyRequired, Importance.Required);
 
-        Assert.Equal(HealthStatus.Degraded, composite.Evaluate().Status);
+        Assert.Equal(HealthStatus.Unhealthy, parent.Evaluate().Status);
+    }
+
+    [Fact]
+    public void Resilient_MixedWithOtherImportanceLevels()
+    {
+        var primaryDb = new HealthCheck("PrimaryDb");
+        var replicaDb = new HealthCheck("ReplicaDb",
+            () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
+        var cache = new HealthCheck("Cache",
+            () => HealthStatus.Unhealthy);
+
+        var parent = new HealthGroup("Root")
+            .DependsOn(primaryDb, Importance.Resilient)
+            .DependsOn(replicaDb, Importance.Resilient)
+            .DependsOn(cache, Importance.Important);
+
+        // ReplicaDb unhealthy but PrimaryDb healthy → capped at Degraded.
+        // Cache unhealthy + Important → also capped at Degraded.
+        // Worst = Degraded.
+        Assert.Equal(HealthStatus.Degraded, parent.Evaluate().Status);
     }
 
     [Fact]
@@ -102,24 +99,8 @@ public class AggregateWithRedundancyTests
         var healthy = new HealthCheck("A");
 
         var parent = new HealthCheck("Root",
-            () => new HealthEvaluation(HealthStatus.Unhealthy, "self broken"),
-            HealthAggregator.AggregateWithRedundancy)
-            .DependsOn(healthy, Importance.Required);
-
-        Assert.Equal(HealthStatus.Unhealthy, parent.Evaluate().Status);
-    }
-
-    [Fact]
-    public void OnlyOptionalHealthy_UnhealthyRequired_NotCapped()
-    {
-        var unhealthy = new HealthCheck("A",
-            () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var optionalHealthy = new HealthCheck("B");
-
-        // The optional dep is healthy, but only non-optional healthy siblings count.
-        var parent = new HealthGroup("Root", HealthAggregator.AggregateWithRedundancy)
-            .DependsOn(unhealthy, Importance.Required)
-            .DependsOn(optionalHealthy, Importance.Optional);
+            () => new HealthEvaluation(HealthStatus.Unhealthy, "self broken"))
+            .DependsOn(healthy, Importance.Resilient);
 
         Assert.Equal(HealthStatus.Unhealthy, parent.Evaluate().Status);
     }

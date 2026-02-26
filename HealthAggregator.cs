@@ -14,12 +14,29 @@ public static class HealthAggregator
         HealthEvaluation intrinsic,
         IReadOnlyList<HealthDependency> dependencies)
     {
+        // First pass: evaluate all dependencies and check whether any
+        // Resilient sibling is healthy (needed for the Resilient rule).
+        var depCount = dependencies.Count;
+        var evals = new (HealthDependency dep, HealthEvaluation eval)[depCount];
+        var hasHealthyResilient = false;
+
+        for (var i = 0; i < depCount; i++)
+        {
+            var dep = dependencies[i];
+            var eval = dep.Node.Evaluate();
+            evals[i] = (dep, eval);
+
+            if (dep.Importance == Importance.Resilient && eval.Status == HealthStatus.Healthy)
+                hasHealthyResilient = true;
+        }
+
+        // Second pass: compute effective status.
         var effective = intrinsic.Status;
         string? reason = intrinsic.Reason;
 
-        foreach (var dep in dependencies)
+        for (var i = 0; i < depCount; i++)
         {
-            var depEval = dep.Node.Evaluate();
+            var (dep, depEval) = evals[i];
 
             var contribution = dep.Importance switch
             {
@@ -36,74 +53,12 @@ public static class HealthAggregator
                 // Optional: never affects the parent.
                 Importance.Optional => HealthStatus.Healthy,
 
-                _ => HealthStatus.Healthy,
-            };
-
-            if (contribution > effective)
-            {
-                effective = contribution;
-                reason = depEval.Reason is not null
-                    ? $"{dep.Node.Name}: {depEval.Reason}"
-                    : $"{dep.Node.Name} is {depEval.Status}";
-            }
-        }
-
-        return new HealthEvaluation(effective, reason);
-    }
-
-    /// <summary>
-    /// Aggregation strategy for services with redundant dependencies.
-    /// When at least one non-optional dependency is healthy, a required dependency's
-    /// <see cref="HealthStatus.Unhealthy"/> is capped at <see cref="HealthStatus.Degraded"/>
-    /// instead of propagating through. If <em>all</em> non-optional dependencies are
-    /// unhealthy the parent becomes unhealthy as usual.
-    /// </summary>
-    /// <remarks>
-    /// Use this when a parent has multiple paths to the same capability (e.g. primary +
-    /// secondary database) and losing one should degrade — not kill — the parent.
-    /// </remarks>
-    public static HealthEvaluation AggregateWithRedundancy(
-        HealthEvaluation intrinsic,
-        IReadOnlyList<HealthDependency> dependencies)
-    {
-        // First pass: evaluate all dependencies and determine whether any
-        // non-optional dependency is healthy.
-        var depCount = dependencies.Count;
-        var evals = new (HealthDependency dep, HealthEvaluation eval)[depCount];
-        var hasHealthyNonOptional = false;
-
-        for (var i = 0; i < depCount; i++)
-        {
-            var dep = dependencies[i];
-            var eval = dep.Node.Evaluate();
-            evals[i] = (dep, eval);
-
-            if (dep.Importance != Importance.Optional && eval.Status == HealthStatus.Healthy)
-                hasHealthyNonOptional = true;
-        }
-
-        // Second pass: compute effective status using the redundancy rule.
-        var effective = intrinsic.Status;
-        string? reason = intrinsic.Reason;
-
-        for (var i = 0; i < depCount; i++)
-        {
-            var (dep, depEval) = evals[i];
-
-            var contribution = dep.Importance switch
-            {
-                Importance.Required when depEval.Status == HealthStatus.Unhealthy && hasHealthyNonOptional
+                // Resilient: like Required, but unhealthy is capped at degraded
+                // when at least one Resilient sibling is still healthy.
+                Importance.Resilient when depEval.Status == HealthStatus.Unhealthy && hasHealthyResilient
                     => HealthStatus.Degraded,
-                Importance.Required
+                Importance.Resilient
                     => depEval.Status,
-
-                Importance.Important => depEval.Status switch
-                {
-                    HealthStatus.Unhealthy => HealthStatus.Degraded,
-                    _ => depEval.Status,
-                },
-
-                Importance.Optional => HealthStatus.Healthy,
 
                 _ => HealthStatus.Healthy,
             };

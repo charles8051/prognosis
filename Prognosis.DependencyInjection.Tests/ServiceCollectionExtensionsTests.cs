@@ -177,24 +177,24 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddPrognosis_AddComposite_WithCustomAggregator()
+    public void AddPrognosis_AddComposite_WithResilientDependencies()
     {
         var services = new ServiceCollection();
         services.AddPrognosis(health =>
         {
             health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
 
-            health.AddComposite("Redundant", c =>
+            health.AddComposite("Resilient", c =>
             {
-                c.DependsOn<TestDatabaseService>(Importance.Required);
-                c.DependsOn<TestCacheService>(Importance.Required);
-            }, aggregator: HealthAggregator.AggregateWithRedundancy);
+                c.DependsOn<TestDatabaseService>(Importance.Resilient);
+                c.DependsOn<TestCacheService>(Importance.Resilient);
+            });
         });
 
         var sp = services.BuildServiceProvider();
         var graph = sp.GetRequiredService<HealthGraph>();
 
-        Assert.True(graph.TryGetNode("Redundant", out var node));
+        Assert.True(graph.TryGetNode("Resilient", out var node));
         Assert.Equal(HealthStatus.Healthy, node.Evaluate().Status);
     }
 

@@ -25,17 +25,13 @@ public sealed class HealthCheck : HealthNode
     /// A delegate that returns the service's intrinsic health evaluation.
     /// Called every time <see cref="Evaluate"/> is invoked.
     /// </param>
-    /// <param name="aggregator">
-    /// Strategy used to combine intrinsic health with dependency evaluations.
-    /// Defaults to <see cref="HealthAggregator.Aggregate"/> when <see langword="null"/>.
-    /// </param>
-    public HealthCheck(string name, Func<HealthEvaluation> healthCheck, AggregationStrategy? aggregator = null)
+    public HealthCheck(string name, Func<HealthEvaluation> healthCheck)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("A service must have a name.", nameof(name));
 
         Name = name;
-        _tracker = new HealthTracker(healthCheck, aggregator);
+        _tracker = new HealthTracker(healthCheck);
     }
 
     /// <summary>Shortcut: a service whose intrinsic status is always healthy.</summary>

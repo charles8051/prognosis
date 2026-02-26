@@ -17,7 +17,6 @@ public sealed class HealthTracker
     private static HashSet<HealthTracker>? s_evaluating;
 
     private readonly Func<HealthEvaluation> _intrinsicCheck;
-    private readonly AggregationStrategy _aggregator;
     private readonly object _writeLock = new();
     private readonly object _observerLock = new();
     private readonly List<IObserver<HealthStatus>> _observers = new();
@@ -28,14 +27,9 @@ public sealed class HealthTracker
     /// A callback that returns the owning service's intrinsic health
     /// (e.g., whether a connection is alive). Called on every <see cref="Evaluate"/>.
     /// </param>
-    /// <param name="aggregator">
-    /// Strategy used to combine intrinsic health with dependency evaluations.
-    /// Defaults to <see cref="HealthAggregator.Aggregate"/> when <see langword="null"/>.
-    /// </param>
-    public HealthTracker(Func<HealthEvaluation> intrinsicCheck, AggregationStrategy? aggregator = null)
+    public HealthTracker(Func<HealthEvaluation> intrinsicCheck)
     {
         _intrinsicCheck = intrinsicCheck;
-        _aggregator = aggregator ?? HealthAggregator.Aggregate;
         StatusChanged = new StatusObservable(this);
     }
 
@@ -143,7 +137,7 @@ public sealed class HealthTracker
             // Capture the volatile snapshot once — iteration is safe because
             // writers always replace the entire list (copy-on-write).
             var deps = _dependencies;
-            return _aggregator(_intrinsicCheck(), deps);
+            return HealthAggregator.Aggregate(_intrinsicCheck(), deps);
         }
         finally
         {

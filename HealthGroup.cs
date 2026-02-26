@@ -15,17 +15,13 @@ public sealed class HealthGroup : HealthNode
     public override IObservable<HealthStatus> StatusChanged => _tracker.StatusChanged;
 
     /// <param name="name">Display name for this composite in the health graph.</param>
-    /// <param name="aggregator">
-    /// Strategy used to combine dependency evaluations into an effective health.
-    /// Defaults to <see cref="HealthAggregator.Aggregate"/> when <see langword="null"/>.
-    /// </param>
-    public HealthGroup(string name, AggregationStrategy? aggregator = null)
+    public HealthGroup(string name)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("A composite service must have a name.", nameof(name));
 
         Name = name;
-        _tracker = new HealthTracker(() => HealthStatus.Healthy, aggregator);
+        _tracker = new HealthTracker(() => HealthStatus.Healthy);
     }
 
     private protected override void AddDependency(HealthNode node, Importance importance)

@@ -89,9 +89,8 @@ public sealed class PrognosisBuilder
     /// meaningful type in the domain.
     /// </typeparam>
     public PrognosisBuilder AddComposite<TToken>(
-        Action<DependencyConfigurator> configure,
-        AggregationStrategy? aggregator = null)
-        => AddComposite(typeof(TToken).Name, configure, aggregator);
+        Action<DependencyConfigurator> configure)
+        => AddComposite(typeof(TToken).Name, configure);
 
     /// <summary>
     /// Defines a pure composite aggregation node with no backing service.
@@ -101,17 +100,13 @@ public sealed class PrognosisBuilder
     /// <param name="configure">
     /// A callback to declare dependencies via <see cref="DependencyConfigurator"/>.
     /// </param>
-    /// <param name="aggregator">
-    /// Optional aggregation strategy. Defaults to <see cref="HealthAggregator.Aggregate"/>.
-    /// </param>
     public PrognosisBuilder AddComposite(
         string name,
-        Action<DependencyConfigurator> configure,
-        AggregationStrategy? aggregator = null)
+        Action<DependencyConfigurator> configure)
     {
         var configurator = new DependencyConfigurator();
         configure(configurator);
-        Composites.Add(new CompositeDefinition(name, configurator.Edges, aggregator));
+        Composites.Add(new CompositeDefinition(name, configurator.Edges));
         return this;
     }
 
@@ -136,8 +131,7 @@ internal sealed record EdgeDefinition(
 
 internal sealed record CompositeDefinition(
     string Name,
-    List<EdgeDefinition> Edges,
-    AggregationStrategy? Aggregator);
+    List<EdgeDefinition> Edges);
 
 internal sealed record DelegateDefinition(
     string Name,
