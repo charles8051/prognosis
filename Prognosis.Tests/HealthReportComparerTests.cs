@@ -7,8 +7,7 @@ public class HealthReportComparerTests
     [Fact]
     public void Equals_SameReference_ReturnsTrue()
     {
-        var report = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy,
-            Array.Empty<HealthSnapshot>());
+        var report = new HealthReport(Array.Empty<HealthSnapshot>());
 
         Assert.True(Comparer.Equals(report, report));
     }
@@ -22,8 +21,7 @@ public class HealthReportComparerTests
     [Fact]
     public void Equals_OneNull_ReturnsFalse()
     {
-        var report = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy,
-            Array.Empty<HealthSnapshot>());
+        var report = new HealthReport(Array.Empty<HealthSnapshot>());
 
         Assert.False(Comparer.Equals(report, null));
         Assert.False(Comparer.Equals(null, report));
@@ -32,20 +30,17 @@ public class HealthReportComparerTests
     [Fact]
     public void Equals_DifferentOverallStatus_ReturnsFalse()
     {
-        var a = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy,
-            Array.Empty<HealthSnapshot>());
-        var b = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Unhealthy,
-            Array.Empty<HealthSnapshot>());
+        var a = new HealthReport(new[] { new HealthSnapshot("Svc", HealthStatus.Healthy) });
+        var b = new HealthReport(new[] { new HealthSnapshot("Svc", HealthStatus.Unhealthy) });
 
         Assert.False(Comparer.Equals(a, b));
     }
 
     [Fact]
-    public void Equals_DifferentServiceCount_ReturnsFalse()
+    public void Equals_DifferentNodeCount_ReturnsFalse()
     {
-        var a = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy,
-            Array.Empty<HealthSnapshot>());
-        var b = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[]
+        var a = new HealthReport(Array.Empty<HealthSnapshot>());
+        var b = new HealthReport(new[]
         {
             new HealthSnapshot("Svc", HealthStatus.Healthy),
         });
@@ -54,33 +49,33 @@ public class HealthReportComparerTests
     }
 
     [Fact]
-    public void Equals_SameServices_ReturnsTrue()
+    public void Equals_SameNodes_ReturnsTrue()
     {
-        var services = new[] { new HealthSnapshot("Svc", HealthStatus.Healthy) };
-        var a = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, services);
-        var b = new HealthReport(DateTimeOffset.UtcNow.AddHours(1), HealthStatus.Healthy, services);
+        var nodes = new[] { new HealthSnapshot("Svc", HealthStatus.Healthy) };
+        var a = new HealthReport(nodes);
+        var b = new HealthReport(nodes);
 
         Assert.True(Comparer.Equals(a, b));
     }
 
     [Fact]
-    public void Equals_DifferentTimestamps_SameData_ReturnsTrue()
+    public void Equals_SameData_DifferentInstances_ReturnsTrue()
     {
         var snapshot = new HealthSnapshot("Svc", HealthStatus.Degraded, "slow");
-        var a = new HealthReport(DateTimeOffset.MinValue, HealthStatus.Degraded, new[] { snapshot });
-        var b = new HealthReport(DateTimeOffset.MaxValue, HealthStatus.Degraded, new[] { snapshot });
+        var a = new HealthReport(new[] { snapshot });
+        var b = new HealthReport(new[] { snapshot });
 
         Assert.True(Comparer.Equals(a, b));
     }
 
     [Fact]
-    public void Equals_DifferentServiceStatus_ReturnsFalse()
+    public void Equals_DifferentNodeStatus_ReturnsFalse()
     {
-        var a = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[]
+        var a = new HealthReport(new[]
         {
             new HealthSnapshot("Svc", HealthStatus.Healthy),
         });
-        var b = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[]
+        var b = new HealthReport(new[]
         {
             new HealthSnapshot("Svc", HealthStatus.Degraded),
         });

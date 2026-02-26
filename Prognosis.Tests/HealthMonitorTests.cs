@@ -90,7 +90,7 @@ public class HealthMonitorTests : IAsyncDisposable
         _monitor.Poll();
 
         Assert.Single(reports);
-        Assert.Equal(2, reports[0].Services.Count);
+        Assert.Equal(2, reports[0].Nodes.Count);
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public class HealthMonitorTests : IAsyncDisposable
 
         // Report changed because A's effective status now reflects B's failure.
         Assert.Equal(2, reports.Count);
-        Assert.Equal(HealthStatus.Unhealthy, reports[1].Services.First(s => s.Name == "A").Status);
+        Assert.Equal(HealthStatus.Unhealthy, reports[1].Nodes.First(s => s.Name == "A").Status);
     }
 }
 

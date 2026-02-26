@@ -121,7 +121,7 @@ public class AggregationTests
         var report = graph.CreateReport();
 
         Assert.Equal(HealthStatus.Unhealthy, report.OverallStatus);
-        Assert.Equal(3, report.Services.Count);
+        Assert.Equal(3, report.Nodes.Count);
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public class AggregationTests
         var report = graph.CreateReport();
 
         Assert.Equal(HealthStatus.Healthy, report.OverallStatus);
-        Assert.Single(report.Services);
+        Assert.Single(report.Nodes);
     }
 
     // ── Diff ─────────────────────────────────────────────────────────
@@ -140,11 +140,11 @@ public class AggregationTests
     [Fact]
     public void Diff_DetectsStatusChange()
     {
-        var before = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[]
+        var before = new HealthReport(new[]
         {
             new HealthSnapshot("Svc", HealthStatus.Healthy),
         });
-        var after = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Unhealthy, new[]
+        var after = new HealthReport(new[]
         {
             new HealthSnapshot("Svc", HealthStatus.Unhealthy, "down"),
         });
@@ -161,7 +161,7 @@ public class AggregationTests
     public void Diff_NoChanges_ReturnsEmpty()
     {
         var snapshot = new HealthSnapshot("Svc", HealthStatus.Healthy);
-        var report = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[] { snapshot });
+        var report = new HealthReport(new[] { snapshot });
 
         var changes = report.DiffTo(report);
 
@@ -171,9 +171,8 @@ public class AggregationTests
     [Fact]
     public void Diff_NewServiceAppears_ReportsUnknownToCurrent()
     {
-        var before = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy,
-            Array.Empty<HealthSnapshot>());
-        var after = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[]
+        var before = new HealthReport(Array.Empty<HealthSnapshot>());
+        var after = new HealthReport(new[]
         {
             new HealthSnapshot("New", HealthStatus.Healthy),
         });
@@ -188,12 +187,11 @@ public class AggregationTests
     [Fact]
     public void Diff_ServiceDisappears_ReportsCurrentToUnknown()
     {
-        var before = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[]
+        var before = new HealthReport(new[]
         {
             new HealthSnapshot("Old", HealthStatus.Healthy),
         });
-        var after = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy,
-            Array.Empty<HealthSnapshot>());
+        var after = new HealthReport(Array.Empty<HealthSnapshot>());
 
         var changes = before.DiffTo(after);
 

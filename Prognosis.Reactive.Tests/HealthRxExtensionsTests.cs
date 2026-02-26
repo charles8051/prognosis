@@ -79,7 +79,7 @@ public class HealthRxExtensionsTests
         await Task.Delay(TimeSpan.FromMilliseconds(200));
 
         Assert.NotNull(received);
-        Assert.Equal(2, received!.Services.Count);
+        Assert.Equal(2, received!.Nodes.Count);
     }
 
     // ── ObserveStatus (HealthNode) ──────────────────────────────────
@@ -135,7 +135,7 @@ public class HealthRxExtensionsTests
 
         Assert.Single(reports);
         Assert.Equal(HealthStatus.Unhealthy, reports[0].OverallStatus);
-        Assert.Equal(2, reports[0].Services.Count);
+        Assert.Equal(2, reports[0].Nodes.Count);
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public class HealthRxExtensionsTests
         leaf.BubbleChange();
 
         Assert.Single(reports);
-        var names = reports[0].Services.Select(s => s.Name).OrderBy(n => n).ToList();
+        var names = reports[0].Nodes.Select(s => s.Name).OrderBy(n => n).ToList();
         Assert.Equal(new[] { "Leaf", "Mid", "Root" }, names);
     }
 
@@ -173,11 +173,11 @@ public class HealthRxExtensionsTests
             .SelectServiceChanges()
             .Subscribe(c => changes.Add(c));
 
-        var report1 = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[]
+        var report1 = new HealthReport(new[]
         {
             new HealthSnapshot("Svc", HealthStatus.Healthy),
         });
-        var report2 = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Unhealthy, new[]
+        var report2 = new HealthReport(new[]
         {
             new HealthSnapshot("Svc", HealthStatus.Unhealthy, "down"),
         });
@@ -201,7 +201,7 @@ public class HealthRxExtensionsTests
             .SelectServiceChanges()
             .Subscribe(c => changes.Add(c));
 
-        var report = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[]
+        var report = new HealthReport(new[]
         {
             new HealthSnapshot("Svc", HealthStatus.Healthy),
         });
@@ -222,9 +222,8 @@ public class HealthRxExtensionsTests
             .SelectServiceChanges()
             .Subscribe(c => changes.Add(c));
 
-        var report1 = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy,
-            Array.Empty<HealthSnapshot>());
-        var report2 = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[]
+        var report1 = new HealthReport(Array.Empty<HealthSnapshot>());
+        var report2 = new HealthReport(new[]
         {
             new HealthSnapshot("New", HealthStatus.Healthy),
         });
@@ -247,7 +246,7 @@ public class HealthRxExtensionsTests
             .SelectServiceChanges()
             .Subscribe(c => changes.Add(c));
 
-        var report = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[]
+        var report = new HealthReport(new[]
         {
             new HealthSnapshot("Svc", HealthStatus.Healthy),
         });
@@ -276,7 +275,7 @@ public class HealthRxExtensionsTests
 
         Assert.NotNull(received);
         Assert.Equal(HealthStatus.Healthy, received!.OverallStatus);
-        Assert.Equal(2, received.Services.Count);
+        Assert.Equal(2, received.Nodes.Count);
     }
 
     [Fact]
@@ -325,7 +324,7 @@ public class HealthRxExtensionsTests
 
         Assert.Single(reports);
         Assert.Equal(HealthStatus.Unhealthy, reports[0].OverallStatus);
-        Assert.Equal(2, reports[0].Services.Count);
+        Assert.Equal(2, reports[0].Nodes.Count);
     }
 
     [Fact]
