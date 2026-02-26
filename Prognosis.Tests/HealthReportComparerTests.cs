@@ -28,15 +28,6 @@ public class HealthReportComparerTests
     }
 
     [Fact]
-    public void Equals_DifferentOverallStatus_ReturnsFalse()
-    {
-        var a = new HealthReport(new[] { new HealthSnapshot("Svc", HealthStatus.Healthy) });
-        var b = new HealthReport(new[] { new HealthSnapshot("Svc", HealthStatus.Unhealthy) });
-
-        Assert.False(Comparer.Equals(a, b));
-    }
-
-    [Fact]
     public void Equals_DifferentNodeCount_ReturnsFalse()
     {
         var a = new HealthReport(Array.Empty<HealthSnapshot>());

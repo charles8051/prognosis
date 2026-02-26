@@ -22,7 +22,7 @@ public class HealthRxExtensionsTests
         await Task.Delay(TimeSpan.FromMilliseconds(200));
 
         Assert.NotNull(received);
-        Assert.Equal(HealthStatus.Healthy, received!.OverallStatus);
+        Assert.All(received!.Nodes, n => Assert.Equal(HealthStatus.Healthy, n.Status));
     }
 
     [Fact]
@@ -60,8 +60,8 @@ public class HealthRxExtensionsTests
         await Task.Delay(TimeSpan.FromMilliseconds(150));
 
         Assert.True(reports.Count >= 2);
-        Assert.Equal(HealthStatus.Healthy, reports[0].OverallStatus);
-        Assert.Contains(reports, r => r.OverallStatus == HealthStatus.Unhealthy);
+        Assert.All(reports[0].Nodes, n => Assert.Equal(HealthStatus.Healthy, n.Status));
+        Assert.Contains(reports, r => r.Nodes.Any(n => n.Status == HealthStatus.Unhealthy));
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public class HealthRxExtensionsTests
         leaf.BubbleChange();
 
         Assert.Single(reports);
-        Assert.Equal(HealthStatus.Unhealthy, reports[0].OverallStatus);
+        Assert.Equal(HealthStatus.Unhealthy, reports[0].Nodes.First(n => n.Name == "Leaf").Status);
         Assert.Equal(2, reports[0].Nodes.Count);
     }
 
@@ -274,7 +274,7 @@ public class HealthRxExtensionsTests
         await Task.Delay(TimeSpan.FromMilliseconds(200));
 
         Assert.NotNull(received);
-        Assert.Equal(HealthStatus.Healthy, received!.OverallStatus);
+        Assert.All(received!.Nodes, n => Assert.Equal(HealthStatus.Healthy, n.Status));
         Assert.Equal(2, received.Nodes.Count);
     }
 
@@ -298,8 +298,8 @@ public class HealthRxExtensionsTests
         await Task.Delay(TimeSpan.FromMilliseconds(150));
 
         Assert.True(reports.Count >= 2);
-        Assert.Equal(HealthStatus.Healthy, reports[0].OverallStatus);
-        Assert.Contains(reports, r => r.OverallStatus == HealthStatus.Unhealthy);
+        Assert.All(reports[0].Nodes, n => Assert.Equal(HealthStatus.Healthy, n.Status));
+        Assert.Contains(reports, r => r.Nodes.Any(n => n.Status == HealthStatus.Unhealthy));
     }
 
     // ── ObserveHealthReport (HealthGraph) ──────────────────────────────
@@ -323,7 +323,7 @@ public class HealthRxExtensionsTests
         leaf.BubbleChange();
 
         Assert.Single(reports);
-        Assert.Equal(HealthStatus.Unhealthy, reports[0].OverallStatus);
+        Assert.Equal(HealthStatus.Unhealthy, reports[0].Nodes.First(n => n.Name == "Leaf").Status);
         Assert.Equal(2, reports[0].Nodes.Count);
     }
 
@@ -348,6 +348,6 @@ public class HealthRxExtensionsTests
         a.BubbleChange();
 
         Assert.Single(reports);
-        Assert.Equal(HealthStatus.Unhealthy, reports[0].OverallStatus);
+        Assert.Equal(HealthStatus.Unhealthy, reports[0].Nodes.First(n => n.Name == "A").Status);
     }
 }

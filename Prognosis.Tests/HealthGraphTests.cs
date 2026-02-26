@@ -241,8 +241,8 @@ public class HealthGraphTests
 
         var report = graph.CreateReport();
 
-        Assert.Equal(HealthStatus.Unhealthy, report.OverallStatus);
         Assert.True(report.Nodes.Count > 0);
+        Assert.Equal(HealthStatus.Unhealthy, report.Nodes.First(n => n.Name == "Child").Status);
     }
 
     [Fact]
@@ -252,8 +252,8 @@ public class HealthGraphTests
 
         var report = graph.CreateReport();
 
-        Assert.Equal(HealthStatus.Healthy, report.OverallStatus);
-        Assert.Single(report.Nodes);
+        var node = Assert.Single(report.Nodes);
+        Assert.Equal(HealthStatus.Healthy, node.Status);
     }
 }
 

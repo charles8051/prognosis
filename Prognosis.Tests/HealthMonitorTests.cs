@@ -108,7 +108,7 @@ public class HealthMonitorTests : IAsyncDisposable
 
         _monitor.Poll();
         Assert.Single(reports);
-        Assert.Equal(HealthStatus.Healthy, reports[0].OverallStatus);
+        Assert.All(reports[0].Nodes, n => Assert.Equal(HealthStatus.Healthy, n.Status));
 
         // Wire A → B (Required) — A's status changes from Healthy to Unhealthy.
         a.DependsOn(b, Importance.Required);

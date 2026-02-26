@@ -108,7 +108,7 @@ public class AggregationTests
     // ── CreateReport ─────────────────────────────────────────────────
 
     [Fact]
-    public void CreateReport_OverallStatus_IsWorstAcrossChildren()
+    public void CreateReport_IncludesAllNodes()
     {
         var healthy = new DelegateHealthNode("A");
         var unhealthy = new DelegateHealthNode("B",
@@ -120,19 +120,19 @@ public class AggregationTests
 
         var report = graph.CreateReport();
 
-        Assert.Equal(HealthStatus.Unhealthy, report.OverallStatus);
         Assert.Equal(3, report.Nodes.Count);
+        Assert.Equal(HealthStatus.Unhealthy, report.Nodes.First(n => n.Name == "B").Status);
     }
 
     [Fact]
-    public void CreateReport_SingleHealthyNode_ReturnsHealthy()
+    public void CreateReport_SingleHealthyNode_ReturnsSingleNode()
     {
         var graph = HealthGraph.Create(new DelegateHealthNode("Only"));
 
         var report = graph.CreateReport();
 
-        Assert.Equal(HealthStatus.Healthy, report.OverallStatus);
-        Assert.Single(report.Nodes);
+        var node = Assert.Single(report.Nodes);
+        Assert.Equal(HealthStatus.Healthy, node.Status);
     }
 
     // ── Diff ─────────────────────────────────────────────────────────
