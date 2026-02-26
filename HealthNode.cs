@@ -153,7 +153,7 @@ public abstract class HealthNode
     /// Re-evaluates the current health and pushes a notification through
     /// <see cref="StatusChanged"/> if the status has changed.
     /// Does <b>not</b> propagate to parents — used internally by
-    /// <see cref="NotifyDescendants"/> and <see cref="HealthGraph.NotifyAll"/>
+    /// <see cref="RefreshDescendants"/> and <see cref="HealthGraph.RefreshAll"/>
     /// which walk the graph themselves.
     /// </summary>
     internal void NotifyChangedCore()
@@ -403,7 +403,7 @@ public abstract class HealthNode
     /// dependencies to refresh the entire subtree.
     /// </para>
     /// </summary>
-    public void NotifyDescendants()
+    public void RefreshDescendants()
     {
         var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
         NotifyDfs(this, visited);

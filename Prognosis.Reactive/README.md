@@ -19,13 +19,13 @@ Polls on a fixed interval, re-evaluates every node, and emits a `HealthReport` w
 ```csharp
 using Prognosis.Reactive;
 
-// Whole graph — calls NotifyAll() + CreateReport() on each tick.
+// Whole graph — calls RefreshAll() + CreateReport() on each tick.
 var graph = HealthGraph.Create(app);
 graph.PollHealthReport(TimeSpan.FromSeconds(30))
     .Subscribe(report =>
         Console.WriteLine($"{report.Nodes.Count} nodes"));
 
-// Single subtree — calls NotifyDescendants() + CreateReport() on the node.
+// Single subtree — calls RefreshDescendants() + CreateReport() on the node.
 app.PollHealthReport(TimeSpan.FromSeconds(30))
     .Subscribe(report =>
         Console.WriteLine($"{report.Nodes.Count} nodes"));

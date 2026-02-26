@@ -68,7 +68,7 @@ public class HealthGraphBenchmarks
     /// walk calling BubbleChange on every node.
     /// </summary>
     [Benchmark]
-    public void NotifyGraph() => _graph.NotifyAll();
+    public void RefreshGraph() => _graph.RefreshAll();
 
     /// <summary>
     /// Measures <see cref="HealthGraph.DetectCycles"/> — full DFS

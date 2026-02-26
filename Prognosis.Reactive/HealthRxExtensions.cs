@@ -11,7 +11,7 @@ public static class HealthRxExtensions
 {
     /// <summary>
     /// Polls the node and its full dependency subtree on the given interval,
-    /// calling <see cref="HealthNode.NotifyDescendants"/> to re-evaluate every
+    /// calling <see cref="HealthNode.RefreshDescendants"/> to re-evaluate every
     /// intrinsic check before producing each <see cref="HealthReport"/>.
     /// Only emits when the report changes.
     /// </summary>
@@ -22,7 +22,7 @@ public static class HealthRxExtensions
         return Observable.Interval(interval)
             .Select(_ =>
             {
-                node.NotifyDescendants();
+                node.RefreshDescendants();
                 return node.CreateReport();
             })
             .DistinctUntilChanged(HealthReportComparer.Instance);
@@ -84,7 +84,7 @@ public static class HealthRxExtensions
 
     /// <summary>
     /// Polls the entire <see cref="HealthGraph"/> on the given interval,
-    /// calling <see cref="HealthGraph.NotifyAll"/> to re-evaluate every
+    /// calling <see cref="HealthGraph.RefreshAll"/> to re-evaluate every
     /// node before producing each <see cref="HealthReport"/>.
     /// Only emits when the report changes.
     /// </summary>
@@ -95,7 +95,7 @@ public static class HealthRxExtensions
         return Observable.Interval(interval)
             .Select(_ =>
             {
-                graph.NotifyAll();
+                graph.RefreshAll();
                 return graph.CreateReport();
             })
             .DistinctUntilChanged(HealthReportComparer.Instance);

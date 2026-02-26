@@ -99,7 +99,7 @@ Console.WriteLine("=== Report diffing ===");
 var before = graph.CreateReport();
 emailClient.IsConnected = true;
 database.IsConnected = false;
-graph.NotifyAll();
+graph.RefreshAll();
 var after = graph.CreateReport();
 
 var changes = before.DiffTo(after);

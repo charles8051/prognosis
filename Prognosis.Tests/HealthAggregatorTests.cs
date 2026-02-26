@@ -234,7 +234,7 @@ public class AggregationTests
     // ── NotifyAll ────────────────────────────────────────────────────
 
     [Fact]
-    public void NotifyAll_CallsBubbleChangeOnAllObservableNodes()
+    public void RefreshAll_ReevaluatesAllNodes()
     {
         var leaf = new DelegateHealthNode("Leaf",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
@@ -245,7 +245,7 @@ public class AggregationTests
         var statuses = new List<HealthStatus>();
         leaf.StatusChanged.Subscribe(new TestObserver<HealthStatus>(statuses.Add));
 
-        graph.NotifyAll();
+        graph.RefreshAll();
 
         Assert.Single(statuses);
         Assert.Equal(HealthStatus.Unhealthy, statuses[0]);

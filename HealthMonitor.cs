@@ -53,7 +53,7 @@ public sealed class HealthMonitor : IAsyncDisposable, IDisposable
     /// </summary>
     public void Poll()
     {
-        _graph.NotifyAll();
+        _graph.RefreshAll();
 
         var report = _graph.CreateReport();
 

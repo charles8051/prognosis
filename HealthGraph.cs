@@ -36,7 +36,7 @@ public sealed class HealthGraph
         foreach (var node in _allNodes)
             _nodesByName[node.Name] = node;
 
-        _root._topologyCallback = RefreshNodes;
+        _root._topologyCallback = RefreshTopology;
     }
 
     /// <summary>
@@ -148,13 +148,9 @@ public sealed class HealthGraph
     /// <summary>
     /// Walks the dependency graph depth-first from the root and calls
     /// <see cref="HealthNode.NotifyChangedCore"/> on every node encountered.
-    /// Leaves are notified before their parents.
+    /// Leaves are refreshed before their parents.
     /// </summary>
-    public void NotifyAll()
-    {
-        var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
-        HealthNode.NotifyDfs(_root, visited);
-    }
+    public void RefreshAll() => _root.RefreshDescendants();
 
     private static void Collect(HealthNode node, HashSet<HealthNode> visited)
     {
@@ -165,7 +161,7 @@ public sealed class HealthGraph
             Collect(dep.Node, visited);
     }
 
-    private void RefreshNodes()
+    private void RefreshTopology()
     {
         var fresh = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
         Collect(_root, fresh);
