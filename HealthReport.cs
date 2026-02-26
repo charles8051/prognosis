@@ -1,14 +1,19 @@
 namespace Prognosis;
 
 /// <summary>
-/// A serialization-friendly, point-in-time health report for the entire
-/// service graph. Intended to be the top-level payload for HTTP responses.
+/// A point-in-time evaluation of a node and its full dependency subgraph.
+/// Can be created from any <see cref="HealthNode"/>; when created from the
+/// root the report covers the entire service graph.
 /// </summary>
-public sealed record HealthReport(
-    DateTimeOffset Timestamp,
-    HealthStatus OverallStatus,
-    IReadOnlyList<HealthSnapshot> Services)
+public sealed record HealthReport(IReadOnlyList<HealthSnapshot> Nodes)
 {
+    /// <summary>
+    /// Returns the worst <see cref="HealthStatus"/> across all nodes,
+    /// or <see cref="HealthStatus.Healthy"/> if the graph is empty.
+    /// </summary>
+    public HealthStatus OverallStatus =>
+        Nodes.Count > 0 ? Nodes.Max(s => s.Status) : HealthStatus.Healthy;
+
     /// <summary>
     /// Compares this report (the baseline) with a <paramref name="newer"/> report
     /// and returns a change record for every service whose <see cref="HealthStatus"/>
@@ -16,15 +21,15 @@ public sealed record HealthReport(
     /// </summary>
     public IReadOnlyList<StatusChange> DiffTo(HealthReport newer)
     {
-        var previousByName = new Dictionary<string, HealthSnapshot>(Services.Count);
-        foreach (var snapshot in Services)
+        var previousByName = new Dictionary<string, HealthSnapshot>(Nodes.Count);
+        foreach (var snapshot in Nodes)
         {
             previousByName[snapshot.Name] = snapshot;
         }
 
         var changes = new List<StatusChange>();
 
-        foreach (var curr in newer.Services)
+        foreach (var curr in newer.Nodes)
         {
             if (previousByName.TryGetValue(curr.Name, out var prev))
             {
