@@ -43,7 +43,7 @@ class AuthService : IObservableHealthNode
     public string Name => "AuthService";
     public IReadOnlyList<HealthDependency> Dependencies => _health.Dependencies;
     public IObservable<HealthStatus> StatusChanged => _health.StatusChanged;
-    public void NotifyChanged() => _health.NotifyChanged();
+    public void BubbleChange() => _health.BubbleChange();
     public HealthEvaluation Evaluate() => _health.Evaluate();
 }
 ```

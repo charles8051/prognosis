@@ -65,7 +65,7 @@ public class HealthGraphBenchmarks
 
     /// <summary>
     /// Measures <see cref="HealthGraph.NotifyAll"/> — depth-first
-    /// walk calling NotifyChanged on every node.
+    /// walk calling BubbleChange on every node.
     /// </summary>
     [Benchmark]
     public void NotifyGraph() => _graph.NotifyAll();

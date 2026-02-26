@@ -11,7 +11,7 @@ public static class HealthRxExtensions
 {
     /// <summary>
     /// Polls the node and its full dependency subtree on the given interval,
-    /// calling <see cref="HealthNode.NotifySubtree"/> to re-evaluate every
+    /// calling <see cref="HealthNode.NotifyDescendants"/> to re-evaluate every
     /// intrinsic check before producing each <see cref="HealthReport"/>.
     /// Only emits when the report changes.
     /// </summary>
@@ -22,7 +22,7 @@ public static class HealthRxExtensions
         return Observable.Interval(interval)
             .Select(_ =>
             {
-                node.NotifySubtree();
+                node.NotifyDescendants();
                 return node.CreateReport();
             })
             .DistinctUntilChanged(HealthReportComparer.Instance);
@@ -31,7 +31,7 @@ public static class HealthRxExtensions
     /// <summary>
     /// Emits the node's <see cref="HealthEvaluation"/> (status and reason) each
     /// time the effective health changes. Because
-    /// <see cref="HealthNode.NotifyChanged"/> propagates upward, this reflects
+    /// <see cref="HealthNode.BubbleChange"/> propagates upward, this reflects
     /// changes in the node's own intrinsic check as well as changes in any
     /// transitive dependency.
     /// </summary>
@@ -47,7 +47,7 @@ public static class HealthRxExtensions
     /// Produces a new <see cref="HealthReport"/> for the node and its full
     /// dependency subtree each time the node's effective health changes.
     /// <para>
-    /// Because <see cref="HealthNode.NotifyChanged"/> propagates upward,
+    /// Because <see cref="HealthNode.BubbleChange"/> propagates upward,
     /// subscribing to a single node captures changes from any transitive
     /// dependency. The report is built via <see cref="HealthNode.CreateReport"/>
     /// and only emitted when it differs from the previous one.
