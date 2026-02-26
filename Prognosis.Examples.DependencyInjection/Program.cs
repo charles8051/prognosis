@@ -132,7 +132,7 @@ if (graph.TryGetNode<AuthService>(out var auth))
 
 /// <summary>
 /// A service you own — implement <see cref="IHealthAware"/> and expose
-/// a <see cref="HealthCheck"/> property. No forwarding needed.
+/// a <see cref="HealthAdapter"/> property. No forwarding needed.
 /// </summary>
 class DatabaseService : IHealthAware
 {
@@ -140,7 +140,7 @@ class DatabaseService : IHealthAware
 
     public DatabaseService()
     {
-        HealthNode = new HealthCheck("Database",
+        HealthNode = new HealthAdapter("Database",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Connection lost"));
@@ -156,7 +156,7 @@ class CacheService : IHealthAware
 
     public CacheService()
     {
-        HealthNode = new HealthCheck("Cache",
+        HealthNode = new HealthAdapter("Cache",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Redis timeout"));
@@ -173,13 +173,13 @@ class CacheService : IHealthAware
 [DependsOn<CacheService>(Importance.Important)]
 class AuthService : IHealthAware
 {
-    public HealthNode HealthNode { get; } = new HealthCheck("AuthService");
+    public HealthNode HealthNode { get; } = new HealthAdapter("AuthService");
 }
 
 /// <summary>Always-healthy placeholder for demo purposes.</summary>
 class MessageQueueService : IHealthAware
 {
-    public HealthNode HealthNode { get; } = new HealthCheck(nameof(MessageQueueService));
+    public HealthNode HealthNode { get; } = new HealthAdapter(nameof(MessageQueueService));
 }
 
 /// <summary>

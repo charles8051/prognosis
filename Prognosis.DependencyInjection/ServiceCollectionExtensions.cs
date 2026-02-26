@@ -68,7 +68,7 @@ public static class ServiceCollectionExtensions
                 if (!byType.TryGetValue(attr.DependencyType, out var dep))
                     continue;
 
-                if (kvp.Value is HealthCheck delegating)
+                if (kvp.Value is HealthAdapter delegating)
                 {
                     delegating.DependsOn(dep, attr.Importance);
                 }
@@ -78,7 +78,7 @@ public static class ServiceCollectionExtensions
         // Build delegate wrappers.
         foreach (var def in builder.Delegates)
         {
-            var d = new HealthCheck(def.Name, () => def.HealthCheck(sp));
+            var d = new HealthAdapter(def.Name, () => def.HealthCheck(sp));
             WireEdges(d, def.Edges, byType, byName);
             byName[def.Name] = d;
         }

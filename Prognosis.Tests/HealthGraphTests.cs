@@ -7,8 +7,8 @@ public class HealthGraphTests
     [Fact]
     public void Create_SingleRoot_IndexesAllReachableNodes()
     {
-        var leaf = new HealthCheck("Leaf");
-        var root = new HealthCheck("Root")
+        var leaf = new HealthAdapter("Leaf");
+        var root = new HealthAdapter("Root")
             .DependsOn(leaf, Importance.Required);
 
         var graph = HealthGraph.Create(root);
@@ -21,8 +21,8 @@ public class HealthGraphTests
     [Fact]
     public void Create_MultipleEntryPoints_IndexesAll()
     {
-        var a = new HealthCheck("A");
-        var b = new HealthCheck("B");
+        var a = new HealthAdapter("A");
+        var b = new HealthAdapter("B");
 
         var graph = HealthGraph.Create(a, b);
 
@@ -32,9 +32,9 @@ public class HealthGraphTests
     [Fact]
     public void Create_SharedDependency_IndexedOnce()
     {
-        var shared = new HealthCheck("Shared");
-        var a = new HealthCheck("A").DependsOn(shared, Importance.Required);
-        var b = new HealthCheck("B").DependsOn(shared, Importance.Required);
+        var shared = new HealthAdapter("Shared");
+        var a = new HealthAdapter("A").DependsOn(shared, Importance.Required);
+        var b = new HealthAdapter("B").DependsOn(shared, Importance.Required);
 
         var graph = HealthGraph.Create(a, b);
 
@@ -45,9 +45,9 @@ public class HealthGraphTests
     [Fact]
     public void Create_DeepGraph_IndexesAllLevels()
     {
-        var c = new HealthCheck("C");
-        var b = new HealthCheck("B").DependsOn(c, Importance.Required);
-        var a = new HealthCheck("A").DependsOn(b, Importance.Required);
+        var c = new HealthAdapter("C");
+        var b = new HealthAdapter("B").DependsOn(c, Importance.Required);
+        var a = new HealthAdapter("A").DependsOn(b, Importance.Required);
 
         var graph = HealthGraph.Create(a);
 
@@ -60,8 +60,8 @@ public class HealthGraphTests
     [Fact]
     public void Roots_ReturnsExactNodesPassed()
     {
-        var leaf = new HealthCheck("Leaf");
-        var root = new HealthCheck("Root")
+        var leaf = new HealthAdapter("Leaf");
+        var root = new HealthAdapter("Root")
             .DependsOn(leaf, Importance.Required);
 
         var graph = HealthGraph.Create(root);
@@ -74,9 +74,9 @@ public class HealthGraphTests
     [Fact]
     public void Roots_MultipleRoots_ReturnsAll()
     {
-        var shared = new HealthCheck("Shared");
-        var a = new HealthCheck("A").DependsOn(shared, Importance.Required);
-        var b = new HealthCheck("B").DependsOn(shared, Importance.Required);
+        var shared = new HealthAdapter("Shared");
+        var a = new HealthAdapter("A").DependsOn(shared, Importance.Required);
+        var b = new HealthAdapter("B").DependsOn(shared, Importance.Required);
 
         var graph = HealthGraph.Create(a, b);
 
@@ -91,7 +91,7 @@ public class HealthGraphTests
     [Fact]
     public void Indexer_ReturnsNodeByName()
     {
-        var node = new HealthCheck("MyNode");
+        var node = new HealthAdapter("MyNode");
         var graph = HealthGraph.Create(node);
 
         Assert.Same(node, graph["MyNode"]);
@@ -100,7 +100,7 @@ public class HealthGraphTests
     [Fact]
     public void Indexer_UnknownName_ThrowsKeyNotFound()
     {
-        var graph = HealthGraph.Create(new HealthCheck("A"));
+        var graph = HealthGraph.Create(new HealthAdapter("A"));
 
         Assert.Throws<KeyNotFoundException>(() => graph["Missing"]);
     }
@@ -110,7 +110,7 @@ public class HealthGraphTests
     [Fact]
     public void TryGetService_Found_ReturnsTrue()
     {
-        var node = new HealthCheck("DB");
+        var node = new HealthAdapter("DB");
         var graph = HealthGraph.Create(node);
 
         Assert.True(graph.TryGetNode("DB", out var found));
@@ -120,7 +120,7 @@ public class HealthGraphTests
     [Fact]
     public void TryGetService_NotFound_ReturnsFalse()
     {
-        var graph = HealthGraph.Create(new HealthCheck("A"));
+        var graph = HealthGraph.Create(new HealthAdapter("A"));
 
         Assert.False(graph.TryGetNode("Missing", out _));
     }
@@ -129,7 +129,7 @@ public class HealthGraphTests
     public void TryGetServiceGeneric_Found_ReturnsTrue()
     {
         // The generic overload uses typeof(T).Name as the key.
-        var node = new HealthCheck(typeof(StubHealthAware).Name);
+        var node = new HealthAdapter(typeof(StubHealthAware).Name);
         var graph = HealthGraph.Create(node);
 
         Assert.True(graph.TryGetNode<StubHealthAware>(out var found));
@@ -139,7 +139,7 @@ public class HealthGraphTests
     [Fact]
     public void TryGetServiceGeneric_NotFound_ReturnsFalse()
     {
-        var graph = HealthGraph.Create(new HealthCheck("Unrelated"));
+        var graph = HealthGraph.Create(new HealthAdapter("Unrelated"));
 
         Assert.False(graph.TryGetNode<StubHealthAware>(out _));
     }
@@ -149,8 +149,8 @@ public class HealthGraphTests
     [Fact]
     public void Services_ReturnsAllIndexedNodes()
     {
-        var a = new HealthCheck("A");
-        var b = new HealthCheck("B");
+        var a = new HealthAdapter("A");
+        var b = new HealthAdapter("B");
         var graph = HealthGraph.Create(a, b);
 
         var names = graph.Nodes.Select(n => n.Name).OrderBy(n => n).ToList();
@@ -162,9 +162,9 @@ public class HealthGraphTests
     [Fact]
     public void CreateReport_ReturnsReportFromRoots()
     {
-        var child = new HealthCheck("Child",
+        var child = new HealthAdapter("Child",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var root = new HealthCheck("Root")
+        var root = new HealthAdapter("Root")
             .DependsOn(child, Importance.Required);
         var graph = HealthGraph.Create(root);
 
@@ -189,5 +189,5 @@ public class HealthGraphTests
 /// <summary>Minimal IHealthAware stub for generic TryGetService tests.</summary>
 file class StubHealthAware : IHealthAware
 {
-    public HealthNode HealthNode { get; } = new HealthCheck(typeof(StubHealthAware).Name);
+    public HealthNode HealthNode { get; } = new HealthAdapter(typeof(StubHealthAware).Name);
 }

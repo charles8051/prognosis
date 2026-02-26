@@ -7,8 +7,8 @@ public class ResilientImportanceTests
     [Fact]
     public void OneUnhealthy_OneHealthy_Resilient_ReturnsDegraded()
     {
-        var healthy = new HealthCheck("A");
-        var unhealthy = new HealthCheck("B",
+        var healthy = new HealthAdapter("A");
+        var unhealthy = new HealthAdapter("B",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
 
         var parent = new HealthGroup("Root")
@@ -21,9 +21,9 @@ public class ResilientImportanceTests
     [Fact]
     public void AllUnhealthy_Resilient_ReturnsUnhealthy()
     {
-        var a = new HealthCheck("A",
+        var a = new HealthAdapter("A",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var b = new HealthCheck("B",
+        var b = new HealthAdapter("B",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
 
         var parent = new HealthGroup("Root")
@@ -36,8 +36,8 @@ public class ResilientImportanceTests
     [Fact]
     public void AllHealthy_ReturnsHealthy()
     {
-        var a = new HealthCheck("A");
-        var b = new HealthCheck("B");
+        var a = new HealthAdapter("A");
+        var b = new HealthAdapter("B");
 
         var parent = new HealthGroup("Root")
             .DependsOn(a, Importance.Resilient)
@@ -49,7 +49,7 @@ public class ResilientImportanceTests
     [Fact]
     public void SingleUnhealthy_Resilient_NoSiblings_ReturnsUnhealthy()
     {
-        var unhealthy = new HealthCheck("A",
+        var unhealthy = new HealthAdapter("A",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
 
         var parent = new HealthGroup("Root")
@@ -61,9 +61,9 @@ public class ResilientImportanceTests
     [Fact]
     public void Resilient_DoesNotCountNonResilientSiblings()
     {
-        var unhealthy = new HealthCheck("A",
+        var unhealthy = new HealthAdapter("A",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var healthyRequired = new HealthCheck("B");
+        var healthyRequired = new HealthAdapter("B");
 
         // B is healthy but Required, not Resilient — should not cap A's unhealthy.
         var parent = new HealthGroup("Root")
@@ -76,10 +76,10 @@ public class ResilientImportanceTests
     [Fact]
     public void Resilient_MixedWithOtherImportanceLevels()
     {
-        var primaryDb = new HealthCheck("PrimaryDb");
-        var replicaDb = new HealthCheck("ReplicaDb",
+        var primaryDb = new HealthAdapter("PrimaryDb");
+        var replicaDb = new HealthAdapter("ReplicaDb",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var cache = new HealthCheck("Cache",
+        var cache = new HealthAdapter("Cache",
             () => HealthStatus.Unhealthy);
 
         var parent = new HealthGroup("Root")
@@ -96,9 +96,9 @@ public class ResilientImportanceTests
     [Fact]
     public void IntrinsicWorseThanDeps_IntrinsicWins()
     {
-        var healthy = new HealthCheck("A");
+        var healthy = new HealthAdapter("A");
 
-        var parent = new HealthCheck("Root",
+        var parent = new HealthAdapter("Root",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "self broken"))
             .DependsOn(healthy, Importance.Resilient);
 

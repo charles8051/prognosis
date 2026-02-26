@@ -14,22 +14,22 @@ var cache = new CacheService();
 
 // ─────────────────────────────────────────────────────────────────────
 // Pattern 2 — Wrap a service you don't own (or don't want to modify)
-//             with HealthCheck and a health-check delegate.
+//             with HealthAdapter and a health-check delegate.
 // ─────────────────────────────────────────────────────────────────────
 var externalEmailApi = new ThirdPartyEmailClient();        // some closed class
-var emailHealth = new HealthCheck("EmailProvider",
+var emailHealth = new HealthAdapter("EmailProvider",
     () => externalEmailApi.IsConnected
         ? HealthStatus.Healthy
         : new HealthEvaluation(HealthStatus.Unhealthy, "SMTP connection refused"));
 
-var messageQueue = new HealthCheck("MessageQueue"); // always healthy for demo
+var messageQueue = new HealthAdapter("MessageQueue"); // always healthy for demo
 
 // ─────────────────────────────────────────────────────────────────────
 // Pattern 3 — Pure composite aggregation (no backing service).
 //             The fluent .DependsOn() API reads naturally and avoids
 //             having to wrap every edge in a HealthDependency object.
 // ─────────────────────────────────────────────────────────────────────
-var authService = new HealthCheck("AuthService")
+var authService = new HealthAdapter("AuthService")
     .DependsOn(database.HealthNode, Importance.Required)
     .DependsOn(cache.HealthNode, Importance.Important);
 
@@ -99,8 +99,8 @@ Console.WriteLine(cycles.Count == 0
 Console.WriteLine();
 
 // Now introduce a deliberate cycle and detect it.
-var nodeA = new HealthCheck("ServiceA");
-var nodeB = new HealthCheck("ServiceB")
+var nodeA = new HealthAdapter("ServiceA");
+var nodeB = new HealthAdapter("ServiceB")
     .DependsOn(nodeA, Importance.Required);
 nodeA.DependsOn(nodeB, Importance.Required); // A → B → A
 
@@ -173,7 +173,7 @@ Console.WriteLine();
 /// A service you own — implement <see cref="IHealthAware"/> and expose a
 /// <see cref="HealthNode"/> property. Here the top-level node is a
 /// <see cref="HealthGroup"/> whose health is derived entirely from
-/// three fine-grained <see cref="HealthCheck"/> sub-nodes:
+/// three fine-grained <see cref="HealthAdapter"/> sub-nodes:
 /// connection, latency, and connection-pool utilization.
 /// </summary>
 class DatabaseService : IHealthAware
@@ -186,12 +186,12 @@ class DatabaseService : IHealthAware
 
     public DatabaseService()
     {
-        var connection = new HealthCheck("Database.Connection",
+        var connection = new HealthAdapter("Database.Connection",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Connection lost"));
 
-        var latency = new HealthCheck("Database.Latency",
+        var latency = new HealthAdapter("Database.Latency",
             () => AverageLatencyMs switch
             {
                 > 500 => new HealthEvaluation(HealthStatus.Degraded,
@@ -199,7 +199,7 @@ class DatabaseService : IHealthAware
                 _ => HealthStatus.Healthy,
             });
 
-        var connectionPool = new HealthCheck("Database.ConnectionPool",
+        var connectionPool = new HealthAdapter("Database.ConnectionPool",
             () => PoolUtilization switch
             {
                 >= 1.0 => new HealthEvaluation(HealthStatus.Unhealthy, "Connection pool exhausted"),
@@ -222,7 +222,7 @@ class CacheService : IHealthAware
 
     public CacheService()
     {
-        HealthNode = new HealthCheck("Cache",
+        HealthNode = new HealthAdapter("Cache",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Redis timeout"));
@@ -233,7 +233,7 @@ class CacheService : IHealthAware
 
 /// <summary>
 /// A third-party class you cannot modify — no <see cref="IHealthAware"/> on it.
-/// Wrapped via <see cref="HealthCheck"/> above.
+/// Wrapped via <see cref="HealthAdapter"/> above.
 /// </summary>
 class ThirdPartyEmailClient
 {

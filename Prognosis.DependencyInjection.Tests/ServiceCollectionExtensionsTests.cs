@@ -64,7 +64,7 @@ public class ServiceCollectionExtensionsTests
     // ── AddDelegate ─────────────────────────────────────────────────
 
     [Fact]
-    public void AddPrognosis_AddDelegate_WrapsServiceWithHealthCheck()
+    public void AddPrognosis_AddDelegate_WrapsServiceWithHealthAdapter()
     {
         var services = new ServiceCollection();
         services.AddSingleton(new TestExternalClient { IsUp = true });
@@ -276,18 +276,18 @@ public class ServiceCollectionExtensionsTests
 
 public class TestDatabaseService : IHealthAware
 {
-    public HealthNode HealthNode { get; } = new HealthCheck("TestDatabase");
+    public HealthNode HealthNode { get; } = new HealthAdapter("TestDatabase");
 }
 
 public class TestCacheService : IHealthAware
 {
-    public HealthNode HealthNode { get; } = new HealthCheck("TestCache");
+    public HealthNode HealthNode { get; } = new HealthAdapter("TestCache");
 }
 
 [DependsOn<TestDatabaseService>(Importance.Required)]
 public class TestAuthService : IHealthAware
 {
-    public HealthNode HealthNode { get; } = new HealthCheck("TestAuth");
+    public HealthNode HealthNode { get; } = new HealthAdapter("TestAuth");
 }
 
 public class TestExternalClient

@@ -5,7 +5,7 @@ public class HealthGroupTests
     [Fact]
     public void Evaluate_AllHealthy_ReturnsHealthy()
     {
-        var dep = new HealthCheck("Dep");
+        var dep = new HealthAdapter("Dep");
         var composite = new HealthGroup("Comp")
             .DependsOn(dep, Importance.Required);
 
@@ -15,7 +15,7 @@ public class HealthGroupTests
     [Fact]
     public void Evaluate_UnhealthyRequired_ReturnsUnhealthy()
     {
-        var dep = new HealthCheck("Dep",
+        var dep = new HealthAdapter("Dep",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
         var composite = new HealthGroup("Comp")
             .DependsOn(dep, Importance.Required);
@@ -26,10 +26,10 @@ public class HealthGroupTests
     [Fact]
     public void Evaluate_MixedImportance_PropagatesCorrectly()
     {
-        var required = new HealthCheck("Req");
-        var important = new HealthCheck("Imp",
+        var required = new HealthAdapter("Req");
+        var important = new HealthAdapter("Imp",
             () => HealthStatus.Unhealthy);
-        var optional = new HealthCheck("Opt",
+        var optional = new HealthAdapter("Opt",
             () => HealthStatus.Unhealthy);
 
         var composite = new HealthGroup("Comp")
@@ -53,8 +53,8 @@ public class HealthGroupTests
     [Fact]
     public void Dependencies_ReflectsDependsOnCalls()
     {
-        var a = new HealthCheck("A");
-        var b = new HealthCheck("B");
+        var a = new HealthAdapter("A");
+        var b = new HealthAdapter("B");
         var composite = new HealthGroup("Comp")
             .DependsOn(a, Importance.Required)
             .DependsOn(b, Importance.Optional);
@@ -63,10 +63,10 @@ public class HealthGroupTests
     }
 
     [Fact]
-    public void NotifyChanged_EmitsOnStatusChange()
+    public void BubbleChange_EmitsOnStatusChange()
     {
         var isUnhealthy = true;
-        var dep = new HealthCheck("Dep",
+        var dep = new HealthAdapter("Dep",
             () => isUnhealthy
                 ? new HealthEvaluation(HealthStatus.Unhealthy, "down")
                 : HealthStatus.Healthy);
@@ -78,7 +78,7 @@ public class HealthGroupTests
         composite.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted.Add));
 
         isUnhealthy = false;
-        composite.NotifyChanged();
+        composite.BubbleChange();
 
         Assert.Single(emitted);
         Assert.Equal(HealthStatus.Healthy, emitted[0]);

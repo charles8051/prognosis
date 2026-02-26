@@ -2,13 +2,13 @@ namespace Prognosis;
 
 /// <summary>
 /// Base class for all nodes in the health graph. Concrete implementations are
-/// <see cref="HealthCheck"/> (wraps a health-check delegate) and
+/// <see cref="HealthAdapter"/> (wraps a health-check delegate) and
 /// <see cref="HealthGroup"/> (aggregates dependencies with no
 /// backing service of its own).
 /// <para>
 /// Consumers who own a service class should implement <see cref="IHealthAware"/>
 /// and expose a <see cref="HealthNode"/> property — typically a
-/// <see cref="HealthCheck"/> when the service has its own intrinsic
+/// <see cref="HealthAdapter"/> when the service has its own intrinsic
 /// check, or a <see cref="HealthGroup"/> when health is derived
 /// entirely from sub-dependencies. There is no need to subclass
 /// <see cref="HealthNode"/> directly.
@@ -116,14 +116,14 @@ public abstract class HealthNode
     /// <summary>
     /// Re-evaluates the current health, pushes a notification through
     /// <see cref="StatusChanged"/> if the status has changed, and
-    /// automatically propagates upward through <see cref="Parents"/>
+    /// automatically bubbles upward through <see cref="Parents"/>
     /// so that the entire ancestor chain is re-evaluated.
     /// <para>
     /// Diamond graphs and cycles are handled correctly — each node
     /// is visited at most once per propagation wave.
     /// </para>
     /// </summary>
-    public void NotifyChanged()
+    public void BubbleChange()
     {
         var isRoot = s_propagating is null;
         s_propagating ??= new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
@@ -136,7 +136,7 @@ public abstract class HealthNode
             NotifyChangedCore();
 
             foreach (var parent in _parents)
-                parent.NotifyChanged();
+                parent.BubbleChange();
         }
         finally
         {
@@ -149,7 +149,7 @@ public abstract class HealthNode
     /// Re-evaluates the current health and pushes a notification through
     /// <see cref="StatusChanged"/> if the status has changed.
     /// Does <b>not</b> propagate to parents — used internally by
-    /// <see cref="NotifySubtree"/> and <see cref="HealthGraph.NotifyAll"/>
+    /// <see cref="NotifyDescendants"/> and <see cref="HealthGraph.NotifyAll"/>
     /// which walk the graph themselves.
     /// </summary>
     internal void NotifyChangedCore()
@@ -182,7 +182,7 @@ public abstract class HealthNode
     /// Registers a dependency on another service. Thread-safe and may be
     /// called at any time, including after evaluation has started. The new
     /// edge is visible to the next <see cref="Evaluate"/> call.
-    /// Immediately calls <see cref="NotifyChanged"/> so the new dependency's
+    /// Immediately calls <see cref="BubbleChange"/> so the new dependency's
     /// current health is reflected in all ancestors without waiting for the
     /// next poll cycle.
     /// </summary>
@@ -201,14 +201,14 @@ public abstract class HealthNode
             var updated = new List<HealthNode>(node._parents) { this };
             node._parents = updated;
         }
-        NotifyChanged();
+        BubbleChange();
         return this;
     }
 
     /// <summary>
     /// Removes the first dependency that references <paramref name="node"/>.
     /// Returns <see langword="true"/> if a dependency was removed; otherwise
-    /// <see langword="false"/>. Immediately calls <see cref="NotifyChanged"/>
+    /// <see langword="false"/>. Immediately calls <see cref="BubbleChange"/>
     /// so the removal is reflected in all ancestors without waiting for the
     /// next poll cycle. Orphaned subgraphs naturally stop appearing in
     /// reports generated from the roots.
@@ -268,7 +268,7 @@ public abstract class HealthNode
                     node._parents = updated;
                 }
             }
-            NotifyChanged();
+            BubbleChange();
         }
         return removed;
     }
@@ -393,13 +393,13 @@ public abstract class HealthNode
     /// <see cref="StatusChanged"/> on any node whose effective health changed.
     /// <para>
     /// Use this for poll-based scenarios where the underlying service state
-    /// may have changed without an explicit <see cref="NotifyChanged"/> call.
-    /// Unlike <see cref="NotifyChanged"/>, which propagates <em>upward</em>
+    /// may have changed without an explicit <see cref="BubbleChange"/> call.
+    /// Unlike <see cref="BubbleChange"/>, which propagates <em>upward</em>
     /// from a single change, this method walks <em>downward</em> through all
     /// dependencies to refresh the entire subtree.
     /// </para>
     /// </summary>
-    public void NotifySubtree()
+    public void NotifyDescendants()
     {
         var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
         NotifyDfs(this, visited);

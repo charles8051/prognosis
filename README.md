@@ -69,7 +69,7 @@ class CacheService : IHealthAware
 
     public CacheService()
     {
-        Health = new HealthCheck("Cache",
+        Health = new HealthAdapter("Cache",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Redis timeout"));
@@ -92,12 +92,12 @@ class DatabaseService : IHealthAware
 
     public DatabaseService()
     {
-        var connection = new HealthCheck("Database.Connection",
+        var connection = new HealthAdapter("Database.Connection",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Connection lost"));
 
-        var latency = new HealthCheck("Database.Latency",
+        var latency = new HealthAdapter("Database.Latency",
             () => AverageLatencyMs switch
             {
                 > 500 => new HealthEvaluation(HealthStatus.Degraded,
@@ -105,7 +105,7 @@ class DatabaseService : IHealthAware
                 _ => HealthStatus.Healthy,
             });
 
-        var connectionPool = new HealthCheck("Database.ConnectionPool",
+        var connectionPool = new HealthAdapter("Database.ConnectionPool",
             () => PoolUtilization switch
             {
                 >= 1.0 => new HealthEvaluation(HealthStatus.Unhealthy,
@@ -133,10 +133,10 @@ AuthService: Degraded (2 dependencies) — Database: Database.Latency: ...
 
 ### 2. Wrap a service you can't modify
 
-Use `HealthCheck` with a health-check delegate:
+Use `HealthAdapter` with a health-check delegate:
 
 ```csharp
-var emailHealth = new HealthCheck("EmailProvider",
+var emailHealth = new HealthAdapter("EmailProvider",
     () => client.IsConnected
         ? HealthStatus.Healthy
         : new HealthEvaluation(HealthStatus.Unhealthy, "SMTP connection refused"));
@@ -147,7 +147,7 @@ var emailHealth = new HealthCheck("EmailProvider",
 Wire services together with `DependsOn`:
 
 ```csharp
-var authService = new HealthCheck("AuthService")
+var authService = new HealthAdapter("AuthService")
     .DependsOn(database.HealthNode, Importance.Required)
     .DependsOn(cache.HealthNode, Importance.Important);
 
@@ -262,7 +262,7 @@ Declare dependency edges on classes you own with attributes:
 [DependsOn<CacheService>(Importance.Important)]
 class AuthService : IHealthAware
 {
-    public HealthNode Health { get; } = new HealthCheck("AuthService");
+    public HealthNode Health { get; } = new HealthAdapter("AuthService");
 }
 ```
 
@@ -344,7 +344,7 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 
 | File | Purpose |
 |---|---|
-| `HealthNode.cs` | Abstract base class — `Name`, `Dependencies`, `Evaluate()`, `StatusChanged`, `NotifyChanged()`, `DependsOn()` |
+| `HealthNode.cs` | Abstract base class — `Name`, `Dependencies`, `Evaluate()`, `StatusChanged`, `BubbleChange()`, `DependsOn()` |
 | `IHealthAware.cs` | Marker interface — implement on your classes with a single `HealthNode Health` property |
 | `HealthStatus.cs` | `Healthy` → `Unknown` → `Degraded` → `Unhealthy` enum |
 | `HealthEvaluation.cs` | Status + optional reason pair, with implicit conversion from `HealthStatus` |
@@ -352,7 +352,7 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 | `HealthDependency.cs` | Record linking a `HealthNode` with its importance |
 | `AggregationStrategy.cs` | Delegate type for pluggable propagation rules |
 | `HealthTracker.cs` | Internal composable helper — dependency tracking, aggregation, and observability |
-| `HealthCheck.cs` | Wraps a `Func<HealthEvaluation>` — use for services with intrinsic health checks |
+| `HealthAdapter.cs` | Wraps a `Func<HealthEvaluation>` — use for services with intrinsic health checks |
 | `HealthGroup.cs` | Pure aggregation point — health derived entirely from dependencies |
 | `HealthAggregator.cs` | Static helpers — `Aggregate`, `AggregateWithRedundancy`, `EvaluateAll`, `CreateReport`, `DetectCycles`, `DiffTo`, `NotifyGraph` |
 | `HealthReport.cs` | Serialization-ready report DTO |

@@ -14,7 +14,7 @@ namespace Prognosis.Benchmarks;
 ///
 /// Each layer depends on 2-4 nodes from the layer below, mixing Required,
 /// Important, and Optional importance levels. Infrastructure nodes use
-/// HealthCheck with synthetic health delegates; higher layers use
+/// HealthAdapter with synthetic health delegates; higher layers use
 /// HealthGroup composites. Some infrastructure nodes have sub-checks
 /// (connection, latency, pool) to model fine-grained health like
 /// DatabaseService in the examples.
@@ -41,9 +41,9 @@ internal static class RealisticGraphBuilder
         var infraNodes = new List<HealthNode>();
         foreach (var name in infraNames)
         {
-            var conn = new HealthCheck($"{name}.Connection", RandomCheck(rng));
-            var latency = new HealthCheck($"{name}.Latency", RandomCheck(rng));
-            var pool = new HealthCheck($"{name}.Pool", RandomCheck(rng));
+            var conn = new HealthAdapter($"{name}.Connection", RandomCheck(rng));
+            var latency = new HealthAdapter($"{name}.Latency", RandomCheck(rng));
+            var pool = new HealthAdapter($"{name}.Pool", RandomCheck(rng));
             var group = new HealthGroup(name)
                 .DependsOn(conn, Importance.Required)
                 .DependsOn(latency, Importance.Important)
@@ -113,7 +113,7 @@ internal static class RealisticGraphBuilder
         {
             var name = $"{prefix}.{i:D3}";
             var depCount = rng.Next(2, Math.Min(5, dependencyPool.Count + 1));
-            var node = new HealthCheck(name, RandomCheck(rng));
+            var node = new HealthAdapter(name, RandomCheck(rng));
 
             // Pick distinct random dependencies from the pool.
             var picked = new HashSet<int>();

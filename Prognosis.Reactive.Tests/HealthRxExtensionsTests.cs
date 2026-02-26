@@ -12,7 +12,7 @@ public class HealthRxExtensionsTests
     [Fact]
     public async Task PollHealthReport_EmitsReportOnInterval()
     {
-        var node = new HealthCheck("Svc");
+        var node = new HealthAdapter("Svc");
 
         HealthReport? received = null;
         using var sub = node
@@ -28,7 +28,7 @@ public class HealthRxExtensionsTests
     [Fact]
     public async Task PollHealthReport_SameState_SuppressesDuplicate()
     {
-        var node = new HealthCheck("Svc");
+        var node = new HealthAdapter("Svc");
 
         var count = 0;
         using var sub = node
@@ -45,9 +45,9 @@ public class HealthRxExtensionsTests
     public async Task PollHealthReport_EmitsOnStateChange()
     {
         var isHealthy = true;
-        var leaf = new HealthCheck("Leaf",
+        var leaf = new HealthAdapter("Leaf",
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
-        var root = new HealthCheck("Root")
+        var root = new HealthAdapter("Root")
             .DependsOn(leaf, Importance.Required);
 
         var reports = new List<HealthReport>();
@@ -67,8 +67,8 @@ public class HealthRxExtensionsTests
     [Fact]
     public async Task PollHealthReport_IncludesFullSubtree()
     {
-        var leaf = new HealthCheck("Leaf");
-        var root = new HealthCheck("Root")
+        var leaf = new HealthAdapter("Leaf");
+        var root = new HealthAdapter("Root")
             .DependsOn(leaf, Importance.Required);
 
         HealthReport? received = null;
@@ -88,7 +88,7 @@ public class HealthRxExtensionsTests
     public void ObserveStatus_EmitsEvaluationOnChange()
     {
         var isHealthy = true;
-        var node = new HealthCheck("Svc",
+        var node = new HealthAdapter("Svc",
             () => isHealthy
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "down"));
@@ -99,13 +99,13 @@ public class HealthRxExtensionsTests
             .Subscribe(e => evals.Add(e));
 
         // First notify — emits initial status.
-        node.NotifyChanged();
+        node.BubbleChange();
         Assert.Single(evals);
         Assert.Equal(HealthStatus.Healthy, evals[0].Status);
 
         // Status changes — emits new evaluation with reason.
         isHealthy = false;
-        node.NotifyChanged();
+        node.BubbleChange();
         Assert.Equal(2, evals.Count);
         Assert.Equal(HealthStatus.Unhealthy, evals[1].Status);
         Assert.Equal("down", evals[1].Reason);
@@ -117,9 +117,9 @@ public class HealthRxExtensionsTests
     public void ObserveHealthReport_EmitsOnStatusChange()
     {
         var isHealthy = true;
-        var leaf = new HealthCheck("Leaf",
+        var leaf = new HealthAdapter("Leaf",
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
-        var root = new HealthCheck("Root")
+        var root = new HealthAdapter("Root")
             .DependsOn(leaf, Importance.Required);
 
         var reports = new List<HealthReport>();
@@ -129,9 +129,9 @@ public class HealthRxExtensionsTests
 
         // Trigger a status change on the leaf.
         // Propagation is synchronous — the report is emitted before
-        // NotifyChanged returns.
+        // BubbleChange returns.
         isHealthy = false;
-        leaf.NotifyChanged();
+        leaf.BubbleChange();
 
         Assert.Single(reports);
         Assert.Equal(HealthStatus.Unhealthy, reports[0].OverallStatus);
@@ -142,10 +142,10 @@ public class HealthRxExtensionsTests
     public void ObserveHealthReport_ReportIncludesFullSubtree()
     {
         var isHealthy = true;
-        var leaf = new HealthCheck("Leaf",
+        var leaf = new HealthAdapter("Leaf",
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
-        var mid = new HealthCheck("Mid").DependsOn(leaf, Importance.Required);
-        var root = new HealthCheck("Root").DependsOn(mid, Importance.Required);
+        var mid = new HealthAdapter("Mid").DependsOn(leaf, Importance.Required);
+        var root = new HealthAdapter("Root").DependsOn(mid, Importance.Required);
 
         var reports = new List<HealthReport>();
         using var sub = root
@@ -154,7 +154,7 @@ public class HealthRxExtensionsTests
 
         // Trigger an actual status change so StatusChanged fires.
         isHealthy = false;
-        leaf.NotifyChanged();
+        leaf.BubbleChange();
 
         Assert.Single(reports);
         var names = reports[0].Services.Select(s => s.Name).OrderBy(n => n).ToList();

@@ -10,14 +10,14 @@ var database = new DatabaseService();
 var cache = new CacheService();
 var externalEmailApi = new ThirdPartyEmailClient();
 
-var emailHealth = new HealthCheck("EmailProvider",
+var emailHealth = new HealthAdapter("EmailProvider",
     () => externalEmailApi.IsConnected
         ? HealthStatus.Healthy
         : new HealthEvaluation(HealthStatus.Unhealthy, "SMTP connection refused"));
 
-var messageQueue = new HealthCheck("MessageQueue");
+var messageQueue = new HealthAdapter("MessageQueue");
 
-var authService = new HealthCheck("AuthService")
+var authService = new HealthAdapter("AuthService")
     .DependsOn(database.HealthNode, Importance.Required)
     .DependsOn(cache.HealthNode, Importance.Important);
 
@@ -73,16 +73,16 @@ using var observeSubscription = app
         Console.WriteLine($"  [Observe] Overall={report.OverallStatus} " +
             $"({report.Services.Count} services @ {report.Timestamp:HH:mm:ss.fff})"));
 
-// Trigger a change — the leaf's NotifyChanged propagates to the root,
+// Trigger a change — the leaf's BubbleChange propagates to the root,
 // which fires StatusChanged, and a report is emitted immediately.
 Console.WriteLine("  Taking cache offline...");
 cache.IsConnected = false;
-cache.HealthNode.NotifyChanged(); // push the change
+cache.HealthNode.BubbleChange(); // push the change
 await Task.Delay(TimeSpan.FromSeconds(1));
 
 Console.WriteLine("  Restoring cache...");
 cache.IsConnected = true;
-cache.HealthNode.NotifyChanged();
+cache.HealthNode.BubbleChange();
 await Task.Delay(TimeSpan.FromSeconds(1));
 Console.WriteLine();
 
@@ -134,7 +134,7 @@ class DatabaseService : IHealthAware
 
     public DatabaseService()
     {
-        HealthNode = new HealthCheck("Database",
+        HealthNode = new HealthAdapter("Database",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Connection lost"));
@@ -149,7 +149,7 @@ class CacheService : IHealthAware
 
     public CacheService()
     {
-        HealthNode = new HealthCheck("Cache",
+        HealthNode = new HealthAdapter("Cache",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Redis timeout"));

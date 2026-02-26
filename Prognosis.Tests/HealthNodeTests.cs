@@ -7,7 +7,7 @@ public class HealthNodeTests
     [Fact]
     public void Evaluate_NoDependencies_ReturnsIntrinsicCheck()
     {
-        var node = new HealthCheck("Svc",
+        var node = new HealthAdapter("Svc",
             () => new HealthEvaluation(HealthStatus.Degraded, "slow"));
 
         var result = node.Evaluate();
@@ -19,9 +19,9 @@ public class HealthNodeTests
     [Fact]
     public void Evaluate_WithDependency_AggregatesCorrectly()
     {
-        var dep = new HealthCheck("Dep",
+        var dep = new HealthAdapter("Dep",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var node = new HealthCheck("Svc")
+        var node = new HealthAdapter("Svc")
             .DependsOn(dep, Importance.Required);
 
         var result = node.Evaluate();
@@ -34,8 +34,8 @@ public class HealthNodeTests
     [Fact]
     public void DependsOn_AddsDependency()
     {
-        var node = new HealthCheck("Svc");
-        var dep = new HealthCheck("Dep");
+        var node = new HealthAdapter("Svc");
+        var dep = new HealthAdapter("Dep");
 
         node.DependsOn(dep, Importance.Important);
 
@@ -47,8 +47,8 @@ public class HealthNodeTests
     [Fact]
     public void DependsOn_ReturnsSelf_ForChaining()
     {
-        var node = new HealthCheck("Svc");
-        var dep = new HealthCheck("Dep");
+        var node = new HealthAdapter("Svc");
+        var dep = new HealthAdapter("Dep");
 
         var returned = node.DependsOn(dep, Importance.Required);
 
@@ -58,9 +58,9 @@ public class HealthNodeTests
     [Fact]
     public void DependsOn_AfterEvaluate_IsAllowed()
     {
-        var dep = new HealthCheck("Dep",
+        var dep = new HealthAdapter("Dep",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var node = new HealthCheck("Svc");
+        var node = new HealthAdapter("Svc");
 
         // Evaluate first — this used to freeze the graph.
         var before = node.Evaluate();
@@ -75,9 +75,9 @@ public class HealthNodeTests
     [Fact]
     public void RemoveDependency_DetachesEdge()
     {
-        var dep = new HealthCheck("Dep",
+        var dep = new HealthAdapter("Dep",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var node = new HealthCheck("Svc")
+        var node = new HealthAdapter("Svc")
             .DependsOn(dep, Importance.Required);
 
         Assert.Equal(HealthStatus.Unhealthy, node.Evaluate().Status);
@@ -92,8 +92,8 @@ public class HealthNodeTests
     [Fact]
     public void RemoveDependency_UnknownService_ReturnsFalse()
     {
-        var node = new HealthCheck("Svc");
-        var unknown = new HealthCheck("Unknown");
+        var node = new HealthAdapter("Svc");
+        var unknown = new HealthAdapter("Unknown");
 
         Assert.False(node.RemoveDependency(unknown));
     }
@@ -103,8 +103,8 @@ public class HealthNodeTests
     [Fact]
     public void Evaluate_CircularDependency_ReturnsUnhealthy_DoesNotStackOverflow()
     {
-        var a = new HealthCheck("A");
-        var b = new HealthCheck("B").DependsOn(a, Importance.Required);
+        var a = new HealthAdapter("A");
+        var b = new HealthAdapter("B").DependsOn(a, Importance.Required);
         a.DependsOn(b, Importance.Required);
 
         var result = a.Evaluate();
@@ -113,30 +113,30 @@ public class HealthNodeTests
         Assert.Contains("Circular", result.Reason);
     }
 
-    // ── NotifyChanged / StatusChanged ────────────────────────────────
+    // ── BubbleChange / StatusChanged ────────────────────────────────
 
     [Fact]
-    public void NotifyChanged_EmitsOnStatusChange()
+    public void BubbleChange_EmitsOnStatusChange()
     {
         var isHealthy = true;
-        var node = new HealthCheck("Svc",
+        var node = new HealthAdapter("Svc",
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
 
         var emitted = new List<HealthStatus>();
         node.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted.Add));
 
         // First notify — emits initial status.
-        node.NotifyChanged();
+        node.BubbleChange();
         Assert.Single(emitted);
         Assert.Equal(HealthStatus.Healthy, emitted[0]);
 
         // Same status — no duplicate emission.
-        node.NotifyChanged();
+        node.BubbleChange();
         Assert.Single(emitted);
 
         // Status changes — emits new status.
         isHealthy = false;
-        node.NotifyChanged();
+        node.BubbleChange();
         Assert.Equal(2, emitted.Count);
         Assert.Equal(HealthStatus.Unhealthy, emitted[1]);
     }
@@ -144,42 +144,42 @@ public class HealthNodeTests
     [Fact]
     public void StatusChanged_Unsubscribe_StopsEmitting()
     {
-        var node = new HealthCheck("Svc");
+        var node = new HealthAdapter("Svc");
         var emitted = new List<HealthStatus>();
 
         var subscription = node.StatusChanged.Subscribe(
             new TestObserver<HealthStatus>(emitted.Add));
 
-        node.NotifyChanged();
+        node.BubbleChange();
         Assert.Single(emitted);
 
         subscription.Dispose();
 
-        // Force a change so NotifyChanged would emit if still subscribed.
+        // Force a change so BubbleChange would emit if still subscribed.
         // We need to reset _lastEmitted by changing status.
         // Since the intrinsic is always Healthy and _lastEmitted is Healthy,
         // changing won't trigger. Use a new node instead.
-        var node2 = new HealthCheck("Svc2", () => HealthStatus.Degraded);
+        var node2 = new HealthAdapter("Svc2", () => HealthStatus.Degraded);
         var emitted2 = new List<HealthStatus>();
         var sub2 = node2.StatusChanged.Subscribe(
             new TestObserver<HealthStatus>(emitted2.Add));
-        node2.NotifyChanged();
+        node2.BubbleChange();
         Assert.Single(emitted2);
 
         sub2.Dispose();
         // After dispose, further notify doesn't add.
-        // (Status doesn't change so NotifyChanged wouldn't emit anyway.)
+        // (Status doesn't change so BubbleChange wouldn't emit anyway.)
         // Verify the subscription list is cleaned up by subscribing again.
         var emitted3 = new List<HealthStatus>();
         node2.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted3.Add));
-        node2.NotifyChanged(); // _lastEmitted == Degraded, no change
+        node2.BubbleChange(); // _lastEmitted == Degraded, no change
         Assert.Empty(emitted3);
     }
 
     [Fact]
     public void StatusChanged_MultipleSubscribers_AllReceive()
     {
-        var node = new HealthCheck("Svc",
+        var node = new HealthAdapter("Svc",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
 
         var emitted1 = new List<HealthStatus>();
@@ -187,7 +187,7 @@ public class HealthNodeTests
         node.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted1.Add));
         node.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted2.Add));
 
-        node.NotifyChanged();
+        node.BubbleChange();
 
         Assert.Single(emitted1);
         Assert.Single(emitted2);

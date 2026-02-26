@@ -7,13 +7,13 @@ public class HealthNodePropagateTests
     [Fact]
     public void PropagateChange_NotifiesSelf()
     {
-        var node = new HealthCheck("Node",
+        var node = new HealthAdapter("Node",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
 
         var emitted = new List<HealthStatus>();
         node.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted.Add));
 
-        node.NotifyChanged();
+        node.BubbleChange();
 
         Assert.Single(emitted);
         Assert.Equal(HealthStatus.Unhealthy, emitted[0]);
@@ -23,9 +23,9 @@ public class HealthNodePropagateTests
     public void PropagateChange_NotifiesParent()
     {
         var isUnhealthy = false;
-        var leaf = new HealthCheck("Leaf",
+        var leaf = new HealthAdapter("Leaf",
             () => isUnhealthy ? HealthStatus.Unhealthy : HealthStatus.Healthy);
-        var parent = new HealthCheck("Parent");
+        var parent = new HealthAdapter("Parent");
         parent.DependsOn(leaf, Importance.Required);
         // DependsOn propagates immediately: parent._lastEmitted = Healthy (leaf was Healthy at wire time).
 
@@ -34,7 +34,7 @@ public class HealthNodePropagateTests
 
         // Leaf degrades after the edge was wired. PropagateChange bubbles it up.
         isUnhealthy = true;
-        leaf.NotifyChanged();
+        leaf.BubbleChange();
 
         Assert.Single(emitted);
         Assert.Equal(HealthStatus.Unhealthy, emitted[0]);
@@ -44,10 +44,10 @@ public class HealthNodePropagateTests
     public void PropagateChange_PropagatesThroughChain()
     {
         var isUnhealthy = false;
-        var leaf = new HealthCheck("Leaf",
+        var leaf = new HealthAdapter("Leaf",
             () => isUnhealthy ? HealthStatus.Unhealthy : HealthStatus.Healthy);
-        var middle = new HealthCheck("Middle");
-        var root = new HealthCheck("Root");
+        var middle = new HealthAdapter("Middle");
+        var root = new HealthAdapter("Root");
         middle.DependsOn(leaf, Importance.Required);
         root.DependsOn(middle, Importance.Required);
         // After wiring, root._lastEmitted = Healthy.
@@ -56,7 +56,7 @@ public class HealthNodePropagateTests
         root.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted.Add));
 
         isUnhealthy = true;
-        leaf.NotifyChanged();
+        leaf.BubbleChange();
 
         Assert.Single(emitted);
         Assert.Equal(HealthStatus.Unhealthy, emitted[0]);
@@ -67,11 +67,11 @@ public class HealthNodePropagateTests
     {
         // leaf → A and leaf → B, both → root (diamond shape)
         var isUnhealthy = false;
-        var leaf = new HealthCheck("Leaf",
+        var leaf = new HealthAdapter("Leaf",
             () => isUnhealthy ? HealthStatus.Unhealthy : HealthStatus.Healthy);
-        var a = new HealthCheck("A");
-        var b = new HealthCheck("B");
-        var root = new HealthCheck("Root");
+        var a = new HealthAdapter("A");
+        var b = new HealthAdapter("B");
+        var root = new HealthAdapter("Root");
 
         a.DependsOn(leaf, Importance.Required);
         b.DependsOn(leaf, Importance.Required);
@@ -83,7 +83,7 @@ public class HealthNodePropagateTests
         root.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted.Add));
 
         isUnhealthy = true;
-        leaf.NotifyChanged();
+        leaf.BubbleChange();
 
         // Root has two paths from the leaf but should emit exactly once.
         Assert.Single(emitted);
@@ -93,28 +93,28 @@ public class HealthNodePropagateTests
     [Fact]
     public void PropagateChange_Cycle_DoesNotStackOverflow()
     {
-        var a = new HealthCheck("A");
-        var b = new HealthCheck("B");
+        var a = new HealthAdapter("A");
+        var b = new HealthAdapter("B");
 
         // Deliberately create a cycle: A → B → A.
         a.DependsOn(b, Importance.Required);
         b.DependsOn(a, Importance.Required);
 
         // Should not throw or hang.
-        var exception = Record.Exception(() => a.NotifyChanged());
+        var exception = Record.Exception(() => a.BubbleChange());
         Assert.Null(exception);
     }
 
     [Fact]
     public void PropagateChange_NoParents_OnlyNotifiesSelf()
     {
-        var node = new HealthCheck("Lone",
+        var node = new HealthAdapter("Lone",
             () => new HealthEvaluation(HealthStatus.Degraded, "slow"));
 
         var emitted = new List<HealthStatus>();
         node.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted.Add));
 
-        node.NotifyChanged();
+        node.BubbleChange();
 
         Assert.Single(emitted);
         Assert.Equal(HealthStatus.Degraded, emitted[0]);
@@ -125,9 +125,9 @@ public class HealthNodePropagateTests
     [Fact]
     public void DependsOn_ImmediatelyPropagatesToParent()
     {
-        var child = new HealthCheck("Child",
+        var child = new HealthAdapter("Child",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var parent = new HealthCheck("Parent");
+        var parent = new HealthAdapter("Parent");
 
         var emitted = new List<HealthStatus>();
         parent.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted.Add));
@@ -143,10 +143,10 @@ public class HealthNodePropagateTests
     [Fact]
     public void DependsOn_PropagatesUpThroughGrandparent()
     {
-        var child = new HealthCheck("Child",
+        var child = new HealthAdapter("Child",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var parent = new HealthCheck("Parent");
-        var grandparent = new HealthCheck("Grandparent");
+        var parent = new HealthAdapter("Parent");
+        var grandparent = new HealthAdapter("Grandparent");
 
         // Wire grandparent → parent. DependsOn propagates immediately,
         // setting grandparent._lastEmitted = Healthy (parent had no deps yet).
@@ -165,9 +165,9 @@ public class HealthNodePropagateTests
     [Fact]
     public void RemoveDependency_ImmediatelyPropagatesToParent()
     {
-        var child = new HealthCheck("Child",
+        var child = new HealthAdapter("Child",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var parent = new HealthCheck("Parent");
+        var parent = new HealthAdapter("Parent");
 
         var emitted = new List<HealthStatus>();
         parent.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted.Add));
