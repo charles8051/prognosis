@@ -54,7 +54,7 @@ public static class ServiceCollectionExtensions
 
         foreach (var svc in sp.GetServices<IHealthAware>())
         {
-            var health = svc.Health;
+            var health = svc.HealthNode;
             byType[svc.GetType()] = health;
             byName[health.Name] = health;
         }

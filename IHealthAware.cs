@@ -9,11 +9,11 @@ namespace Prognosis;
 public interface IHealthAware
 {
     /// <summary>
-    /// The <see cref="HealthNode"/> node that represents this service in
+    /// The <see cref="HealthNode"/> that represents this service in
     /// the health graph. Typically a <see cref="HealthCheck"/>
     /// (when the service has its own intrinsic health check) or a
     /// <see cref="HealthGroup"/> (when health is derived entirely
     /// from sub-dependencies).
     /// </summary>
-    HealthNode Health { get; }
+    HealthNode HealthNode { get; }
 }

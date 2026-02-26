@@ -18,8 +18,8 @@ var emailHealth = new HealthCheck("EmailProvider",
 var messageQueue = new HealthCheck("MessageQueue");
 
 var authService = new HealthCheck("AuthService")
-    .DependsOn(database.Health, Importance.Required)
-    .DependsOn(cache.Health, Importance.Important);
+    .DependsOn(database.HealthNode, Importance.Required)
+    .DependsOn(cache.HealthNode, Importance.Important);
 
 var notificationSystem = new HealthGroup("NotificationSystem")
     .DependsOn(messageQueue, Importance.Required)
@@ -77,12 +77,12 @@ using var observeSubscription = app
 // which fires StatusChanged, and a report is emitted immediately.
 Console.WriteLine("  Taking cache offline...");
 cache.IsConnected = false;
-cache.Health.NotifyChanged(); // push the change
+cache.HealthNode.NotifyChanged(); // push the change
 await Task.Delay(TimeSpan.FromSeconds(1));
 
 Console.WriteLine("  Restoring cache...");
 cache.IsConnected = true;
-cache.Health.NotifyChanged();
+cache.HealthNode.NotifyChanged();
 await Task.Delay(TimeSpan.FromSeconds(1));
 Console.WriteLine();
 
@@ -130,11 +130,11 @@ Console.WriteLine("Done.");
 
 class DatabaseService : IHealthAware
 {
-    public HealthNode Health { get; }
+    public HealthNode HealthNode { get; }
 
     public DatabaseService()
     {
-        Health = new HealthCheck("Database",
+        HealthNode = new HealthCheck("Database",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Connection lost"));
@@ -145,11 +145,11 @@ class DatabaseService : IHealthAware
 
 class CacheService : IHealthAware
 {
-    public HealthNode Health { get; }
+    public HealthNode HealthNode { get; }
 
     public CacheService()
     {
-        Health = new HealthCheck("Cache",
+        HealthNode = new HealthCheck("Cache",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Redis timeout"));

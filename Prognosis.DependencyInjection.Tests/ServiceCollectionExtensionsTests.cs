@@ -276,18 +276,18 @@ public class ServiceCollectionExtensionsTests
 
 public class TestDatabaseService : IHealthAware
 {
-    public HealthNode Health { get; } = new HealthCheck("TestDatabase");
+    public HealthNode HealthNode { get; } = new HealthCheck("TestDatabase");
 }
 
 public class TestCacheService : IHealthAware
 {
-    public HealthNode Health { get; } = new HealthCheck("TestCache");
+    public HealthNode HealthNode { get; } = new HealthCheck("TestCache");
 }
 
 [DependsOn<TestDatabaseService>(Importance.Required)]
 public class TestAuthService : IHealthAware
 {
-    public HealthNode Health { get; } = new HealthCheck("TestAuth");
+    public HealthNode HealthNode { get; } = new HealthCheck("TestAuth");
 }
 
 public class TestExternalClient

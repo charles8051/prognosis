@@ -189,5 +189,5 @@ public class HealthGraphTests
 /// <summary>Minimal IHealthAware stub for generic TryGetService tests.</summary>
 file class StubHealthAware : IHealthAware
 {
-    public HealthNode Health { get; } = new HealthCheck(typeof(StubHealthAware).Name);
+    public HealthNode HealthNode { get; } = new HealthCheck(typeof(StubHealthAware).Name);
 }

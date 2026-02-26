@@ -30,8 +30,8 @@ var messageQueue = new HealthCheck("MessageQueue"); // always healthy for demo
 //             having to wrap every edge in a HealthDependency object.
 // ─────────────────────────────────────────────────────────────────────
 var authService = new HealthCheck("AuthService")
-    .DependsOn(database.Health, Importance.Required)
-    .DependsOn(cache.Health, Importance.Important);
+    .DependsOn(database.HealthNode, Importance.Required)
+    .DependsOn(cache.HealthNode, Importance.Important);
 
 var notificationSystem = new HealthGroup("NotificationSystem")
     .DependsOn(messageQueue, Importance.Required)
@@ -131,7 +131,7 @@ cache.IsConnected = true;
 externalEmailApi.IsConnected = true;
 
 // Subscribe to an individual service's status changes.
-using var dbSubscription = database.Health.StatusChanged.Subscribe(
+using var dbSubscription = database.HealthNode.StatusChanged.Subscribe(
     new StatusObserver("Database"));
 
 // Subscribe to graph-level report changes via HealthMonitor.
@@ -178,7 +178,7 @@ Console.WriteLine();
 /// </summary>
 class DatabaseService : IHealthAware
 {
-    public HealthNode Health { get; }
+    public HealthNode HealthNode { get; }
 
     public bool IsConnected { get; set; } = true;
     public double AverageLatencyMs { get; set; } = 50;
@@ -208,7 +208,7 @@ class DatabaseService : IHealthAware
                 _ => HealthStatus.Healthy,
             });
 
-        Health = new HealthGroup("Database")
+        HealthNode = new HealthGroup("Database")
             .DependsOn(connection, Importance.Required)
             .DependsOn(latency, Importance.Important)
             .DependsOn(connectionPool, Importance.Required);
@@ -218,11 +218,11 @@ class DatabaseService : IHealthAware
 /// <summary>Another service you own, same pattern.</summary>
 class CacheService : IHealthAware
 {
-    public HealthNode Health { get; }
+    public HealthNode HealthNode { get; }
 
     public CacheService()
     {
-        Health = new HealthCheck("Cache",
+        HealthNode = new HealthCheck("Cache",
             () => IsConnected
                 ? HealthStatus.Healthy
                 : new HealthEvaluation(HealthStatus.Unhealthy, "Redis timeout"));
