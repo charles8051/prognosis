@@ -266,8 +266,7 @@ class ThirdPartyEmailClient
 class ReportObserver : IObserver<HealthReport>
 {
     public void OnNext(HealthReport value) =>
-        Console.WriteLine($"    >> Report changed: Overall={value.OverallStatus} " +
-            $"({value.Nodes.Count} nodes)");
+        Console.WriteLine($"    >> Report changed: {value.Nodes.Count} nodes");
     public void OnError(Exception error) { }
     public void OnCompleted() { }
 }

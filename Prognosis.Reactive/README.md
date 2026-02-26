@@ -23,12 +23,12 @@ using Prognosis.Reactive;
 var graph = HealthGraph.Create(app);
 graph.PollHealthReport(TimeSpan.FromSeconds(30))
     .Subscribe(report =>
-        Console.WriteLine($"Overall: {report.OverallStatus}"));
+        Console.WriteLine($"{report.Nodes.Count} nodes"));
 
 // Single subtree — calls NotifyDescendants() + CreateReport() on the node.
 app.PollHealthReport(TimeSpan.FromSeconds(30))
     .Subscribe(report =>
-        Console.WriteLine($"Overall: {report.OverallStatus}"));
+        Console.WriteLine($"{report.Nodes.Count} nodes"));
 ```
 
 ### `ObserveHealthReport` — push-triggered evaluation
@@ -39,12 +39,12 @@ Reacts to `StatusChanged` events and produces a fresh report immediately — no 
 // Whole graph — subscribes to StatusChanged on the root node.
 graph.ObserveHealthReport()
     .Subscribe(report =>
-        Console.WriteLine($"Overall: {report.OverallStatus}"));
+        Console.WriteLine($"{report.Nodes.Count} nodes"));
 
 // Single subtree — subscribes to the node's own StatusChanged stream.
 app.ObserveHealthReport()
     .Subscribe(report =>
-        Console.WriteLine($"Overall: {report.OverallStatus}"));
+        Console.WriteLine($"{report.Nodes.Count} nodes"));
 ```
 
 ### `ObserveStatus` — per-node evaluation stream

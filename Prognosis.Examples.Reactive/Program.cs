@@ -42,8 +42,7 @@ Console.WriteLine();
 using var graphPollSub = graph
     .PollHealthReport(TimeSpan.FromSeconds(1))
     .Subscribe(report =>
-        Console.WriteLine($"  [Graph Poll] Overall={report.OverallStatus} " +
-            $"({report.Nodes.Count} nodes)"));
+        Console.WriteLine($"  [Graph Poll] {report.Nodes.Count} nodes"));
 
 await Task.Delay(TimeSpan.FromSeconds(1.5));
 
@@ -68,8 +67,7 @@ Console.WriteLine();
 using var graphObserveSub = graph
     .ObserveHealthReport()
     .Subscribe(report =>
-        Console.WriteLine($"  [Graph Observe] Overall={report.OverallStatus} " +
-            $"({report.Nodes.Count} nodes)"));
+        Console.WriteLine($"  [Graph Observe] {report.Nodes.Count} nodes"));
 
 Console.WriteLine("  Taking cache offline...");
 cache.IsConnected = false;
@@ -121,8 +119,7 @@ Console.WriteLine();
 using var pollSubscription = app
     .PollHealthReport(TimeSpan.FromSeconds(1))
     .Subscribe(report =>
-        Console.WriteLine($"  [Poll] Overall={report.OverallStatus} " +
-            $"({report.Nodes.Count} nodes)"));
+        Console.WriteLine($"  [Poll] {report.Nodes.Count} nodes"));
 
 // Wait for the first tick to establish baseline.
 await Task.Delay(TimeSpan.FromSeconds(1.5));
@@ -149,8 +146,7 @@ Console.WriteLine();
 using var observeSubscription = app
     .ObserveHealthReport()
     .Subscribe(report =>
-        Console.WriteLine($"  [Observe] Overall={report.OverallStatus} " +
-            $"({report.Nodes.Count} nodes)"));
+        Console.WriteLine($"  [Observe] {report.Nodes.Count} nodes"));
 
 // Trigger a change — the leaf's BubbleChange propagates to the root,
 // which fires StatusChanged, and a report is emitted immediately.
