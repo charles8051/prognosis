@@ -137,12 +137,76 @@ public sealed class HealthTracker
             // Capture the volatile snapshot once — iteration is safe because
             // writers always replace the entire list (copy-on-write).
             var deps = _dependencies;
-            return HealthAggregator.Aggregate(_intrinsicCheck(), deps);
+            return Aggregate(_intrinsicCheck(), deps);
         }
         finally
         {
             s_evaluating.Remove(this);
         }
+    }
+
+    /// <summary>
+    /// Computes the worst-case health across the intrinsic evaluation and every
+    /// dependency, with the propagation rules driven by <see cref="Importance"/>.
+    /// </summary>
+    internal static HealthEvaluation Aggregate(
+        HealthEvaluation intrinsic,
+        IReadOnlyList<HealthDependency> dependencies)
+    {
+        // First pass: evaluate all dependencies and check whether any
+        // Resilient sibling is healthy (needed for the Resilient rule).
+        var depCount = dependencies.Count;
+        var evals = new (HealthDependency dep, HealthEvaluation eval)[depCount];
+        var hasHealthyResilient = false;
+
+        for (var i = 0; i < depCount; i++)
+        {
+            var dep = dependencies[i];
+            var eval = dep.Node.Evaluate();
+            evals[i] = (dep, eval);
+
+            if (dep.Importance == Importance.Resilient && eval.Status == HealthStatus.Healthy)
+                hasHealthyResilient = true;
+        }
+
+        // Second pass: compute effective status.
+        var effective = intrinsic.Status;
+        string? reason = intrinsic.Reason;
+
+        for (var i = 0; i < depCount; i++)
+        {
+            var (dep, depEval) = evals[i];
+
+            var contribution = dep.Importance switch
+            {
+                Importance.Required => depEval.Status,
+
+                Importance.Important => depEval.Status switch
+                {
+                    HealthStatus.Unhealthy => HealthStatus.Degraded,
+                    _ => depEval.Status,
+                },
+
+                Importance.Optional => HealthStatus.Healthy,
+
+                Importance.Resilient when depEval.Status == HealthStatus.Unhealthy && hasHealthyResilient
+                    => HealthStatus.Degraded,
+                Importance.Resilient
+                    => depEval.Status,
+
+                _ => HealthStatus.Healthy,
+            };
+
+            if (contribution > effective)
+            {
+                effective = contribution;
+                reason = depEval.Reason is not null
+                    ? $"{dep.Node.Name}: {depEval.Reason}"
+                    : $"{dep.Node.Name} is {depEval.Status}";
+            }
+        }
+
+        return new HealthEvaluation(effective, reason);
     }
 
     private void AddObserver(IObserver<HealthStatus> observer)

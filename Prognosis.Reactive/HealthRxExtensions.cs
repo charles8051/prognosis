@@ -24,9 +24,8 @@ public static class HealthRxExtensions
         return Observable.Interval(interval)
             .Select(_ =>
             {
-                var roots = graph.Roots;
-                HealthAggregator.NotifyGraph(roots);
-                return HealthAggregator.CreateReport(roots);
+                graph.NotifyAll();
+                return graph.CreateReport();
             })
             .DistinctUntilChanged(HealthReportComparer.Instance);
     }
@@ -41,14 +40,8 @@ public static class HealthRxExtensions
         this IReadOnlyList<HealthNode> roots,
         TimeSpan interval)
     {
-        var rootsArray = roots as HealthNode[] ?? roots.ToArray();
-        return Observable.Interval(interval)
-            .Select(_ =>
-            {
-                HealthAggregator.NotifyGraph(rootsArray);
-                return HealthAggregator.CreateReport(rootsArray);
-            })
-            .DistinctUntilChanged(HealthReportComparer.Instance);
+        var graph = HealthGraph.Create(roots as HealthNode[] ?? roots.ToArray());
+        return graph.PollHealthReport(interval);
     }
 
     /// <summary>
@@ -68,9 +61,8 @@ public static class HealthRxExtensions
             .Throttle(throttle)
             .Select(_ =>
             {
-                var roots = graph.Roots;
-                HealthAggregator.NotifyGraph(roots);
-                return HealthAggregator.CreateReport(roots);
+                graph.NotifyAll();
+                return graph.CreateReport();
             })
             .DistinctUntilChanged(HealthReportComparer.Instance);
     }
@@ -78,26 +70,24 @@ public static class HealthRxExtensions
     /// <summary>
     /// Produces a new <see cref="HealthReport"/> whenever any leaf node in
     /// the graph signals a change, throttled to avoid evaluation storms.
-    /// Combines push-based triggers with the single-pass evaluation of
-    /// <see cref="HealthAggregator.CreateReport"/>.
     /// Only leaf nodes (those with no dependencies) are observed as triggers,
     /// since parent status changes are always a consequence of
-    /// <see cref="HealthAggregator.NotifyGraph"/>, not exogenous events.
+    /// <see cref="HealthGraph.NotifyAll"/>, not exogenous events.
     /// </summary>
     public static IObservable<HealthReport> ObserveHealthReport(
         this IReadOnlyList<HealthNode> roots,
         TimeSpan throttle)
     {
-        var rootsArray = roots as HealthNode[] ?? roots.ToArray();
-        return WalkNodes(rootsArray)
+        var graph = HealthGraph.Create(roots as HealthNode[] ?? roots.ToArray());
+        return WalkNodes(graph.Roots.ToArray())
             .Where(n => n.Dependencies.Count == 0)
             .Select(n => n.StatusChanged)
             .Merge()
             .Throttle(throttle)
             .Select(_ =>
             {
-                HealthAggregator.NotifyGraph(rootsArray);
-                return HealthAggregator.CreateReport(rootsArray);
+                graph.NotifyAll();
+                return graph.CreateReport();
             })
             .DistinctUntilChanged(HealthReportComparer.Instance);
     }
@@ -117,7 +107,7 @@ public static class HealthRxExtensions
                 (Previous: (HealthReport?)null, Current: (HealthReport?)null),
                 (state, report) => (state.Current, report))
             .Where(state => state.Previous is not null)
-            .SelectMany(state => HealthAggregator.Diff(state.Previous!, state.Current!));
+            .SelectMany(state => state.Previous!.Diff(state.Current!));
     }
 
     private static IObservable<HealthNode> WalkNodes(HealthNode[] roots)

@@ -114,8 +114,77 @@ public sealed class HealthGraph
     /// </summary>
     public IEnumerable<HealthNode> Nodes => DiscoverAll();
 
-    /// <summary>Convenience: creates a point-in-time report from all roots.</summary>
-    public HealthReport CreateReport() => HealthAggregator.CreateReport(Roots);
+    /// <summary>
+    /// Evaluates the full graph and packages the result as a serialization-ready
+    /// <see cref="HealthReport"/> with a timestamp and overall status.
+    /// </summary>
+    public HealthReport CreateReport()
+    {
+        var services = EvaluateAll();
+        var overall = services.Count > 0
+            ? services.Max(s => s.Status)
+            : HealthStatus.Healthy;
+
+        return new HealthReport(DateTimeOffset.UtcNow, overall, services);
+    }
+
+    /// <summary>
+    /// Walks the full dependency graph from all roots and returns every
+    /// node's evaluated status. Results are in depth-first post-order
+    /// (leaves before their parents) and each node appears at most once.
+    /// </summary>
+    public IReadOnlyList<HealthSnapshot> EvaluateAll()
+    {
+        var roots = Roots;
+        var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+        var results = new List<HealthSnapshot>();
+
+        foreach (var root in roots)
+        {
+            WalkEvaluate(root, visited, results);
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Performs a DFS from all discovered nodes and returns every cycle found
+    /// as an ordered list of node names (e.g. ["A", "B", "A"]).
+    /// Returns an empty list when the graph is acyclic.
+    /// </summary>
+    /// <remarks>
+    /// Walks from all nodes — not just roots — because when every node in a
+    /// cycle has a parent, none of them appear as roots.
+    /// </remarks>
+    public IReadOnlyList<IReadOnlyList<string>> DetectCycles()
+    {
+        var gray = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+        var black = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+        var path = new List<HealthNode>();
+        var cycles = new List<IReadOnlyList<string>>();
+
+        foreach (var node in Nodes)
+        {
+            DetectCyclesDfs(node, gray, black, path, cycles);
+        }
+
+        return cycles;
+    }
+
+    /// <summary>
+    /// Walks the dependency graph depth-first from all roots and calls
+    /// <see cref="HealthNode.NotifyChanged"/> on every node encountered.
+    /// Leaves are notified before their parents.
+    /// </summary>
+    public void NotifyAll()
+    {
+        var roots = Roots;
+        var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+        foreach (var root in roots)
+        {
+            NotifyDfs(root, visited);
+        }
+    }
 
     /// <summary>
     /// Walks parent and dependency edges from every seed to discover all
@@ -141,5 +210,70 @@ public sealed class HealthGraph
 
         foreach (var dep in node.Dependencies)
             Explore(dep.Node, visited);
+    }
+
+    private static void WalkEvaluate(
+        HealthNode node,
+        HashSet<HealthNode> visited,
+        List<HealthSnapshot> results)
+    {
+        if (!visited.Add(node))
+            return;
+
+        foreach (var dep in node.Dependencies)
+        {
+            WalkEvaluate(dep.Node, visited, results);
+        }
+
+        var eval = node.Evaluate();
+        results.Add(new HealthSnapshot(node.Name, eval.Status, node.Dependencies.Count, eval.Reason));
+    }
+
+    private static void DetectCyclesDfs(
+        HealthNode node,
+        HashSet<HealthNode> gray,
+        HashSet<HealthNode> black,
+        List<HealthNode> path,
+        List<IReadOnlyList<string>> cycles)
+    {
+        if (black.Contains(node))
+            return;
+
+        if (!gray.Add(node))
+        {
+            var cycleStart = path.IndexOf(node);
+            var cycle = new List<string>(path.Count - cycleStart + 1);
+            for (var i = cycleStart; i < path.Count; i++)
+            {
+                cycle.Add(path[i].Name);
+            }
+            cycle.Add(node.Name);
+            cycles.Add(cycle);
+            return;
+        }
+
+        path.Add(node);
+
+        foreach (var dep in node.Dependencies)
+        {
+            DetectCyclesDfs(dep.Node, gray, black, path, cycles);
+        }
+
+        path.RemoveAt(path.Count - 1);
+        gray.Remove(node);
+        black.Add(node);
+    }
+
+    private static void NotifyDfs(HealthNode node, HashSet<HealthNode> visited)
+    {
+        if (!visited.Add(node))
+            return;
+
+        foreach (var dep in node.Dependencies)
+        {
+            NotifyDfs(dep.Node, visited);
+        }
+
+        node.NotifyChangedCore();
     }
 }

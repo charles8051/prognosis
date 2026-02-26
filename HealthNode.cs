@@ -16,6 +16,9 @@ namespace Prognosis;
 /// </summary>
 public abstract class HealthNode
 {
+    [ThreadStatic]
+    private static HashSet<HealthNode>? s_propagating;
+
     private volatile IReadOnlyList<HealthNode> _parents = Array.Empty<HealthNode>();
     private readonly object _parentWriteLock = new();
 
@@ -54,47 +57,50 @@ public abstract class HealthNode
     public abstract IObservable<HealthStatus> StatusChanged { get; }
 
     /// <summary>
-    /// Re-evaluates the current health and pushes a notification through
-    /// <see cref="StatusChanged"/> if the status has changed.
-    /// Call this when the service knows something has changed, or let a
-    /// <see cref="HealthMonitor"/> call it on a polling interval.
-    /// </summary>
-    public abstract void NotifyChanged();
-
-    /// <summary>
-    /// Calls <see cref="NotifyChanged"/> on this node and propagates upward
-    /// through <see cref="Parents"/>, re-evaluating each ancestor exactly once.
-    /// Use this as the bottom-up alternative to the top-down
-    /// <see cref="HealthAggregator.NotifyGraph"/> pass: a leaf calls
-    /// <see cref="PropagateChange"/> and the status ripples up to every root
-    /// without external orchestration.
+    /// Re-evaluates the current health, pushes a notification through
+    /// <see cref="StatusChanged"/> if the status has changed, and
+    /// automatically propagates upward through <see cref="Parents"/>
+    /// so that the entire ancestor chain is re-evaluated.
     /// <para>
-    /// Diamond graphs (a shared ancestor reachable via multiple paths) are
-    /// handled correctly — each node is visited at most once per call.
+    /// Diamond graphs and cycles are handled correctly — each node
+    /// is visited at most once per propagation wave.
     /// </para>
     /// </summary>
-    public void PropagateChange()
+    public void NotifyChanged()
     {
-        var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
-        PropagateChangeCore(visited);
+        var isRoot = s_propagating is null;
+        s_propagating ??= new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+
+        try
+        {
+            if (!s_propagating.Add(this))
+                return;
+
+            NotifyChangedCore();
+
+            foreach (var parent in _parents)
+                parent.NotifyChanged();
+        }
+        finally
+        {
+            if (isRoot)
+                s_propagating = null;
+        }
     }
 
-    private void PropagateChangeCore(HashSet<HealthNode> visited)
-    {
-        if (!visited.Add(this))
-            return;
-
-        NotifyChanged();
-
-        foreach (var parent in _parents)
-            parent.PropagateChangeCore(visited);
-    }
+    /// <summary>
+    /// Re-evaluates the current health and pushes a notification through
+    /// <see cref="StatusChanged"/> if the status has changed.
+    /// Does <b>not</b> propagate to parents — used internally by
+    /// <see cref="HealthGraph.NotifyAll"/> which walks the full graph itself.
+    /// </summary>
+    internal abstract void NotifyChangedCore();
 
     /// <summary>
     /// Registers a dependency on another service. Thread-safe and may be
     /// called at any time, including after evaluation has started. The new
     /// edge is visible to the next <see cref="Evaluate"/> call.
-    /// Immediately calls <see cref="PropagateChange"/> so the new dependency's
+    /// Immediately calls <see cref="NotifyChanged"/> so the new dependency's
     /// current health is reflected in all ancestors without waiting for the
     /// next poll cycle.
     /// </summary>
@@ -106,14 +112,14 @@ public abstract class HealthNode
             var updated = new List<HealthNode>(node._parents) { this };
             node._parents = updated;
         }
-        PropagateChange();
+        NotifyChanged();
         return this;
     }
 
     /// <summary>
     /// Removes the first dependency that references <paramref name="node"/>.
     /// Returns <see langword="true"/> if a dependency was removed; otherwise
-    /// <see langword="false"/>. Immediately calls <see cref="PropagateChange"/>
+    /// <see langword="false"/>. Immediately calls <see cref="NotifyChanged"/>
     /// so the removal is reflected in all ancestors without waiting for the
     /// next poll cycle. Orphaned subgraphs naturally stop appearing in
     /// reports generated from the roots.
@@ -146,7 +152,7 @@ public abstract class HealthNode
                     node._parents = updated;
                 }
             }
-            PropagateChange();
+            NotifyChanged();
             return true;
         }
         return false;

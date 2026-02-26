@@ -100,10 +100,10 @@ Console.WriteLine("=== Report diffing ===");
 var before = graph.CreateReport();
 emailClient.IsConnected = true;
 database.IsConnected = false;
-HealthAggregator.NotifyGraph(graph.Roots);
+graph.NotifyAll();
 var after = graph.CreateReport();
 
-var changes = HealthAggregator.Diff(before, after);
+var changes = before.Diff(after);
 foreach (var change in changes)
 {
     Console.WriteLine($"  {change.Name}: {change.Previous} → {change.Current} ({change.Reason})");

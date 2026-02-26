@@ -43,12 +43,12 @@ public class HealthGraphBenchmarks
     public HealthNode[] Roots() => _graph.Roots;
 
     /// <summary>
-    /// Measures <see cref="HealthAggregator.EvaluateAll"/> — depth-first
+    /// Measures <see cref="HealthGraph.EvaluateAll"/> — depth-first
     /// walk producing a <see cref="HealthSnapshot"/> for every node.
     /// </summary>
     [Benchmark]
     public IReadOnlyList<HealthSnapshot> EvaluateAll()
-        => HealthAggregator.EvaluateAll(_graph.Roots);
+        => _graph.EvaluateAll();
 
     /// <summary>
     /// Measures <see cref="HealthGraph.CreateReport"/> — EvaluateAll +
@@ -65,17 +65,17 @@ public class HealthGraphBenchmarks
     public HealthEvaluation EvaluateRoot() => _root.Evaluate();
 
     /// <summary>
-    /// Measures <see cref="HealthAggregator.NotifyGraph"/> — depth-first
+    /// Measures <see cref="HealthGraph.NotifyAll"/> — depth-first
     /// walk calling NotifyChanged on every node.
     /// </summary>
     [Benchmark]
-    public void NotifyGraph() => HealthAggregator.NotifyGraph(_graph.Roots);
+    public void NotifyGraph() => _graph.NotifyAll();
 
     /// <summary>
-    /// Measures <see cref="HealthAggregator.DetectCycles"/> — full DFS
+    /// Measures <see cref="HealthGraph.DetectCycles"/> — full DFS
     /// cycle detection over the graph.
     /// </summary>
     [Benchmark]
     public IReadOnlyList<IReadOnlyList<string>> DetectCycles()
-        => HealthAggregator.DetectCycles(_graph.Roots);
+        => _graph.DetectCycles();
 }

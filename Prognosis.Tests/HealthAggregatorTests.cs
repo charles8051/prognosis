@@ -2,7 +2,7 @@ using Prognosis;
 
 namespace Prognosis.Tests;
 
-public class HealthAggregatorTests
+public class AggregationTests
 {
     // ── Aggregate ────────────────────────────────────────────────────
 
@@ -79,8 +79,9 @@ public class HealthAggregatorTests
         var leaf = new HealthCheck("Leaf");
         var parent = new HealthCheck("Parent")
             .DependsOn(leaf, Importance.Required);
+        var graph = HealthGraph.Create(parent);
 
-        var snapshots = HealthAggregator.EvaluateAll(parent);
+        var snapshots = graph.EvaluateAll();
 
         Assert.Equal(2, snapshots.Count);
         Assert.Equal("Leaf", snapshots[0].Name);
@@ -96,8 +97,9 @@ public class HealthAggregatorTests
         var root = new HealthCheck("Root")
             .DependsOn(a, Importance.Required)
             .DependsOn(b, Importance.Required);
+        var graph = HealthGraph.Create(root);
 
-        var snapshots = HealthAggregator.EvaluateAll(root);
+        var snapshots = graph.EvaluateAll();
         var names = snapshots.Select(s => s.Name).ToList();
 
         Assert.Single(names, n => n == "Shared");
@@ -111,17 +113,20 @@ public class HealthAggregatorTests
         var healthy = new HealthCheck("A");
         var unhealthy = new HealthCheck("B",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
+        var graph = HealthGraph.Create(healthy, unhealthy);
 
-        var report = HealthAggregator.CreateReport(healthy, unhealthy);
+        var report = graph.CreateReport();
 
         Assert.Equal(HealthStatus.Unhealthy, report.OverallStatus);
         Assert.Equal(2, report.Services.Count);
     }
 
     [Fact]
-    public void CreateReport_EmptyRoots_ReturnsHealthy()
+    public void CreateReport_EmptyGraph_ReturnsHealthy()
     {
-        var report = HealthAggregator.CreateReport();
+        var graph = HealthGraph.Create();
+
+        var report = graph.CreateReport();
 
         Assert.Equal(HealthStatus.Healthy, report.OverallStatus);
         Assert.Empty(report.Services);
@@ -141,7 +146,7 @@ public class HealthAggregatorTests
             new HealthSnapshot("Svc", HealthStatus.Unhealthy, 0, "down"),
         });
 
-        var changes = HealthAggregator.Diff(before, after);
+        var changes = before.Diff(after);
 
         Assert.Single(changes);
         Assert.Equal("Svc", changes[0].Name);
@@ -155,7 +160,7 @@ public class HealthAggregatorTests
         var snapshot = new HealthSnapshot("Svc", HealthStatus.Healthy, 0);
         var report = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy, new[] { snapshot });
 
-        var changes = HealthAggregator.Diff(report, report);
+        var changes = report.Diff(report);
 
         Assert.Empty(changes);
     }
@@ -170,7 +175,7 @@ public class HealthAggregatorTests
             new HealthSnapshot("New", HealthStatus.Healthy, 0),
         });
 
-        var changes = HealthAggregator.Diff(before, after);
+        var changes = before.Diff(after);
 
         Assert.Single(changes);
         Assert.Equal(HealthStatus.Unknown, changes[0].Previous);
@@ -187,7 +192,7 @@ public class HealthAggregatorTests
         var after = new HealthReport(DateTimeOffset.UtcNow, HealthStatus.Healthy,
             Array.Empty<HealthSnapshot>());
 
-        var changes = HealthAggregator.Diff(before, after);
+        var changes = before.Diff(after);
 
         Assert.Single(changes);
         Assert.Equal("Old", changes[0].Name);
@@ -203,8 +208,9 @@ public class HealthAggregatorTests
         var leaf = new HealthCheck("Leaf");
         var root = new HealthCheck("Root")
             .DependsOn(leaf, Importance.Required);
+        var graph = HealthGraph.Create(root);
 
-        var cycles = HealthAggregator.DetectCycles(root);
+        var cycles = graph.DetectCycles();
 
         Assert.Empty(cycles);
     }
@@ -215,28 +221,30 @@ public class HealthAggregatorTests
         var a = new HealthCheck("A");
         var b = new HealthCheck("B").DependsOn(a, Importance.Required);
         a.DependsOn(b, Importance.Required);
+        var graph = HealthGraph.Create(a);
 
-        var cycles = HealthAggregator.DetectCycles(a);
+        var cycles = graph.DetectCycles();
 
         Assert.Single(cycles);
         Assert.Contains("A", cycles[0]);
         Assert.Contains("B", cycles[0]);
     }
 
-    // ── NotifyGraph ──────────────────────────────────────────────────
+    // ── NotifyAll ────────────────────────────────────────────────────
 
     [Fact]
-    public void NotifyGraph_CallsNotifyChangedOnAllObservableNodes()
+    public void NotifyAll_CallsNotifyChangedOnAllObservableNodes()
     {
         var leaf = new HealthCheck("Leaf",
             () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
         var root = new HealthCheck("Root")
             .DependsOn(leaf, Importance.Required);
+        var graph = HealthGraph.Create(root);
 
         var statuses = new List<HealthStatus>();
         leaf.StatusChanged.Subscribe(new TestObserver<HealthStatus>(statuses.Add));
 
-        HealthAggregator.NotifyGraph(root);
+        graph.NotifyAll();
 
         Assert.Single(statuses);
         Assert.Equal(HealthStatus.Unhealthy, statuses[0]);

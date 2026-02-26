@@ -37,7 +37,7 @@ public sealed class HealthGroup : HealthNode
         return this;
     }
 
-    public override void NotifyChanged() => _tracker.NotifyChanged();
+    internal override void NotifyChangedCore() => _tracker.NotifyChanged();
 
     public override HealthEvaluation Evaluate() => _tracker.Evaluate();
 

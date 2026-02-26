@@ -7,7 +7,7 @@ namespace Prognosis;
 /// </summary>
 public sealed class HealthMonitor : IAsyncDisposable, IDisposable
 {
-    private readonly Func<HealthNode[]> _getRoots;
+    private readonly HealthGraph _graph;
     private readonly TimeSpan _interval;
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _pollingTask;
@@ -27,20 +27,14 @@ public sealed class HealthMonitor : IAsyncDisposable, IDisposable
     /// </summary>
     public HealthMonitor(HealthGraph graph, TimeSpan interval)
     {
-        _getRoots = () => graph.Roots;
+        _graph = graph;
         _interval = interval;
         ReportChanged = new ReportObservable(this);
         _pollingTask = PollLoopAsync(_cts.Token);
     }
 
     public HealthMonitor(IEnumerable<HealthNode> roots, TimeSpan interval)
-    {
-        var frozenRoots = roots.ToArray();
-        _getRoots = () => frozenRoots;
-        _interval = interval;
-        ReportChanged = new ReportObservable(this);
-        _pollingTask = PollLoopAsync(_cts.Token);
-    }
+        : this(HealthGraph.Create(roots.ToArray()), interval) { }
 
     /// <summary>
     /// Manually triggers a single poll cycle. Useful for testing or getting
@@ -48,13 +42,9 @@ public sealed class HealthMonitor : IAsyncDisposable, IDisposable
     /// </summary>
     public void Poll()
     {
-        var roots = _getRoots();
+        _graph.NotifyAll();
 
-        // Walk the graph depth-first and notify all observable services.
-        HealthAggregator.NotifyGraph(roots);
-
-        // Build a report and emit if changed.
-        var report = HealthAggregator.CreateReport(roots);
+        var report = _graph.CreateReport();
 
         List<IObserver<HealthReport>>? snapshot = null;
         lock (_lock)

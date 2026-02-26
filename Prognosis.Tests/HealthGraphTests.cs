@@ -113,10 +113,13 @@ public class HealthGraphTests
 
         Assert.Single(graph.Roots);
 
-        // Remove edge — child becomes a root.
+        // Remove edge — child is no longer reachable from the seed.
         parent.RemoveDependency(child);
 
-        Assert.Equal(2, graph.Roots.Length);
+        // After removal, only the seed (parent) is discoverable.
+        // Child is orphaned and unreachable — it should NOT appear as a root.
+        Assert.Single(graph.Roots);
+        Assert.Same(parent, graph.Roots[0]);
     }
 
     // ── Indexer ──────────────────────────────────────────────────────

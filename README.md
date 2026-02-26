@@ -170,70 +170,25 @@ var app = new HealthGroup("Application")
 
 Only `Resilient`-marked siblings participate in the resilience check — `Required`, `Important`, and `Optional` dependencies are unaffected.
 
-### Built-in strategies
-
-| Strategy | Behavior |
-|---|---|
-| `HealthAggregator.Aggregate` | **Default.** Worst-case propagation — a single unhealthy Required dependency makes the parent unhealthy. |
-| `HealthAggregator.AggregateWithRedundancy` | Redundancy-aware — when at least one non-optional dependency is healthy, a Required dependency's unhealthy status is capped at Degraded. All non-optional deps must be unhealthy before the parent becomes unhealthy. |
-
-### Using a built-in strategy
-
-```csharp
-// Without redundancy (default) — if either service goes down, the parent is unhealthy.
-var app = new HealthGroup("Application")
-    .DependsOn(primaryDb, Importance.Required)
-    .DependsOn(replicaDb, Importance.Required);
-
-// With redundancy — if one goes down but the other is healthy, the parent is degraded.
-var app = new HealthGroup("Application",
-    aggregator: HealthAggregator.AggregateWithRedundancy)
-    .DependsOn(primaryDb, Importance.Required)
-    .DependsOn(replicaDb, Importance.Required);
-```
-
-### Custom strategies
-
-The `AggregationStrategy` delegate takes intrinsic health + dependencies and returns an evaluation. Pass any matching function:
-
-```csharp
-var app = new HealthGroup("Application",
-    aggregator: (intrinsic, deps) =>
-    {
-        // Your custom logic here
-        return new HealthEvaluation(HealthStatus.Healthy);
-    });
-```
-
-Strategies can also be applied to `HealthCheck` and `HealthTracker`:
-
-```csharp
-// HealthCheck with a strategy
-var svc = new HealthCheck("Service", healthCheck,
-    aggregator: HealthAggregator.AggregateWithRedundancy);
-
-// HealthTracker (when embedding in your own class)
-var tracker = new HealthTracker(intrinsicCheck,
-    aggregator: HealthAggregator.AggregateWithRedundancy);
-```
-
 ## Graph operations
 
 ```csharp
+var graph = HealthGraph.Create(app);
+
 // Evaluate a single service (walks its dependencies)
 HealthEvaluation eval = app.Evaluate();
 
 // Snapshot the entire graph (depth-first post-order)
-IReadOnlyList<HealthSnapshot> snapshots = HealthAggregator.EvaluateAll(app);
+IReadOnlyList<HealthSnapshot> snapshots = graph.EvaluateAll();
 
 // Package as a serialization-ready report with timestamp
-HealthReport report = HealthAggregator.CreateReport(app);
+HealthReport report = graph.CreateReport();
 
 // Detect circular dependencies
-IReadOnlyList<IReadOnlyList<string>> cycles = HealthAggregator.DetectCycles(app);
+IReadOnlyList<IReadOnlyList<string>> cycles = graph.DetectCycles();
 
 // Diff two reports to find individual service changes
-IReadOnlyList<StatusChange> changes = HealthAggregator.Diff(before, after);
+IReadOnlyList<StatusChange> changes = before.Diff(after);
 ```
 
 ## Observable health monitoring
@@ -245,7 +200,7 @@ Every `HealthNode` node supports push-based notifications. Subscribe to individu
 database.Health.StatusChanged.Subscribe(observer);
 
 // Graph-level polling with HealthMonitor
-await using var monitor = new HealthMonitor([app], TimeSpan.FromSeconds(5));
+await using var monitor = new HealthMonitor(graph, TimeSpan.FromSeconds(5));
 monitor.ReportChanged.Subscribe(reportObserver);
 
 // Manual poll (useful for testing or getting initial state)

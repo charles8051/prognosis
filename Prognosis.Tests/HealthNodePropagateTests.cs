@@ -13,7 +13,7 @@ public class HealthNodePropagateTests
         var emitted = new List<HealthStatus>();
         node.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted.Add));
 
-        node.PropagateChange();
+        node.NotifyChanged();
 
         Assert.Single(emitted);
         Assert.Equal(HealthStatus.Unhealthy, emitted[0]);
@@ -34,7 +34,7 @@ public class HealthNodePropagateTests
 
         // Leaf degrades after the edge was wired. PropagateChange bubbles it up.
         isUnhealthy = true;
-        leaf.PropagateChange();
+        leaf.NotifyChanged();
 
         Assert.Single(emitted);
         Assert.Equal(HealthStatus.Unhealthy, emitted[0]);
@@ -56,7 +56,7 @@ public class HealthNodePropagateTests
         root.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted.Add));
 
         isUnhealthy = true;
-        leaf.PropagateChange();
+        leaf.NotifyChanged();
 
         Assert.Single(emitted);
         Assert.Equal(HealthStatus.Unhealthy, emitted[0]);
@@ -83,7 +83,7 @@ public class HealthNodePropagateTests
         root.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted.Add));
 
         isUnhealthy = true;
-        leaf.PropagateChange();
+        leaf.NotifyChanged();
 
         // Root has two paths from the leaf but should emit exactly once.
         Assert.Single(emitted);
@@ -101,7 +101,7 @@ public class HealthNodePropagateTests
         b.DependsOn(a, Importance.Required);
 
         // Should not throw or hang.
-        var exception = Record.Exception(() => a.PropagateChange());
+        var exception = Record.Exception(() => a.NotifyChanged());
         Assert.Null(exception);
     }
 
@@ -114,7 +114,7 @@ public class HealthNodePropagateTests
         var emitted = new List<HealthStatus>();
         node.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted.Add));
 
-        node.PropagateChange();
+        node.NotifyChanged();
 
         Assert.Single(emitted);
         Assert.Equal(HealthStatus.Degraded, emitted[0]);

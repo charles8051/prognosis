@@ -52,7 +52,7 @@ var graph = HealthGraph.Create(app);
 void PrintHealth()
 {
     // Roots are discovered from the graph topology — no explicit list needed.
-    foreach (var snapshot in HealthAggregator.EvaluateAll(graph.Roots))
+    foreach (var snapshot in graph.EvaluateAll())
     {
         Console.WriteLine($"  {snapshot}");
     }
@@ -94,7 +94,7 @@ PrintHealth();
 
 // ── Cycle detection ──────────────────────────────────────────────────
 Console.WriteLine("=== Upfront cycle detection ===");
-var cycles = HealthAggregator.DetectCycles(graph.Roots);
+var cycles = graph.DetectCycles();
 Console.WriteLine(cycles.Count == 0
     ? "  No cycles detected."
     : string.Join(Environment.NewLine, cycles.Select(c => "  Cycle: " + string.Join(" → ", c))));
@@ -107,7 +107,8 @@ var nodeB = new HealthCheck("ServiceB")
 nodeA.DependsOn(nodeB, Importance.Required); // A → B → A
 
 Console.WriteLine("=== After introducing ServiceA ↔ ServiceB cycle ===");
-cycles = HealthAggregator.DetectCycles(nodeA);
+var cycleGraph = HealthGraph.Create(nodeA);
+cycles = cycleGraph.DetectCycles();
 Console.WriteLine(string.Join(Environment.NewLine, cycles.Select(c => "  Cycle: " + string.Join(" → ", c))));
 Console.WriteLine();
 
