@@ -127,6 +127,77 @@ if (graph.TryGetNode<AuthService>(out var auth))
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Multiple roots — shared nodes, separate graphs.
+//
+// A second AddPrognosis call creates a separate configuration with
+// multiple MarkAsRoot calls. Each root produces a separate HealthGraph
+// that shares the same underlying HealthNode instances.
+// ─────────────────────────────────────────────────────────────────────
+
+Console.WriteLine();
+Console.WriteLine("=== Multi-root health graphs ===");
+
+var multiBuilder = Host.CreateApplicationBuilder(args);
+multiBuilder.Services.AddSingleton<ThirdPartyEmailClient>();
+
+multiBuilder.Services.AddPrognosis(health =>
+{
+    health.ScanForServices(typeof(Program).Assembly);
+
+    health.AddDelegate<ThirdPartyEmailClient>("EmailProvider",
+        client => client.IsConnected
+            ? HealthStatus.Healthy
+            : new HealthEvaluation(HealthStatus.Unhealthy, "SMTP refused"));
+
+    health.AddComposite(ServiceNames.NotificationSystem, n =>
+    {
+        n.DependsOn(nameof(MessageQueueService), Importance.Required);
+        n.DependsOn("EmailProvider", Importance.Optional);
+    });
+
+    // Two different views of the same service pool.
+    health.AddComposite(nameof(OpsView), ops =>
+    {
+        ops.DependsOn<DatabaseService>(Importance.Required);
+        ops.DependsOn<CacheService>(Importance.Required);
+        ops.DependsOn(ServiceNames.NotificationSystem, Importance.Important);
+    });
+
+    health.AddComposite(nameof(CustomerView), cust =>
+    {
+        cust.DependsOn<AuthService>(Importance.Required);
+    });
+
+    // Each call produces a separate HealthGraph. Because MarkAsRoot<T>()
+    // is used, both keyed and generic resolutions are available.
+    health.MarkAsRoot<OpsView>();
+    health.MarkAsRoot<CustomerView>();
+});
+
+var multiHost = multiBuilder.Build();
+var sp = multiHost.Services;
+
+// Keyed resolution — use the root name as the key.
+var opsGraphKeyed = sp.GetRequiredKeyedService<HealthGraph>(nameof(OpsView));
+var custGraphKeyed = sp.GetRequiredKeyedService<HealthGraph>(nameof(CustomerView));
+
+Console.WriteLine($"  Ops root (keyed):      {opsGraphKeyed.Root.Name} ({opsGraphKeyed.Nodes.Count()} nodes)");
+Console.WriteLine($"  Customer root (keyed): {custGraphKeyed.Root.Name} ({custGraphKeyed.Nodes.Count()} nodes)");
+
+// Generic resolution — works on any DI container without keyed support.
+var opsGraphTyped = sp.GetRequiredService<HealthGraph<OpsView>>();
+var custGraphTyped = sp.GetRequiredService<HealthGraph<CustomerView>>();
+
+Console.WriteLine($"  Ops root (typed):      {opsGraphTyped.Root.Name}");
+Console.WriteLine($"  Customer root (typed): {custGraphTyped.Root.Name}");
+
+// Verify that nodes are shared across the two graphs.
+opsGraphKeyed.TryGetNode("Database", out var opsDb);
+custGraphKeyed.TryGetNode("Database", out var custDb);
+Console.WriteLine($"  Shared Database node:  {ReferenceEquals(opsDb, custDb)}");
+Console.WriteLine();
+
+// ─────────────────────────────────────────────────────────────────────
 // Example service classes
 // ─────────────────────────────────────────────────────────────────────
 
@@ -210,3 +281,7 @@ static class ServiceNames
     public const string Application = nameof(Application);
     public const string NotificationSystem = nameof(NotificationSystem);
 }
+
+/// <summary>Marker types for multi-root graph resolution.</summary>
+class OpsView;
+class CustomerView;
