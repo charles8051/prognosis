@@ -91,8 +91,17 @@ public static class ServiceCollectionExtensions
             byName[def.Name] = composite;
         }
 
-        // Roots are discovered automatically from the graph topology.
-        return new HealthGraph(byName.Values.ToArray());
+        // Compute roots — nodes that are not a dependency of any other node.
+        var allNodes = byName.Values.ToArray();
+        var children = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+        foreach (var node in allNodes)
+        {
+            foreach (var dep in node.Dependencies)
+                children.Add(dep.Node);
+        }
+
+        var roots = allNodes.Where(n => !children.Contains(n)).ToArray();
+        return new HealthGraph(roots);
     }
 
     private static void WireEdges(
