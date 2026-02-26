@@ -8,8 +8,8 @@ namespace Prognosis;
 /// <para>
 /// Build a graph manually with <see cref="Create"/> or let the DI builder in
 /// <c>Prognosis.DependencyInjection</c> materialize one for you.
-/// The nodes you pass in are the roots — the full topology is discovered
-/// by walking their dependency edges downward.
+/// The node you pass in is the root — the full topology is discovered
+/// by walking its dependency edges downward.
 /// </para>
 /// <code>
 /// // Manual:
@@ -21,35 +21,36 @@ namespace Prognosis;
 /// </remarks>
 public sealed class HealthGraph
 {
-    private readonly HealthNode[] _roots;
-    private readonly HashSet<HealthNode> _allNodes;
-    private readonly Dictionary<string, HealthNode> _nodesByName;
+    private readonly HealthNode _root;
+    private volatile HashSet<HealthNode> _allNodes;
+    private volatile Dictionary<string, HealthNode> _nodesByName;
 
-    internal HealthGraph(params HealthNode[] roots)
+    internal HealthGraph(HealthNode root)
     {
-        _roots = roots;
+        _root = root;
 
         _allNodes = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
-        foreach (var root in roots)
-            Collect(root, _allNodes);
+        Collect(root, _allNodes);
 
         _nodesByName = new Dictionary<string, HealthNode>(_allNodes.Count, StringComparer.Ordinal);
         foreach (var node in _allNodes)
             _nodesByName[node.Name] = node;
+
+        _root._bubbleCallback = RefreshNodes;
     }
 
     /// <summary>
-    /// Creates a <see cref="HealthGraph"/> rooted at the given nodes.
+    /// Creates a <see cref="HealthGraph"/> rooted at the given node.
     /// The full topology is discovered by walking dependency edges downward,
     /// so all transitive dependencies are included automatically.
     /// </summary>
-    public static HealthGraph Create(params HealthNode[] roots) => new HealthGraph(roots);
+    public static HealthGraph Create(HealthNode root) => new HealthGraph(root);
 
     /// <summary>
-    /// The root nodes of the graph — the nodes passed to <see cref="Create"/>
+    /// The root node of the graph — the node passed to <see cref="Create"/>
     /// or provided by the DI builder.
     /// </summary>
-    public IReadOnlyList<HealthNode> Roots => _roots;
+    public HealthNode Root => _root;
 
     /// <summary>
     /// Looks up any node in the graph by its <see cref="HealthNode.Name"/>.
@@ -88,8 +89,11 @@ public sealed class HealthGraph
         TryGetNode(typeof(T).Name, out node);
 
     /// <summary>
-    /// All nodes reachable from the roots, discovered at construction time
-    /// by walking dependency edges downward.
+    /// All nodes reachable from the root. Automatically kept in sync when
+    /// dependencies are added or removed via <see cref="HealthNode.DependsOn"/>
+    /// / <see cref="HealthNode.RemoveDependency"/>, because those operations
+    /// trigger <see cref="HealthNode.BubbleChange"/> which refreshes the
+    /// graph's internal collections.
     /// </summary>
     public IEnumerable<HealthNode> Nodes => _allNodes;
 
@@ -108,7 +112,7 @@ public sealed class HealthGraph
     }
 
     /// <summary>
-    /// Walks the full dependency graph from all roots and returns every
+    /// Walks the full dependency graph from the root and returns every
     /// node's evaluated status. Results are in depth-first post-order
     /// (leaves before their parents) and each node appears at most once.
     /// </summary>
@@ -116,12 +120,7 @@ public sealed class HealthGraph
     {
         var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
         var results = new List<HealthSnapshot>();
-
-        foreach (var root in _roots)
-        {
-            HealthNode.WalkEvaluate(root, visited, results);
-        }
-
+        HealthNode.WalkEvaluate(_root, visited, results);
         return results;
     }
 
@@ -150,17 +149,14 @@ public sealed class HealthGraph
     }
 
     /// <summary>
-    /// Walks the dependency graph depth-first from all roots and calls
+    /// Walks the dependency graph depth-first from the root and calls
     /// <see cref="HealthNode.NotifyChangedCore"/> on every node encountered.
     /// Leaves are notified before their parents.
     /// </summary>
     public void NotifyAll()
     {
         var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
-        foreach (var root in _roots)
-        {
-            HealthNode.NotifyDfs(root, visited);
-        }
+        HealthNode.NotifyDfs(_root, visited);
     }
 
     private static void Collect(HealthNode node, HashSet<HealthNode> visited)
@@ -170,6 +166,23 @@ public sealed class HealthGraph
 
         foreach (var dep in node.Dependencies)
             Collect(dep.Node, visited);
+    }
+
+    private void RefreshNodes()
+    {
+        var fresh = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+        Collect(_root, fresh);
+
+        var current = _allNodes;
+        if (fresh.Count == current.Count && fresh.SetEquals(current))
+            return;
+
+        var index = new Dictionary<string, HealthNode>(fresh.Count, StringComparer.Ordinal);
+        foreach (var node in fresh)
+            index[node.Name] = node;
+
+        _nodesByName = index;
+        _allNodes = fresh;
     }
 
     private static void DetectCyclesDfs(

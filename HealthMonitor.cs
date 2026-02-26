@@ -32,8 +32,8 @@ public sealed class HealthMonitor : IAsyncDisposable, IDisposable
         ReportChanged = new ReportObservable(this);
     }
 
-    public HealthMonitor(IEnumerable<HealthNode> roots, TimeSpan interval)
-        : this(HealthGraph.Create(roots.ToArray()), interval) { }
+    public HealthMonitor(HealthNode root, TimeSpan interval)
+        : this(HealthGraph.Create(root), interval) { }
 
     /// <summary>
     /// Starts the background polling loop. Safe to call multiple times —

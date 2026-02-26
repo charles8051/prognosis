@@ -32,6 +32,14 @@ public abstract class HealthNode
     private volatile HealthEvaluation? _cachedEvaluation;
     private HealthStatus? _lastEmitted;
 
+    /// <summary>
+    /// Optional callback invoked every time <see cref="BubbleChange"/>
+    /// visits this node — regardless of whether the status actually changed.
+    /// Used by <see cref="HealthGraph"/> to detect topology changes
+    /// (e.g., new nodes added via <see cref="DependsOn"/> after construction).
+    /// </summary>
+    internal volatile Action? _bubbleCallback;
+
     /// <param name="intrinsicCheck">
     /// A callback that returns the owning service's intrinsic health
     /// (e.g., whether a connection is alive). Called on every <see cref="Evaluate"/>.
@@ -134,6 +142,7 @@ public abstract class HealthNode
                 return;
 
             NotifyChangedCore();
+            _bubbleCallback?.Invoke();
 
             foreach (var parent in _parents)
                 parent.BubbleChange();
