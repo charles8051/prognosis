@@ -35,6 +35,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include=".github\workflows\ci.yml" />
     <None Include=".github\workflows\publish.yml" />
     <None Include="Prognosis.Benchmarks\Prognosis.Benchmarks.csproj" />
     <None Include="Prognosis.DependencyInjection.Tests\Prognosis.DependencyInjection.Tests.csproj" />
