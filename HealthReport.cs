@@ -8,13 +8,6 @@ namespace Prognosis;
 public sealed record HealthReport(IReadOnlyList<HealthSnapshot> Nodes)
 {
     /// <summary>
-    /// Returns the worst <see cref="HealthStatus"/> across all nodes,
-    /// or <see cref="HealthStatus.Healthy"/> if the graph is empty.
-    /// </summary>
-    public HealthStatus OverallStatus =>
-        Nodes.Count > 0 ? Nodes.Max(s => s.Status) : HealthStatus.Healthy;
-
-    /// <summary>
     /// Compares this report (the baseline) with a <paramref name="newer"/> report
     /// and returns a change record for every service whose <see cref="HealthStatus"/>
     /// differs, including services that appeared in or disappeared from the graph.

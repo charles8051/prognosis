@@ -2,8 +2,8 @@ namespace Prognosis;
 
 /// <summary>
 /// Compares two <see cref="HealthReport"/> instances for equality based on
-/// overall status and per-node snapshots, matched by name. Used by the
-/// core <see cref="HealthMonitor"/> and Rx operators like
+/// per-node snapshots, matched by name. Used by the core
+/// <see cref="HealthMonitor"/> and Rx operators like
 /// <c>DistinctUntilChanged</c> to suppress duplicate emissions.
 /// Order-independent.
 /// </summary>
@@ -16,8 +16,6 @@ public sealed class HealthReportComparer : IEqualityComparer<HealthReport>
         if (ReferenceEquals(x, y))
             return true;
         if (x is null || y is null)
-            return false;
-        if (x.OverallStatus != y.OverallStatus)
             return false;
         if (x.Nodes.Count != y.Nodes.Count)
             return false;
@@ -40,16 +38,15 @@ public sealed class HealthReportComparer : IEqualityComparer<HealthReport>
         unchecked
         {
             var hash = 17;
-            hash = hash * 31 + obj.OverallStatus.GetHashCode();
             hash = hash * 31 + obj.Nodes.Count;
 
             // XOR is commutative — order-independent.
-            var serviceHash = 0;
+            var nodeHash = 0;
             foreach (var svc in obj.Nodes)
             {
-                serviceHash ^= svc.Name.GetHashCode() * 397 ^ svc.Status.GetHashCode();
+                nodeHash ^= svc.Name.GetHashCode() * 397 ^ svc.Status.GetHashCode();
             }
-            hash = hash * 31 + serviceHash;
+            hash = hash * 31 + nodeHash;
             return hash;
         }
     }

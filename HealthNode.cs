@@ -99,8 +99,7 @@ public abstract class HealthNode
     /// <summary>
     /// Evaluates this node and its full dependency subtree and returns a
     /// point-in-time <see cref="HealthReport"/>. Each node appears at most
-    /// once (depth-first post-order). The <see cref="HealthReport.OverallStatus"/>
-    /// reflects the worst status found in the subtree.
+    /// once (depth-first post-order).
     /// </summary>
     public HealthReport CreateReport()
     {
