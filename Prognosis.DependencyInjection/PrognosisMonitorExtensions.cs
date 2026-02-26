@@ -27,7 +27,7 @@ public static class PrognosisMonitorExtensions
         builder.Services.AddSingleton(sp =>
         {
             var graph = sp.GetRequiredService<HealthGraph>();
-            return new HealthMonitor(graph.Roots, interval);
+            return new HealthMonitor(graph, interval);
         });
         builder.Services.AddSingleton<IHostedService, HealthMonitorHostedService>();
         return builder;
@@ -41,6 +41,7 @@ internal sealed class HealthMonitorHostedService(HealthMonitor monitor) : IHoste
 {
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        monitor.Start();
         monitor.Poll();
         return Task.CompletedTask;
     }

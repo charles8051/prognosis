@@ -138,6 +138,7 @@ using var dbSubscription = database.Health.StatusChanged.Subscribe(
 // The HealthGraph overload re-queries Roots each tick, so runtime
 // edge changes are reflected automatically.
 await using var monitor = new HealthMonitor(graph, TimeSpan.FromSeconds(1));
+monitor.Start();
 using var reportSubscription = monitor.ReportChanged.Subscribe(
     new ReportObserver());
 

@@ -98,6 +98,7 @@ public class HealthMonitorTests : IAsyncDisposable
     {
         var svc = new HealthCheck("Svc");
         _monitor = new HealthMonitor(new[] { svc }, TimeSpan.FromMilliseconds(50));
+        _monitor.Start();
 
         await _monitor.DisposeAsync();
         _monitor = null; // prevent double dispose

@@ -10,9 +10,9 @@ public sealed class HealthMonitor : IAsyncDisposable, IDisposable
     private readonly HealthGraph _graph;
     private readonly TimeSpan _interval;
     private readonly CancellationTokenSource _cts = new();
-    private readonly Task _pollingTask;
     private readonly object _lock = new();
     private readonly List<IObserver<HealthReport>> _observers = new();
+    private Task? _pollingTask;
     private HealthReport? _lastReport;
 
     /// <summary>
@@ -23,18 +23,29 @@ public sealed class HealthMonitor : IAsyncDisposable, IDisposable
 
     /// <summary>
     /// Creates a monitor that polls the given <see cref="HealthGraph"/> on
-    /// every tick.
+    /// every tick. Call <see cref="Start"/> to begin the background polling loop.
     /// </summary>
     public HealthMonitor(HealthGraph graph, TimeSpan interval)
     {
         _graph = graph;
         _interval = interval;
         ReportChanged = new ReportObservable(this);
-        _pollingTask = PollLoopAsync(_cts.Token);
     }
 
     public HealthMonitor(IEnumerable<HealthNode> roots, TimeSpan interval)
         : this(HealthGraph.Create(roots.ToArray()), interval) { }
+
+    /// <summary>
+    /// Starts the background polling loop. Safe to call multiple times —
+    /// subsequent calls are no-ops.
+    /// </summary>
+    public void Start()
+    {
+        lock (_lock)
+        {
+            _pollingTask ??= PollLoopAsync(_cts.Token);
+        }
+    }
 
     /// <summary>
     /// Manually triggers a single poll cycle. Useful for testing or getting
@@ -68,8 +79,11 @@ public sealed class HealthMonitor : IAsyncDisposable, IDisposable
     public async ValueTask DisposeAsync()
     {
         _cts.Cancel();
-        try { await _pollingTask.ConfigureAwait(false); }
-        catch (OperationCanceledException) { }
+        if (_pollingTask is not null)
+        {
+            try { await _pollingTask.ConfigureAwait(false); }
+            catch (OperationCanceledException) { }
+        }
         _cts.Dispose();
     }
 
@@ -79,8 +93,11 @@ public sealed class HealthMonitor : IAsyncDisposable, IDisposable
     public void Dispose()
     {
         _cts.Cancel();
-        try { _pollingTask.GetAwaiter().GetResult(); }
-        catch (OperationCanceledException) { }
+        if (_pollingTask is not null)
+        {
+            try { _pollingTask.GetAwaiter().GetResult(); }
+            catch (OperationCanceledException) { }
+        }
         _cts.Dispose();
     }
 
