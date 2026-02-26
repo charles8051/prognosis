@@ -58,7 +58,7 @@ public class HealthGraphTests
     // ── Roots ────────────────────────────────────────────────────────
 
     [Fact]
-    public void Roots_ReturnsNodesWithoutParents()
+    public void Roots_ReturnsExactNodesPassed()
     {
         var leaf = new HealthCheck("Leaf");
         var root = new HealthCheck("Root")
@@ -84,42 +84,6 @@ public class HealthGraphTests
         Assert.Equal(2, roots.Length);
         Assert.Contains(roots, r => r.Name == "A");
         Assert.Contains(roots, r => r.Name == "B");
-    }
-
-    [Fact]
-    public void Roots_UpdatesDynamically_AfterAddEdge()
-    {
-        var a = new HealthCheck("A");
-        var b = new HealthCheck("B");
-        var graph = HealthGraph.Create(a, b);
-
-        // Both are roots initially.
-        Assert.Equal(2, graph.Roots.Length);
-
-        // Wire A → B — B is now a child.
-        a.DependsOn(b, Importance.Required);
-
-        Assert.Single(graph.Roots);
-        Assert.Same(a, graph.Roots[0]);
-    }
-
-    [Fact]
-    public void Roots_UpdatesDynamically_AfterRemoveEdge()
-    {
-        var child = new HealthCheck("Child");
-        var parent = new HealthCheck("Parent")
-            .DependsOn(child, Importance.Required);
-        var graph = HealthGraph.Create(parent);
-
-        Assert.Single(graph.Roots);
-
-        // Remove edge — child is no longer reachable from the seed.
-        parent.RemoveDependency(child);
-
-        // After removal, only the seed (parent) is discoverable.
-        // Child is orphaned and unreachable — it should NOT appear as a root.
-        Assert.Single(graph.Roots);
-        Assert.Same(parent, graph.Roots[0]);
     }
 
     // ── Indexer ──────────────────────────────────────────────────────
