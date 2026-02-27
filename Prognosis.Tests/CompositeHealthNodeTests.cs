@@ -5,8 +5,8 @@ public class CompositeHealthNodeTests
     [Fact]
     public void Evaluate_AllHealthy_ReturnsHealthy()
     {
-        var dep = new DelegateHealthNode("Dep");
-        var composite = new CompositeHealthNode("Comp")
+        var dep = HealthNode.CreateDelegate("Dep");
+        var composite = HealthNode.CreateComposite("Comp")
             .DependsOn(dep, Importance.Required);
 
         Assert.Equal(HealthStatus.Healthy, composite.Evaluate().Status);
@@ -15,9 +15,9 @@ public class CompositeHealthNodeTests
     [Fact]
     public void Evaluate_UnhealthyRequired_ReturnsUnhealthy()
     {
-        var dep = new DelegateHealthNode("Dep",
-            () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var composite = new CompositeHealthNode("Comp")
+        var dep = HealthNode.CreateDelegate("Dep",
+            () => HealthEvaluation.Unhealthy("down"));
+        var composite = HealthNode.CreateComposite("Comp")
             .DependsOn(dep, Importance.Required);
 
         Assert.Equal(HealthStatus.Unhealthy, composite.Evaluate().Status);
@@ -26,13 +26,13 @@ public class CompositeHealthNodeTests
     [Fact]
     public void Evaluate_MixedImportance_PropagatesCorrectly()
     {
-        var required = new DelegateHealthNode("Req");
-        var important = new DelegateHealthNode("Imp",
+        var required = HealthNode.CreateDelegate("Req");
+        var important = HealthNode.CreateDelegate("Imp",
             () => HealthStatus.Unhealthy);
-        var optional = new DelegateHealthNode("Opt",
+        var optional = HealthNode.CreateDelegate("Opt",
             () => HealthStatus.Unhealthy);
 
-        var composite = new CompositeHealthNode("Comp")
+        var composite = HealthNode.CreateComposite("Comp")
             .DependsOn(required, Importance.Required)
             .DependsOn(important, Importance.Important)
             .DependsOn(optional, Importance.Optional);
@@ -45,7 +45,7 @@ public class CompositeHealthNodeTests
     [Fact]
     public void Name_ReturnsConstructorValue()
     {
-        var composite = new CompositeHealthNode("MyComposite");
+        var composite = HealthNode.CreateComposite("MyComposite");
 
         Assert.Equal("MyComposite", composite.Name);
     }
@@ -53,9 +53,9 @@ public class CompositeHealthNodeTests
     [Fact]
     public void Dependencies_ReflectsDependsOnCalls()
     {
-        var a = new DelegateHealthNode("A");
-        var b = new DelegateHealthNode("B");
-        var composite = new CompositeHealthNode("Comp")
+        var a = HealthNode.CreateDelegate("A");
+        var b = HealthNode.CreateDelegate("B");
+        var composite = HealthNode.CreateComposite("Comp")
             .DependsOn(a, Importance.Required)
             .DependsOn(b, Importance.Optional);
 
@@ -66,11 +66,11 @@ public class CompositeHealthNodeTests
     public void BubbleChange_EmitsOnStatusChange()
     {
         var isUnhealthy = true;
-        var dep = new DelegateHealthNode("Dep",
+        var dep = HealthNode.CreateDelegate("Dep",
             () => isUnhealthy
-                ? new HealthEvaluation(HealthStatus.Unhealthy, "down")
+                ? HealthEvaluation.Unhealthy("down")
                 : HealthStatus.Healthy);
-        var composite = new CompositeHealthNode("Comp")
+        var composite = HealthNode.CreateComposite("Comp")
             .DependsOn(dep, Importance.Required);
         // DependsOn propagates immediately, so _lastEmitted
         // is already Unhealthy. Subscribe and verify a status change emits.

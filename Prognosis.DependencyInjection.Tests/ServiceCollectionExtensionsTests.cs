@@ -87,7 +87,7 @@ public class ServiceCollectionExtensionsTests
             health.AddDelegate<TestExternalClient>("ExternalApi",
                 client => client.IsUp
                     ? HealthStatus.Healthy
-                    : new HealthEvaluation(HealthStatus.Unhealthy, "down"));
+                    : HealthEvaluation.Unhealthy("down"));
         });
 
         var sp = services.BuildServiceProvider();
@@ -109,7 +109,7 @@ public class ServiceCollectionExtensionsTests
             health.AddDelegate<TestExternalClient>("ExternalApi",
                 c => c.IsUp
                     ? HealthStatus.Healthy
-                    : new HealthEvaluation(HealthStatus.Unhealthy, "down"));
+                    : HealthEvaluation.Unhealthy("down"));
         });
 
         var sp = services.BuildServiceProvider();
@@ -482,18 +482,18 @@ public class ServiceCollectionExtensionsTests
 
 public class TestDatabaseService : IHealthAware
 {
-    public HealthNode HealthNode { get; } = new DelegateHealthNode("TestDatabase");
+    public HealthNode HealthNode { get; } = HealthNode.CreateDelegate("TestDatabase");
 }
 
 public class TestCacheService : IHealthAware
 {
-    public HealthNode HealthNode { get; } = new DelegateHealthNode("TestCache");
+    public HealthNode HealthNode { get; } = HealthNode.CreateDelegate("TestCache");
 }
 
 [DependsOn<TestDatabaseService>(Importance.Required)]
 public class TestAuthService : IHealthAware
 {
-    public HealthNode HealthNode { get; } = new DelegateHealthNode("TestAuth");
+    public HealthNode HealthNode { get; } = HealthNode.CreateDelegate("TestAuth");
 }
 
 public class TestExternalClient

@@ -7,8 +7,8 @@ public class HealthNodeTests
     [Fact]
     public void Evaluate_NoDependencies_ReturnsIntrinsicCheck()
     {
-        var node = new DelegateHealthNode("Svc",
-            () => new HealthEvaluation(HealthStatus.Degraded, "slow"));
+        var node = HealthNode.CreateDelegate("Svc",
+            () => HealthEvaluation.Degraded("slow"));
 
         var result = node.Evaluate();
 
@@ -19,9 +19,9 @@ public class HealthNodeTests
     [Fact]
     public void Evaluate_WithDependency_AggregatesCorrectly()
     {
-        var dep = new DelegateHealthNode("Dep",
-            () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var node = new DelegateHealthNode("Svc")
+        var dep = HealthNode.CreateDelegate("Dep",
+            () => HealthEvaluation.Unhealthy("down"));
+        var node = HealthNode.CreateDelegate("Svc")
             .DependsOn(dep, Importance.Required);
 
         var result = node.Evaluate();
@@ -34,8 +34,8 @@ public class HealthNodeTests
     [Fact]
     public void DependsOn_AddsDependency()
     {
-        var node = new DelegateHealthNode("Svc");
-        var dep = new DelegateHealthNode("Dep");
+        var node = HealthNode.CreateDelegate("Svc");
+        var dep = HealthNode.CreateDelegate("Dep");
 
         node.DependsOn(dep, Importance.Important);
 
@@ -47,8 +47,8 @@ public class HealthNodeTests
     [Fact]
     public void DependsOn_ReturnsSelf_ForChaining()
     {
-        var node = new DelegateHealthNode("Svc");
-        var dep = new DelegateHealthNode("Dep");
+        var node = HealthNode.CreateDelegate("Svc");
+        var dep = HealthNode.CreateDelegate("Dep");
 
         var returned = node.DependsOn(dep, Importance.Required);
 
@@ -58,9 +58,9 @@ public class HealthNodeTests
     [Fact]
     public void DependsOn_AfterEvaluate_IsAllowed()
     {
-        var dep = new DelegateHealthNode("Dep",
-            () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var node = new DelegateHealthNode("Svc");
+        var dep = HealthNode.CreateDelegate("Dep",
+            () => HealthEvaluation.Unhealthy("down"));
+        var node = HealthNode.CreateDelegate("Svc");
 
         // Evaluate first — this used to freeze the graph.
         var before = node.Evaluate();
@@ -75,9 +75,9 @@ public class HealthNodeTests
     [Fact]
     public void RemoveDependency_DetachesEdge()
     {
-        var dep = new DelegateHealthNode("Dep",
-            () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var node = new DelegateHealthNode("Svc")
+        var dep = HealthNode.CreateDelegate("Dep",
+            () => HealthEvaluation.Unhealthy("down"));
+        var node = HealthNode.CreateDelegate("Svc")
             .DependsOn(dep, Importance.Required);
 
         Assert.Equal(HealthStatus.Unhealthy, node.Evaluate().Status);
@@ -92,8 +92,8 @@ public class HealthNodeTests
     [Fact]
     public void RemoveDependency_UnknownService_ReturnsFalse()
     {
-        var node = new DelegateHealthNode("Svc");
-        var unknown = new DelegateHealthNode("Unknown");
+        var node = HealthNode.CreateDelegate("Svc");
+        var unknown = HealthNode.CreateDelegate("Unknown");
 
         Assert.False(node.RemoveDependency(unknown));
     }
@@ -103,8 +103,8 @@ public class HealthNodeTests
     [Fact]
     public void Evaluate_CircularDependency_ReturnsUnhealthy_DoesNotStackOverflow()
     {
-        var a = new DelegateHealthNode("A");
-        var b = new DelegateHealthNode("B").DependsOn(a, Importance.Required);
+        var a = HealthNode.CreateDelegate("A");
+        var b = HealthNode.CreateDelegate("B").DependsOn(a, Importance.Required);
         a.DependsOn(b, Importance.Required);
 
         var result = a.Evaluate();
@@ -119,7 +119,7 @@ public class HealthNodeTests
     public void BubbleChange_EmitsOnStatusChange()
     {
         var isHealthy = true;
-        var node = new DelegateHealthNode("Svc",
+        var node = HealthNode.CreateDelegate("Svc",
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
 
         var emitted = new List<HealthStatus>();
@@ -144,7 +144,7 @@ public class HealthNodeTests
     [Fact]
     public void StatusChanged_Unsubscribe_StopsEmitting()
     {
-        var node = new DelegateHealthNode("Svc");
+        var node = HealthNode.CreateDelegate("Svc");
         var emitted = new List<HealthStatus>();
 
         var subscription = node.StatusChanged.Subscribe(
@@ -159,7 +159,7 @@ public class HealthNodeTests
         // We need to reset _lastEmitted by changing status.
         // Since the intrinsic is always Healthy and _lastEmitted is Healthy,
         // changing won't trigger. Use a new node instead.
-        var node2 = new DelegateHealthNode("Svc2", () => HealthStatus.Degraded);
+        var node2 = HealthNode.CreateDelegate("Svc2", () => HealthStatus.Degraded);
         var emitted2 = new List<HealthStatus>();
         var sub2 = node2.StatusChanged.Subscribe(
             new TestObserver<HealthStatus>(emitted2.Add));
@@ -179,8 +179,8 @@ public class HealthNodeTests
     [Fact]
     public void StatusChanged_MultipleSubscribers_AllReceive()
     {
-        var node = new DelegateHealthNode("Svc",
-            () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
+        var node = HealthNode.CreateDelegate("Svc",
+            () => HealthEvaluation.Unhealthy("down"));
 
         var emitted1 = new List<HealthStatus>();
         var emitted2 = new List<HealthStatus>();
@@ -200,11 +200,11 @@ public class HealthNodeTests
     [Fact]
     public void CreateTreeSnapshot_ReturnsTreeFromSubtree()
     {
-        var leaf = new DelegateHealthNode("Leaf",
-            () => new HealthEvaluation(HealthStatus.Degraded, "slow"));
-        var mid = new DelegateHealthNode("Mid")
+        var leaf = HealthNode.CreateDelegate("Leaf",
+            () => HealthEvaluation.Degraded("slow"));
+        var mid = HealthNode.CreateDelegate("Mid")
             .DependsOn(leaf, Importance.Important);
-        var root = new DelegateHealthNode("Root")
+        var root = HealthNode.CreateDelegate("Root")
             .DependsOn(mid, Importance.Required);
 
         // Call on the subtree node, not the root.

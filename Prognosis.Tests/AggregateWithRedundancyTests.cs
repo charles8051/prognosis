@@ -7,11 +7,11 @@ public class ResilientImportanceTests
     [Fact]
     public void OneUnhealthy_OneHealthy_Resilient_ReturnsDegraded()
     {
-        var healthy = new DelegateHealthNode("A");
-        var unhealthy = new DelegateHealthNode("B",
-            () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
+        var healthy = HealthNode.CreateDelegate("A");
+        var unhealthy = HealthNode.CreateDelegate("B",
+            () => HealthEvaluation.Unhealthy("down"));
 
-        var parent = new CompositeHealthNode("Root")
+        var parent = HealthNode.CreateComposite("Root")
             .DependsOn(healthy, Importance.Resilient)
             .DependsOn(unhealthy, Importance.Resilient);
 
@@ -21,12 +21,12 @@ public class ResilientImportanceTests
     [Fact]
     public void AllUnhealthy_Resilient_ReturnsUnhealthy()
     {
-        var a = new DelegateHealthNode("A",
-            () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var b = new DelegateHealthNode("B",
-            () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
+        var a = HealthNode.CreateDelegate("A",
+            () => HealthEvaluation.Unhealthy("down"));
+        var b = HealthNode.CreateDelegate("B",
+            () => HealthEvaluation.Unhealthy("down"));
 
-        var parent = new CompositeHealthNode("Root")
+        var parent = HealthNode.CreateComposite("Root")
             .DependsOn(a, Importance.Resilient)
             .DependsOn(b, Importance.Resilient);
 
@@ -36,10 +36,10 @@ public class ResilientImportanceTests
     [Fact]
     public void AllHealthy_ReturnsHealthy()
     {
-        var a = new DelegateHealthNode("A");
-        var b = new DelegateHealthNode("B");
+        var a = HealthNode.CreateDelegate("A");
+        var b = HealthNode.CreateDelegate("B");
 
-        var parent = new CompositeHealthNode("Root")
+        var parent = HealthNode.CreateComposite("Root")
             .DependsOn(a, Importance.Resilient)
             .DependsOn(b, Importance.Resilient);
 
@@ -49,10 +49,10 @@ public class ResilientImportanceTests
     [Fact]
     public void SingleUnhealthy_Resilient_NoSiblings_ReturnsUnhealthy()
     {
-        var unhealthy = new DelegateHealthNode("A",
-            () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
+        var unhealthy = HealthNode.CreateDelegate("A",
+            () => HealthEvaluation.Unhealthy("down"));
 
-        var parent = new CompositeHealthNode("Root")
+        var parent = HealthNode.CreateComposite("Root")
             .DependsOn(unhealthy, Importance.Resilient);
 
         Assert.Equal(HealthStatus.Unhealthy, parent.Evaluate().Status);
@@ -61,12 +61,12 @@ public class ResilientImportanceTests
     [Fact]
     public void Resilient_DoesNotCountNonResilientSiblings()
     {
-        var unhealthy = new DelegateHealthNode("A",
-            () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var healthyRequired = new DelegateHealthNode("B");
+        var unhealthy = HealthNode.CreateDelegate("A",
+            () => HealthEvaluation.Unhealthy("down"));
+        var healthyRequired = HealthNode.CreateDelegate("B");
 
         // B is healthy but Required, not Resilient — should not cap A's unhealthy.
-        var parent = new CompositeHealthNode("Root")
+        var parent = HealthNode.CreateComposite("Root")
             .DependsOn(unhealthy, Importance.Resilient)
             .DependsOn(healthyRequired, Importance.Required);
 
@@ -76,13 +76,13 @@ public class ResilientImportanceTests
     [Fact]
     public void Resilient_MixedWithOtherImportanceLevels()
     {
-        var primaryDb = new DelegateHealthNode("PrimaryDb");
-        var replicaDb = new DelegateHealthNode("ReplicaDb",
-            () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
-        var cache = new DelegateHealthNode("Cache",
+        var primaryDb = HealthNode.CreateDelegate("PrimaryDb");
+        var replicaDb = HealthNode.CreateDelegate("ReplicaDb",
+            () => HealthEvaluation.Unhealthy("down"));
+        var cache = HealthNode.CreateDelegate("Cache",
             () => HealthStatus.Unhealthy);
 
-        var parent = new CompositeHealthNode("Root")
+        var parent = HealthNode.CreateComposite("Root")
             .DependsOn(primaryDb, Importance.Resilient)
             .DependsOn(replicaDb, Importance.Resilient)
             .DependsOn(cache, Importance.Important);
@@ -96,10 +96,10 @@ public class ResilientImportanceTests
     [Fact]
     public void IntrinsicWorseThanDeps_IntrinsicWins()
     {
-        var healthy = new DelegateHealthNode("A");
+        var healthy = HealthNode.CreateDelegate("A");
 
-        var parent = new DelegateHealthNode("Root",
-            () => new HealthEvaluation(HealthStatus.Unhealthy, "self broken"))
+        var parent = HealthNode.CreateDelegate("Root",
+            () => HealthEvaluation.Unhealthy("self broken"))
             .DependsOn(healthy, Importance.Resilient);
 
         Assert.Equal(HealthStatus.Unhealthy, parent.Evaluate().Status);

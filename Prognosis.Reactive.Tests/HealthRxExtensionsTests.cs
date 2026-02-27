@@ -12,7 +12,7 @@ public class HealthRxExtensionsTests
     [Fact]
     public async Task PollHealthReport_EmitsReportOnInterval()
     {
-        var node = new DelegateHealthNode("Svc");
+        var node = HealthNode.CreateDelegate("Svc");
 
         HealthReport? received = null;
         using var sub = node
@@ -28,7 +28,7 @@ public class HealthRxExtensionsTests
     [Fact]
     public async Task PollHealthReport_SameState_SuppressesDuplicate()
     {
-        var node = new DelegateHealthNode("Svc");
+        var node = HealthNode.CreateDelegate("Svc");
 
         var count = 0;
         using var sub = node
@@ -45,9 +45,9 @@ public class HealthRxExtensionsTests
     public async Task PollHealthReport_EmitsOnStateChange()
     {
         var isHealthy = true;
-        var leaf = new DelegateHealthNode("Leaf",
+        var leaf = HealthNode.CreateDelegate("Leaf",
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
-        var root = new DelegateHealthNode("Root")
+        var root = HealthNode.CreateDelegate("Root")
             .DependsOn(leaf, Importance.Required);
 
         var reports = new List<HealthReport>();
@@ -67,8 +67,8 @@ public class HealthRxExtensionsTests
     [Fact]
     public async Task PollHealthReport_IncludesFullSubtree()
     {
-        var leaf = new DelegateHealthNode("Leaf");
-        var root = new DelegateHealthNode("Root")
+        var leaf = HealthNode.CreateDelegate("Leaf");
+        var root = HealthNode.CreateDelegate("Root")
             .DependsOn(leaf, Importance.Required);
 
         HealthReport? received = null;
@@ -88,10 +88,10 @@ public class HealthRxExtensionsTests
     public void ObserveStatus_EmitsEvaluationOnChange()
     {
         var isHealthy = true;
-        var node = new DelegateHealthNode("Svc",
+        var node = HealthNode.CreateDelegate("Svc",
             () => isHealthy
                 ? HealthStatus.Healthy
-                : new HealthEvaluation(HealthStatus.Unhealthy, "down"));
+                : HealthEvaluation.Unhealthy("down"));
 
         var evals = new List<HealthEvaluation>();
         using var sub = node
@@ -117,9 +117,9 @@ public class HealthRxExtensionsTests
     public void ObserveHealthReport_EmitsOnStatusChange()
     {
         var isHealthy = true;
-        var leaf = new DelegateHealthNode("Leaf",
+        var leaf = HealthNode.CreateDelegate("Leaf",
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
-        var root = new DelegateHealthNode("Root")
+        var root = HealthNode.CreateDelegate("Root")
             .DependsOn(leaf, Importance.Required);
 
         var reports = new List<HealthReport>();
@@ -142,10 +142,10 @@ public class HealthRxExtensionsTests
     public void ObserveHealthReport_ReportIncludesFullSubtree()
     {
         var isHealthy = true;
-        var leaf = new DelegateHealthNode("Leaf",
+        var leaf = HealthNode.CreateDelegate("Leaf",
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
-        var mid = new DelegateHealthNode("Mid").DependsOn(leaf, Importance.Required);
-        var root = new DelegateHealthNode("Root").DependsOn(mid, Importance.Required);
+        var mid = HealthNode.CreateDelegate("Mid").DependsOn(leaf, Importance.Required);
+        var root = HealthNode.CreateDelegate("Root").DependsOn(mid, Importance.Required);
 
         var reports = new List<HealthReport>();
         using var sub = root
