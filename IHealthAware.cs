@@ -10,10 +10,11 @@ public interface IHealthAware
 {
     /// <summary>
     /// The <see cref="HealthNode"/> that represents this service in
-    /// the health graph. Typically a <see cref="DelegateHealthNode"/>
-    /// (when the service has its own intrinsic health check) or a
-    /// <see cref="CompositeHealthNode"/> (when health is derived entirely
-    /// from sub-dependencies).
+    /// the health graph. Typically created via
+    /// <see cref="HealthNode.CreateDelegate(string, System.Func{HealthEvaluation})"/>
+    /// (when the service has its own intrinsic health check) or
+    /// <see cref="HealthNode.CreateComposite"/> (when health is derived
+    /// entirely from sub-dependencies).
     /// </summary>
     HealthNode HealthNode { get; }
 }

@@ -1,17 +1,17 @@
 namespace Prognosis;
 
 /// <summary>
-/// Base class for all nodes in the health graph. Concrete implementations are
-/// <see cref="DelegateHealthNode"/> (wraps a health-check delegate) and
-/// <see cref="CompositeHealthNode"/> (aggregates dependencies with no
-/// backing service of its own).
+/// Base class for all nodes in the health graph. Use the static factory methods
+/// <see cref="CreateDelegate(string, Func{HealthEvaluation})"/> (wraps a
+/// health-check delegate) and <see cref="CreateComposite"/> (aggregates
+/// dependencies with no backing service of its own) to create nodes.
 /// <para>
 /// Consumers who own a service class should implement <see cref="IHealthAware"/>
-/// and expose a <see cref="HealthNode"/> property — typically a
-/// <see cref="DelegateHealthNode"/> when the service has its own intrinsic
-/// check, or a <see cref="CompositeHealthNode"/> when health is derived
-/// entirely from sub-dependencies. There is no need to subclass
-/// <see cref="HealthNode"/> directly.
+/// and expose a <see cref="HealthNode"/> property — typically via
+/// <see cref="CreateDelegate(string, Func{HealthEvaluation})"/> when the
+/// service has its own intrinsic check, or <see cref="CreateComposite"/>
+/// when health is derived entirely from sub-dependencies. There is no need
+/// to subclass <see cref="HealthNode"/> directly.
 /// </para>
 /// </summary>
 public abstract class HealthNode
@@ -54,6 +54,37 @@ public abstract class HealthNode
     public abstract string Name { get; }
 
     /// <summary>
+    /// Creates a node backed by a health-check delegate. The delegate is
+    /// called on every <see cref="Evaluate"/> to obtain the service's
+    /// intrinsic health.
+    /// </summary>
+    /// <param name="name">Display name for the service.</param>
+    /// <param name="healthCheck">
+    /// A delegate that returns the service's intrinsic health evaluation.
+    /// </param>
+    public static HealthNode CreateDelegate(string name, Func<HealthEvaluation> healthCheck)
+        => new DelegateHealthNode(name, healthCheck);
+
+    /// <summary>
+    /// Creates a node backed by a health-check delegate whose intrinsic
+    /// status is always <see cref="HealthStatus.Healthy"/>.
+    /// </summary>
+    /// <param name="name">Display name for the service.</param>
+    public static HealthNode CreateDelegate(string name)
+        => new DelegateHealthNode(name);
+
+    /// <summary>
+    /// Creates an aggregation-only node with no underlying service of its own.
+    /// Health is derived entirely from its dependencies.
+    /// </summary>
+    /// <param name="name">Display name for this composite in the health graph.</param>
+    public static HealthNode CreateComposite(string name)
+        => new CompositeHealthNode(name);
+
+    /// <inheritdoc/>
+    public override string ToString() => $"{Name}: {Evaluate()}";
+
+    /// <summary>
     /// The nodes that list this node as a dependency. Updated automatically
     /// when edges are added or removed via <see cref="DependsOn"/> /
     /// <see cref="RemoveDependency"/>. Thread-safe (copy-on-write).
@@ -81,7 +112,7 @@ public abstract class HealthNode
         s_evaluating ??= new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
 
         if (!s_evaluating.Add(this))
-            return new HealthEvaluation(HealthStatus.Unhealthy, "Circular dependency detected");
+            return HealthEvaluation.Unhealthy("Circular dependency detected");
 
         try
         {

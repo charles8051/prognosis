@@ -3,6 +3,7 @@ namespace Prognosis;
 /// <summary>
 /// A virtual service whose health is derived entirely from its dependencies.
 /// It has no underlying service of its own — it is a named aggregation point.
+/// Prefer using <see cref="HealthNode.CreateComposite"/> to create instances.
 /// </summary>
 public sealed class CompositeHealthNode : HealthNode
 {

@@ -5,9 +5,8 @@ namespace Prognosis;
 /// <c>Func&lt;HealthEvaluation&gt;</c>. Use this when you cannot (or prefer not to)
 /// modify the service class itself.
 /// <para>
-/// This is the recommended way for consumers to participate in the health graph.
-/// Embed a <see cref="DelegateHealthNode"/> as a property on your service
-/// class and pass it when composing the graph.
+/// Prefer using <see cref="HealthNode.CreateDelegate(string, Func{HealthEvaluation})"/>
+/// or <see cref="HealthNode.CreateDelegate(string)"/> to create instances.
 /// </para>
 /// </summary>
 public sealed class DelegateHealthNode : HealthNode
