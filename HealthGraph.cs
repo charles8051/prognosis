@@ -22,6 +22,7 @@ namespace Prognosis;
 public sealed class HealthGraph
 {
     private readonly HealthNode _root;
+    private readonly object _topologyLock = new();
     private volatile NodeSnapshot _snapshot;
 
     internal HealthGraph(HealthNode root)
@@ -168,14 +169,17 @@ public sealed class HealthGraph
 
     private void RefreshTopology()
     {
-        var fresh = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
-        Collect(_root, fresh);
+        lock (_topologyLock)
+        {
+            var fresh = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+            Collect(_root, fresh);
 
-        var current = _snapshot;
-        if (fresh.Count == current.Set.Count && fresh.SetEquals(current.Set))
-            return;
+            var current = _snapshot;
+            if (fresh.Count == current.Set.Count && fresh.SetEquals(current.Set))
+                return;
 
-        _snapshot = new NodeSnapshot(fresh);
+            _snapshot = new NodeSnapshot(fresh);
+        }
     }
 
     private static void DetectCyclesDfs(
