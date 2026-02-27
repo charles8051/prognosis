@@ -25,7 +25,7 @@ builder.Services.AddPrognosis(health =>
     health.AddDelegate<ThirdPartyEmailClient>("EmailProvider",
         client => client.IsConnected
             ? HealthStatus.Healthy
-            : new HealthEvaluation(HealthStatus.Unhealthy, "SMTP connection refused"));
+            : HealthEvaluation.Unhealthy("SMTP connection refused"));
 
     // Define composite aggregation nodes.
     // Use constants or nameof to avoid magic strings — refactoring-safe.
@@ -147,7 +147,7 @@ multiBuilder.Services.AddPrognosis(health =>
     health.AddDelegate<ThirdPartyEmailClient>("EmailProvider",
         client => client.IsConnected
             ? HealthStatus.Healthy
-            : new HealthEvaluation(HealthStatus.Unhealthy, "SMTP refused"));
+            : HealthEvaluation.Unhealthy("SMTP refused"));
 
     health.AddComposite(ServiceNames.NotificationSystem, n =>
     {
@@ -203,7 +203,7 @@ Console.WriteLine();
 
 /// <summary>
 /// A service you own — implement <see cref="IHealthAware"/> and expose
-/// a <see cref="DelegateHealthNode"/> property. No forwarding needed.
+/// a <see cref="HealthNode"/> property. No forwarding needed.
 /// </summary>
 class DatabaseService : IHealthAware
 {
@@ -211,10 +211,10 @@ class DatabaseService : IHealthAware
 
     public DatabaseService()
     {
-        HealthNode = new DelegateHealthNode("Database",
+        HealthNode = HealthNode.CreateDelegate("Database",
             () => IsConnected
                 ? HealthStatus.Healthy
-                : new HealthEvaluation(HealthStatus.Unhealthy, "Connection lost"));
+                : HealthEvaluation.Unhealthy("Connection lost"));
     }
 
     public bool IsConnected { get; set; } = true;
@@ -227,10 +227,10 @@ class CacheService : IHealthAware
 
     public CacheService()
     {
-        HealthNode = new DelegateHealthNode("Cache",
+        HealthNode = HealthNode.CreateDelegate("Cache",
             () => IsConnected
                 ? HealthStatus.Healthy
-                : new HealthEvaluation(HealthStatus.Unhealthy, "Redis timeout"));
+                : HealthEvaluation.Unhealthy("Redis timeout"));
     }
 
     public bool IsConnected { get; set; } = true;
@@ -244,13 +244,13 @@ class CacheService : IHealthAware
 [DependsOn<CacheService>(Importance.Important)]
 class AuthService : IHealthAware
 {
-    public HealthNode HealthNode { get; } = new DelegateHealthNode("AuthService");
+    public HealthNode HealthNode { get; } = HealthNode.CreateDelegate("AuthService");
 }
 
 /// <summary>Always-healthy placeholder for demo purposes.</summary>
 class MessageQueueService : IHealthAware
 {
-    public HealthNode HealthNode { get; } = new DelegateHealthNode(nameof(MessageQueueService));
+    public HealthNode HealthNode { get; } = HealthNode.CreateDelegate(nameof(MessageQueueService));
 }
 
 /// <summary>

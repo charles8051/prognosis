@@ -17,27 +17,27 @@ var cache = new CacheService();
 //             with DelegateHealthNode and a health-check delegate.
 // ─────────────────────────────────────────────────────────────────────
 var externalEmailApi = new ThirdPartyEmailClient();        // some closed class
-var emailHealth = new DelegateHealthNode("EmailProvider",
+var emailHealth = HealthNode.CreateDelegate("EmailProvider",
     () => externalEmailApi.IsConnected
         ? HealthStatus.Healthy
-        : new HealthEvaluation(HealthStatus.Unhealthy, "SMTP connection refused"));
+        : HealthEvaluation.Unhealthy("SMTP connection refused"));
 
-var messageQueue = new DelegateHealthNode("MessageQueue"); // always healthy for demo
+var messageQueue = HealthNode.CreateDelegate("MessageQueue"); // always healthy for demo
 
 // ─────────────────────────────────────────────────────────────────────
 // Pattern 3 — Pure composite aggregation (no backing service).
 //             The fluent .DependsOn() API reads naturally and avoids
 //             having to wrap every edge in a HealthDependency object.
 // ─────────────────────────────────────────────────────────────────────
-var authService = new DelegateHealthNode("AuthService")
+var authService = HealthNode.CreateDelegate("AuthService")
     .DependsOn(database.HealthNode, Importance.Required)
     .DependsOn(cache.HealthNode, Importance.Important);
 
-var notificationSystem = new CompositeHealthNode("NotificationSystem")
+var notificationSystem = HealthNode.CreateComposite("NotificationSystem")
     .DependsOn(messageQueue, Importance.Required)
     .DependsOn(emailHealth, Importance.Optional);
 
-var app = new CompositeHealthNode("Application")
+var app = HealthNode.CreateComposite("Application")
     .DependsOn(authService, Importance.Required)
     .DependsOn(notificationSystem, Importance.Important);
 
@@ -99,8 +99,8 @@ Console.WriteLine(cycles.Count == 0
 Console.WriteLine();
 
 // Now introduce a deliberate cycle and detect it.
-var nodeA = new DelegateHealthNode("ServiceA");
-var nodeB = new DelegateHealthNode("ServiceB")
+var nodeA = HealthNode.CreateDelegate("ServiceA");
+var nodeB = HealthNode.CreateDelegate("ServiceB")
     .DependsOn(nodeA, Importance.Required);
 nodeA.DependsOn(nodeB, Importance.Required); // A → B → A
 
@@ -171,9 +171,10 @@ Console.WriteLine();
 
 /// <summary>
 /// A service you own — implement <see cref="IHealthAware"/> and expose a
-/// <see cref="HealthNode"/> property. Here the top-level node is a
-/// <see cref="CompositeHealthNode"/> whose health is derived entirely from
-/// three fine-grained <see cref="DelegateHealthNode"/> sub-nodes:
+/// <see cref="HealthNode"/> property. Here the top-level node is created via
+/// <see cref="HealthNode.CreateComposite"/> whose health is derived entirely
+/// from three fine-grained sub-nodes created via
+/// <see cref="HealthNode.CreateDelegate(string, Func{HealthEvaluation})"/>:
 /// connection, latency, and connection-pool utilization.
 /// </summary>
 class DatabaseService : IHealthAware
@@ -186,29 +187,29 @@ class DatabaseService : IHealthAware
 
     public DatabaseService()
     {
-        var connection = new DelegateHealthNode("Database.Connection",
+        var connection = HealthNode.CreateDelegate("Database.Connection",
             () => IsConnected
                 ? HealthStatus.Healthy
-                : new HealthEvaluation(HealthStatus.Unhealthy, "Connection lost"));
+                : HealthEvaluation.Unhealthy("Connection lost"));
 
-        var latency = new DelegateHealthNode("Database.Latency",
+        var latency = HealthNode.CreateDelegate("Database.Latency",
             () => AverageLatencyMs switch
             {
-                > 500 => new HealthEvaluation(HealthStatus.Degraded,
+                > 500 => HealthEvaluation.Degraded(
                     $"Avg latency {AverageLatencyMs:F0}ms exceeds 500ms threshold"),
                 _ => HealthStatus.Healthy,
             });
 
-        var connectionPool = new DelegateHealthNode("Database.ConnectionPool",
+        var connectionPool = HealthNode.CreateDelegate("Database.ConnectionPool",
             () => PoolUtilization switch
             {
-                >= 1.0 => new HealthEvaluation(HealthStatus.Unhealthy, "Connection pool exhausted"),
-                >= 0.9 => new HealthEvaluation(HealthStatus.Degraded,
+                >= 1.0 => HealthEvaluation.Unhealthy("Connection pool exhausted"),
+                >= 0.9 => HealthEvaluation.Degraded(
                     $"Connection pool at {PoolUtilization:P0} utilization"),
                 _ => HealthStatus.Healthy,
             });
 
-        HealthNode = new CompositeHealthNode("Database")
+        HealthNode = HealthNode.CreateComposite("Database")
             .DependsOn(connection, Importance.Required)
             .DependsOn(latency, Importance.Important)
             .DependsOn(connectionPool, Importance.Required);
@@ -222,10 +223,10 @@ class CacheService : IHealthAware
 
     public CacheService()
     {
-        HealthNode = new DelegateHealthNode("Cache",
+        HealthNode = HealthNode.CreateDelegate("Cache",
             () => IsConnected
                 ? HealthStatus.Healthy
-                : new HealthEvaluation(HealthStatus.Unhealthy, "Redis timeout"));
+                : HealthEvaluation.Unhealthy("Redis timeout"));
     }
 
     public bool IsConnected { get; set; } = true;

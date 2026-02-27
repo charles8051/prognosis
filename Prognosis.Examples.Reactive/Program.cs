@@ -18,22 +18,22 @@ var database = new DatabaseService();
 var cache = new CacheService();
 var externalEmailApi = new ThirdPartyEmailClient();
 
-var emailHealth = new DelegateHealthNode("EmailProvider",
+var emailHealth = HealthNode.CreateDelegate("EmailProvider",
     () => externalEmailApi.IsConnected
         ? HealthStatus.Healthy
-        : new HealthEvaluation(HealthStatus.Unhealthy, "SMTP connection refused"));
+        : HealthEvaluation.Unhealthy("SMTP connection refused"));
 
-var messageQueue = new DelegateHealthNode("MessageQueue");
+var messageQueue = HealthNode.CreateDelegate("MessageQueue");
 
-var authService = new DelegateHealthNode("AuthService")
+var authService = HealthNode.CreateDelegate("AuthService")
     .DependsOn(database.HealthNode, Importance.Required)
     .DependsOn(cache.HealthNode, Importance.Important);
 
-var notificationSystem = new CompositeHealthNode("NotificationSystem")
+var notificationSystem = HealthNode.CreateComposite("NotificationSystem")
     .DependsOn(messageQueue, Importance.Required)
     .DependsOn(emailHealth, Importance.Optional);
 
-var app = new CompositeHealthNode("Application")
+var app = HealthNode.CreateComposite("Application")
     .DependsOn(authService, Importance.Required)
     .DependsOn(notificationSystem, Importance.Important);
 
@@ -255,10 +255,10 @@ class DatabaseService : IHealthAware
 
     public DatabaseService()
     {
-        HealthNode = new DelegateHealthNode("Database",
+        HealthNode = HealthNode.CreateDelegate("Database",
             () => IsConnected
                 ? HealthStatus.Healthy
-                : new HealthEvaluation(HealthStatus.Unhealthy, "Connection lost"));
+                : HealthEvaluation.Unhealthy("Connection lost"));
     }
 
     public bool IsConnected { get; set; } = true;
@@ -270,10 +270,10 @@ class CacheService : IHealthAware
 
     public CacheService()
     {
-        HealthNode = new DelegateHealthNode("Cache",
+        HealthNode = HealthNode.CreateDelegate("Cache",
             () => IsConnected
                 ? HealthStatus.Healthy
-                : new HealthEvaluation(HealthStatus.Unhealthy, "Redis timeout"));
+                : HealthEvaluation.Unhealthy("Redis timeout"));
     }
 
     public bool IsConnected { get; set; } = true;

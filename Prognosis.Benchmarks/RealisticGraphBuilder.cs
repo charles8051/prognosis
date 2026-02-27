@@ -41,10 +41,10 @@ internal static class RealisticGraphBuilder
         var infraNodes = new List<HealthNode>();
         foreach (var name in infraNames)
         {
-            var conn = new DelegateHealthNode($"{name}.Connection", RandomCheck(rng));
-            var latency = new DelegateHealthNode($"{name}.Latency", RandomCheck(rng));
-            var pool = new DelegateHealthNode($"{name}.Pool", RandomCheck(rng));
-            var group = new CompositeHealthNode(name)
+            var conn = HealthNode.CreateDelegate($"{name}.Connection", RandomCheck(rng));
+            var latency = HealthNode.CreateDelegate($"{name}.Latency", RandomCheck(rng));
+            var pool = HealthNode.CreateDelegate($"{name}.Pool", RandomCheck(rng));
+            var group = HealthNode.CreateComposite(name)
                 .DependsOn(conn, Importance.Required)
                 .DependsOn(latency, Importance.Important)
                 .DependsOn(pool, Importance.Required);
@@ -84,7 +84,7 @@ internal static class RealisticGraphBuilder
         }
 
         // ── Layer 4: Platform root ──────────────────────────────────
-        var root = new CompositeHealthNode("Platform");
+        var root = HealthNode.CreateComposite("Platform");
         foreach (var gw in gatewayNodes)
         {
             root.DependsOn(gw, Importance.Required);
@@ -113,7 +113,7 @@ internal static class RealisticGraphBuilder
         {
             var name = $"{prefix}.{i:D3}";
             var depCount = rng.Next(2, Math.Min(5, dependencyPool.Count + 1));
-            var node = new DelegateHealthNode(name, RandomCheck(rng));
+            var node = HealthNode.CreateDelegate(name, RandomCheck(rng));
 
             // Pick distinct random dependencies from the pool.
             var picked = new HashSet<int>();
@@ -141,9 +141,9 @@ internal static class RealisticGraphBuilder
         if (roll < 90)
             return () => HealthStatus.Healthy;
         if (roll < 95)
-            return () => new HealthEvaluation(HealthStatus.Degraded, "High latency");
+            return () => HealthEvaluation.Degraded("High latency");
 
-        return () => new HealthEvaluation(HealthStatus.Unhealthy, "Connection refused");
+        return () => HealthEvaluation.Unhealthy("Connection refused");
     }
 
     private static string[] GenerateNames(string prefix, int count)
