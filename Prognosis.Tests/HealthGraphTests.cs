@@ -328,10 +328,111 @@ public class HealthGraphTests
         Assert.Equal("Shared", sharedUnderB.Name);
         Assert.Empty(sharedUnderB.Dependencies);
     }
+
+    // ── TopologyChanged ──────────────────────────────────────────────
+
+    [Fact]
+    public void TopologyChanged_DependsOn_EmitsAddedNode()
+    {
+        var root = HealthNode.CreateDelegate("Root");
+        var graph = HealthGraph.Create(root);
+
+        var emitted = new List<TopologyChange>();
+        graph.TopologyChanged.Subscribe(new TestObserver<TopologyChange>(emitted.Add));
+
+        var child = HealthNode.CreateDelegate("Child");
+        root.DependsOn(child, Importance.Required);
+
+        Assert.Single(emitted);
+        Assert.Single(emitted[0].Added);
+        Assert.Same(child, emitted[0].Added[0]);
+        Assert.Empty(emitted[0].Removed);
+    }
+
+    [Fact]
+    public void TopologyChanged_RemoveDependency_EmitsRemovedNode()
+    {
+        var child = HealthNode.CreateDelegate("Child");
+        var root = HealthNode.CreateDelegate("Root")
+            .DependsOn(child, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        var emitted = new List<TopologyChange>();
+        graph.TopologyChanged.Subscribe(new TestObserver<TopologyChange>(emitted.Add));
+
+        root.RemoveDependency(child);
+
+        Assert.Single(emitted);
+        Assert.Empty(emitted[0].Added);
+        Assert.Single(emitted[0].Removed);
+        Assert.Same(child, emitted[0].Removed[0]);
+    }
+
+    [Fact]
+    public void TopologyChanged_NoStructuralChange_DoesNotEmit()
+    {
+        var child = HealthNode.CreateDelegate("Child",
+            () => HealthEvaluation.Unhealthy("down"));
+        var root = HealthNode.CreateDelegate("Root")
+            .DependsOn(child, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        var emitted = new List<TopologyChange>();
+        graph.TopologyChanged.Subscribe(new TestObserver<TopologyChange>(emitted.Add));
+
+        // BubbleChange fires but topology is unchanged — no notification expected.
+        child.BubbleChange();
+
+        Assert.Empty(emitted);
+    }
+
+    [Fact]
+    public void TopologyChanged_TransitiveDependsOn_EmitsAllNewNodes()
+    {
+        var root = HealthNode.CreateDelegate("Root");
+        var graph = HealthGraph.Create(root);
+
+        var emitted = new List<TopologyChange>();
+        graph.TopologyChanged.Subscribe(new TestObserver<TopologyChange>(emitted.Add));
+
+        var leaf = HealthNode.CreateDelegate("Leaf");
+        var mid = HealthNode.CreateDelegate("Mid")
+            .DependsOn(leaf, Importance.Required);
+        root.DependsOn(mid, Importance.Required);
+
+        // mid and leaf should both appear in Added across the emitted changes.
+        var allAdded = emitted.SelectMany(c => c.Added).ToList();
+        Assert.Contains(mid, allAdded);
+        Assert.Contains(leaf, allAdded);
+    }
+
+    [Fact]
+    public void TopologyChanged_Unsubscribe_StopsNotifications()
+    {
+        var root = HealthNode.CreateDelegate("Root");
+        var graph = HealthGraph.Create(root);
+
+        var emitted = new List<TopologyChange>();
+        var subscription = graph.TopologyChanged
+            .Subscribe(new TestObserver<TopologyChange>(emitted.Add));
+
+        subscription.Dispose();
+
+        root.DependsOn(HealthNode.CreateDelegate("Child"), Importance.Required);
+
+        Assert.Empty(emitted);
+    }
 }
 
 /// <summary>Minimal IHealthAware stub for generic TryGetService tests.</summary>
 file class StubHealthAware : IHealthAware
 {
     public HealthNode HealthNode { get; } = HealthNode.CreateDelegate(typeof(StubHealthAware).Name);
+}
+
+file class TestObserver<T>(Action<T> onNext) : IObserver<T>
+{
+    public void OnNext(T value) => onNext(value);
+    public void OnError(Exception error) { }
+    public void OnCompleted() { }
 }
