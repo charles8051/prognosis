@@ -109,6 +109,14 @@ public sealed class HealthGraph
     }
 
     /// <summary>
+    /// Evaluates the full graph and returns a tree-shaped
+    /// <see cref="HealthTreeSnapshot"/> whose nesting mirrors the dependency
+    /// topology. Ideal for JSON serialization where hierarchy should be
+    /// visible in the output structure.
+    /// </summary>
+    public HealthTreeSnapshot CreateTreeSnapshot() => _root.CreateTreeSnapshot();
+
+    /// <summary>
     /// Walks the full dependency graph from the root and returns every
     /// node's evaluated status. Results are in depth-first post-order
     /// (leaves before their parents) and each node appears at most once.

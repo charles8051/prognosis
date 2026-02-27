@@ -111,6 +111,48 @@ public abstract class HealthNode
     }
 
     /// <summary>
+    /// Evaluates this node and its full dependency subtree and returns a
+    /// tree-shaped <see cref="HealthTreeSnapshot"/> whose nesting mirrors
+    /// the dependency topology. Ideal for JSON serialization where hierarchy
+    /// should be visible in the output structure.
+    /// <para>
+    /// Diamond joins and cycles are handled — a node already visited is
+    /// rendered as a leaf (evaluated status preserved, children omitted)
+    /// to avoid infinite recursion.
+    /// </para>
+    /// </summary>
+    public HealthTreeSnapshot CreateTreeSnapshot()
+    {
+        var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+        return BuildTreeSnapshot(this, visited);
+    }
+
+    internal static HealthTreeSnapshot BuildTreeSnapshot(
+        HealthNode node, HashSet<HealthNode> visited)
+    {
+        var eval = node.Evaluate();
+
+        if (!visited.Add(node))
+        {
+            // Already visited — return a leaf to break cycles / diamonds.
+            return new HealthTreeSnapshot(
+                node.Name, eval.Status, eval.Reason,
+                Array.Empty<HealthTreeDependency>());
+        }
+
+        var deps = node.Dependencies;
+        var children = new List<HealthTreeDependency>(deps.Count);
+        foreach (var dep in deps)
+        {
+            children.Add(new HealthTreeDependency(
+                dep.Importance,
+                BuildTreeSnapshot(dep.Node, visited)));
+        }
+
+        return new HealthTreeSnapshot(node.Name, eval.Status, eval.Reason, children);
+    }
+
+    /// <summary>
     /// Emits the new <see cref="HealthStatus"/> each time the service's
     /// effective health changes.
     /// </summary>
