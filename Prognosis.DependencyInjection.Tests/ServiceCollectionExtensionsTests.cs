@@ -94,7 +94,7 @@ public class ServiceCollectionExtensionsTests
         var graph = sp.GetRequiredService<HealthGraph>();
 
         Assert.True(graph.TryGetNode("ExternalApi", out var node));
-        Assert.Equal(HealthStatus.Healthy, node.Evaluate().Status);
+        Assert.Equal(HealthStatus.Healthy, graph.Evaluate("ExternalApi").Status);
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public class ServiceCollectionExtensionsTests
         client.IsUp = false;
 
         Assert.True(graph.TryGetNode("ExternalApi", out var node));
-        Assert.Equal(HealthStatus.Unhealthy, node.Evaluate().Status);
+        Assert.Equal(HealthStatus.Unhealthy, graph.Evaluate("ExternalApi").Status);
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public class ServiceCollectionExtensionsTests
 
         Assert.True(graph.TryGetNode("Platform", out var platform));
         Assert.Equal(2, platform.Dependencies.Count);
-        Assert.Equal(HealthStatus.Healthy, platform.Evaluate().Status);
+        Assert.Equal(HealthStatus.Healthy, graph.Evaluate("Platform").Status);
     }
 
     [Fact]
@@ -212,7 +212,7 @@ public class ServiceCollectionExtensionsTests
         var graph = sp.GetRequiredService<HealthGraph>();
 
         Assert.True(graph.TryGetNode("Resilient", out var node));
-        Assert.Equal(HealthStatus.Healthy, node.Evaluate().Status);
+        Assert.Equal(HealthStatus.Healthy, graph.Evaluate("Resilient").Status);
     }
 
     // ── HealthGraph singleton ───────────────────────────────────────

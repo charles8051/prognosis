@@ -242,13 +242,14 @@ public class AggregationTests
             .DependsOn(leaf, Importance.Required);
         var graph = HealthGraph.Create(root);
 
-        var statuses = new List<HealthStatus>();
-        leaf.StatusChanged.Subscribe(new TestObserver<HealthStatus>(statuses.Add));
+        var reports = new List<HealthReport>();
+        graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(reports.Add));
 
         graph.RefreshAll();
 
-        Assert.Single(statuses);
-        Assert.Equal(HealthStatus.Unhealthy, statuses[0]);
+        Assert.Single(reports);
+        Assert.Equal(HealthStatus.Unhealthy,
+            reports[0].Nodes.First(n => n.Name == "Leaf").Status);
     }
 }
 

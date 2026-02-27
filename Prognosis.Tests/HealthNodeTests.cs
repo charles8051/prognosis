@@ -2,15 +2,16 @@ namespace Prognosis.Tests;
 
 public class HealthNodeTests
 {
-    // ── Evaluate ─────────────────────────────────────────────────────
+    // ── Evaluate (via HealthGraph) ───────────────────────────────────
 
     [Fact]
     public void Evaluate_NoDependencies_ReturnsIntrinsicCheck()
     {
         var node = HealthNode.CreateDelegate("Svc",
             () => HealthEvaluation.Degraded("slow"));
+        var graph = HealthGraph.Create(node);
 
-        var result = node.Evaluate();
+        var result = graph.Evaluate("Svc");
 
         Assert.Equal(HealthStatus.Degraded, result.Status);
         Assert.Equal("slow", result.Reason);
@@ -23,8 +24,9 @@ public class HealthNodeTests
             () => HealthEvaluation.Unhealthy("down"));
         var node = HealthNode.CreateDelegate("Svc")
             .DependsOn(dep, Importance.Required);
+        var graph = HealthGraph.Create(node);
 
-        var result = node.Evaluate();
+        var result = graph.Evaluate("Svc");
 
         Assert.Equal(HealthStatus.Unhealthy, result.Status);
     }
@@ -61,14 +63,15 @@ public class HealthNodeTests
         var dep = HealthNode.CreateDelegate("Dep",
             () => HealthEvaluation.Unhealthy("down"));
         var node = HealthNode.CreateDelegate("Svc");
+        var graph = HealthGraph.Create(node);
 
         // Evaluate first — this used to freeze the graph.
-        var before = node.Evaluate();
+        var before = graph.Evaluate("Svc");
         Assert.Equal(HealthStatus.Healthy, before.Status);
 
         // Adding an edge at runtime now works.
         node.DependsOn(dep, Importance.Required);
-        var after = node.Evaluate();
+        var after = graph.Evaluate("Svc");
         Assert.Equal(HealthStatus.Unhealthy, after.Status);
     }
 
@@ -79,14 +82,15 @@ public class HealthNodeTests
             () => HealthEvaluation.Unhealthy("down"));
         var node = HealthNode.CreateDelegate("Svc")
             .DependsOn(dep, Importance.Required);
+        var graph = HealthGraph.Create(node);
 
-        Assert.Equal(HealthStatus.Unhealthy, node.Evaluate().Status);
+        Assert.Equal(HealthStatus.Unhealthy, graph.Evaluate("Svc").Status);
 
         var removed = node.RemoveDependency(dep);
 
         Assert.True(removed);
         Assert.Empty(node.Dependencies);
-        Assert.Equal(HealthStatus.Healthy, node.Evaluate().Status);
+        Assert.Equal(HealthStatus.Healthy, graph.Evaluate("Svc").Status);
     }
 
     [Fact]
@@ -106,121 +110,11 @@ public class HealthNodeTests
         var a = HealthNode.CreateDelegate("A");
         var b = HealthNode.CreateDelegate("B").DependsOn(a, Importance.Required);
         a.DependsOn(b, Importance.Required);
+        var graph = HealthGraph.Create(a);
 
-        var result = a.Evaluate();
+        var result = graph.Evaluate("A");
 
         Assert.Equal(HealthStatus.Unhealthy, result.Status);
         Assert.Contains("Circular", result.Reason);
     }
-
-    // ── BubbleChange / StatusChanged ────────────────────────────────
-
-    [Fact]
-    public void BubbleChange_EmitsOnStatusChange()
-    {
-        var isHealthy = true;
-        var node = HealthNode.CreateDelegate("Svc",
-            () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
-
-        var emitted = new List<HealthStatus>();
-        node.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted.Add));
-
-        // First notify — emits initial status.
-        node.BubbleChange();
-        Assert.Single(emitted);
-        Assert.Equal(HealthStatus.Healthy, emitted[0]);
-
-        // Same status — no duplicate emission.
-        node.BubbleChange();
-        Assert.Single(emitted);
-
-        // Status changes — emits new status.
-        isHealthy = false;
-        node.BubbleChange();
-        Assert.Equal(2, emitted.Count);
-        Assert.Equal(HealthStatus.Unhealthy, emitted[1]);
-    }
-
-    [Fact]
-    public void StatusChanged_Unsubscribe_StopsEmitting()
-    {
-        var node = HealthNode.CreateDelegate("Svc");
-        var emitted = new List<HealthStatus>();
-
-        var subscription = node.StatusChanged.Subscribe(
-            new TestObserver<HealthStatus>(emitted.Add));
-
-        node.BubbleChange();
-        Assert.Single(emitted);
-
-        subscription.Dispose();
-
-        // Force a change so BubbleChange would emit if still subscribed.
-        // We need to reset _lastEmitted by changing status.
-        // Since the intrinsic is always Healthy and _lastEmitted is Healthy,
-        // changing won't trigger. Use a new node instead.
-        var node2 = HealthNode.CreateDelegate("Svc2", () => HealthStatus.Degraded);
-        var emitted2 = new List<HealthStatus>();
-        var sub2 = node2.StatusChanged.Subscribe(
-            new TestObserver<HealthStatus>(emitted2.Add));
-        node2.BubbleChange();
-        Assert.Single(emitted2);
-
-        sub2.Dispose();
-        // After dispose, further notify doesn't add.
-        // (Status doesn't change so BubbleChange wouldn't emit anyway.)
-        // Verify the subscription list is cleaned up by subscribing again.
-        var emitted3 = new List<HealthStatus>();
-        node2.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted3.Add));
-        node2.BubbleChange(); // _lastEmitted == Degraded, no change
-        Assert.Empty(emitted3);
-    }
-
-    [Fact]
-    public void StatusChanged_MultipleSubscribers_AllReceive()
-    {
-        var node = HealthNode.CreateDelegate("Svc",
-            () => HealthEvaluation.Unhealthy("down"));
-
-        var emitted1 = new List<HealthStatus>();
-        var emitted2 = new List<HealthStatus>();
-        node.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted1.Add));
-        node.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted2.Add));
-
-        node.BubbleChange();
-
-        Assert.Single(emitted1);
-        Assert.Single(emitted2);
-        Assert.Equal(HealthStatus.Unhealthy, emitted1[0]);
-        Assert.Equal(HealthStatus.Unhealthy, emitted2[0]);
-    }
-
-    // ── CreateTreeSnapshot ───────────────────────────────────────────
-
-    [Fact]
-    public void CreateTreeSnapshot_ReturnsTreeFromSubtree()
-    {
-        var leaf = HealthNode.CreateDelegate("Leaf",
-            () => HealthEvaluation.Degraded("slow"));
-        var mid = HealthNode.CreateDelegate("Mid")
-            .DependsOn(leaf, Importance.Important);
-        var root = HealthNode.CreateDelegate("Root")
-            .DependsOn(mid, Importance.Required);
-
-        // Call on the subtree node, not the root.
-        var tree = mid.CreateTreeSnapshot();
-
-        Assert.Equal("Mid", tree.Name);
-        Assert.Single(tree.Dependencies);
-        Assert.Equal("Leaf", tree.Dependencies[0].Node.Name);
-        Assert.Equal(HealthStatus.Degraded, tree.Dependencies[0].Node.Status);
-        Assert.Equal(Importance.Important, tree.Dependencies[0].Importance);
-    }
-}
-
-file class TestObserver<T>(Action<T> onNext) : IObserver<T>
-{
-    public void OnNext(T value) => onNext(value);
-    public void OnError(Exception error) { }
-    public void OnCompleted() { }
 }

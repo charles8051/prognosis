@@ -380,8 +380,8 @@ public class HealthGraphTests
         var emitted = new List<TopologyChange>();
         graph.TopologyChanged.Subscribe(new TestObserver<TopologyChange>(emitted.Add));
 
-        // BubbleChange fires but topology is unchanged — no notification expected.
-        child.BubbleChange();
+        // NotifyChange fires but topology is unchanged — no notification expected.
+        graph.NotifyChange(child);
 
         Assert.Empty(emitted);
     }

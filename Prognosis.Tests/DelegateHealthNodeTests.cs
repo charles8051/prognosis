@@ -14,8 +14,9 @@ public class DelegateHealthNodeTests
     public void Constructor_NameOnly_EvaluatesHealthy()
     {
         var svc = HealthNode.CreateDelegate("MyService");
+        var graph = HealthGraph.Create(svc);
 
-        Assert.Equal(HealthStatus.Healthy, svc.Evaluate().Status);
+        Assert.Equal(HealthStatus.Healthy, graph.Evaluate("MyService").Status);
     }
 
     [Fact]
@@ -23,8 +24,9 @@ public class DelegateHealthNodeTests
     {
         var svc = HealthNode.CreateDelegate("Svc",
             () => HealthEvaluation.Degraded("slow"));
+        var graph = HealthGraph.Create(svc);
 
-        var eval = svc.Evaluate();
+        var eval = graph.Evaluate("Svc");
 
         Assert.Equal(HealthStatus.Degraded, eval.Status);
         Assert.Equal("slow", eval.Reason);
@@ -48,8 +50,9 @@ public class DelegateHealthNodeTests
             () => HealthEvaluation.Unhealthy("down"));
         var svc = HealthNode.CreateDelegate("Svc")
             .DependsOn(dep, Importance.Required);
+        var graph = HealthGraph.Create(svc);
 
-        Assert.Equal(HealthStatus.Unhealthy, svc.Evaluate().Status);
+        Assert.Equal(HealthStatus.Unhealthy, graph.Evaluate("Svc").Status);
     }
 
     [Fact]
@@ -59,8 +62,9 @@ public class DelegateHealthNodeTests
             () => HealthStatus.Unhealthy);
         var svc = HealthNode.CreateDelegate("Svc")
             .DependsOn(dep, Importance.Important);
+        var graph = HealthGraph.Create(svc);
 
-        Assert.Equal(HealthStatus.Degraded, svc.Evaluate().Status);
+        Assert.Equal(HealthStatus.Degraded, graph.Evaluate("Svc").Status);
     }
 
     [Fact]
@@ -70,23 +74,9 @@ public class DelegateHealthNodeTests
             () => HealthStatus.Unhealthy);
         var svc = HealthNode.CreateDelegate("Svc")
             .DependsOn(dep, Importance.Optional);
+        var graph = HealthGraph.Create(svc);
 
-        Assert.Equal(HealthStatus.Healthy, svc.Evaluate().Status);
-    }
-
-    [Fact]
-    public void StatusChanged_EmitsAfterBubbleChange()
-    {
-        var svc = HealthNode.CreateDelegate("Svc",
-            () => HealthEvaluation.Unhealthy("down"));
-
-        var emitted = new List<HealthStatus>();
-        svc.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted.Add));
-
-        svc.BubbleChange();
-
-        Assert.Single(emitted);
-        Assert.Equal(HealthStatus.Unhealthy, emitted[0]);
+        Assert.Equal(HealthStatus.Healthy, graph.Evaluate("Svc").Status);
     }
 
     [Fact]
@@ -141,14 +131,15 @@ public class DelegateHealthNodeTests
             () => HealthEvaluation.Unhealthy("down"));
         var parent = HealthNode.CreateDelegate("Parent")
             .DependsOn(child, Importance.Required);
+        var graph = HealthGraph.Create(parent);
 
-        Assert.Equal(HealthStatus.Unhealthy, parent.Evaluate().Status);
+        Assert.Equal(HealthStatus.Unhealthy, graph.Evaluate("Parent").Status);
 
         var removed = parent.RemoveDependency(child);
 
         Assert.True(removed);
         Assert.Empty(parent.Dependencies);
-        Assert.Equal(HealthStatus.Healthy, parent.Evaluate().Status);
+        Assert.Equal(HealthStatus.Healthy, graph.Evaluate("Parent").Status);
     }
 
     [Fact]

@@ -33,15 +33,16 @@ public class HealthMonitorTests : IAsyncDisposable
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
         _monitor = new HealthMonitor(svc, TimeSpan.FromHours(1));
 
-        var statuses = new List<HealthStatus>();
-        svc.StatusChanged.Subscribe(new TestObserver<HealthStatus>(statuses.Add));
+        var reports = new List<HealthReport>();
+        _monitor.ReportChanged.Subscribe(new TestObserver<HealthReport>(reports.Add));
 
         _monitor.Poll(); // baseline: Healthy
 
         isHealthy = false;
         _monitor.Poll(); // state change → Unhealthy
 
-        Assert.Equal(HealthStatus.Unhealthy, statuses.Last());
+        Assert.Equal(2, reports.Count);
+        Assert.Equal(HealthStatus.Unhealthy, reports.Last().Nodes[0].Status);
     }
 
     [Fact]

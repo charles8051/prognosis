@@ -61,33 +61,4 @@ public class CompositeHealthNodeTests
 
         Assert.Equal(2, composite.Dependencies.Count);
     }
-
-    [Fact]
-    public void BubbleChange_EmitsOnStatusChange()
-    {
-        var isUnhealthy = true;
-        var dep = HealthNode.CreateDelegate("Dep",
-            () => isUnhealthy
-                ? HealthEvaluation.Unhealthy("down")
-                : HealthStatus.Healthy);
-        var composite = HealthNode.CreateComposite("Comp")
-            .DependsOn(dep, Importance.Required);
-        // DependsOn propagates immediately, so _lastEmitted
-        // is already Unhealthy. Subscribe and verify a status change emits.
-        var emitted = new List<HealthStatus>();
-        composite.StatusChanged.Subscribe(new TestObserver<HealthStatus>(emitted.Add));
-
-        isUnhealthy = false;
-        composite.BubbleChange();
-
-        Assert.Single(emitted);
-        Assert.Equal(HealthStatus.Healthy, emitted[0]);
-    }
-}
-
-file class TestObserver<T>(Action<T> onNext) : IObserver<T>
-{
-    public void OnNext(T value) => onNext(value);
-    public void OnError(Exception error) { }
-    public void OnCompleted() { }
 }
