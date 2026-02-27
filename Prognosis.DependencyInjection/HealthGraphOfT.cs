@@ -40,6 +40,12 @@ public sealed class HealthGraph<TRoot> where TRoot : class
     /// <inheritdoc cref="HealthGraph.EvaluateAll"/>
     public IReadOnlyList<HealthSnapshot> EvaluateAll() => _graph.EvaluateAll();
 
+    /// <inheritdoc cref="HealthGraph.StatusChanged"/>
+    public IObservable<HealthReport> StatusChanged => _graph.StatusChanged;
+
+    /// <inheritdoc cref="HealthGraph.Evaluate(string)"/>
+    public HealthEvaluation Evaluate(string name) => _graph.Evaluate(name);
+
     /// <summary>
     /// Converts a <see cref="HealthGraph{TRoot}"/> to its underlying
     /// <see cref="HealthGraph"/> implicitly.
