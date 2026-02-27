@@ -23,6 +23,8 @@ public sealed class HealthGraph
 {
     private readonly HealthNode _root;
     private readonly object _topologyLock = new();
+    private readonly object _topologyObserverLock = new();
+    private readonly List<IObserver<TopologyChange>> _topologyObservers = new();
     private volatile NodeSnapshot _snapshot;
 
     internal HealthGraph(HealthNode root)
@@ -35,6 +37,8 @@ public sealed class HealthGraph
         _snapshot = new NodeSnapshot(allNodes);
 
         _root._topologyCallback = RefreshTopology;
+
+        TopologyChanged = new TopologyObservable(this);
     }
 
     /// <summary>
@@ -49,6 +53,14 @@ public sealed class HealthGraph
     /// or provided by the DI builder.
     /// </summary>
     public HealthNode Root => _root;
+
+    /// <summary>
+    /// Emits a <see cref="TopologyChange"/> each time nodes are added to or
+    /// removed from the graph (via <see cref="HealthNode.DependsOn"/> or
+    /// <see cref="HealthNode.RemoveDependency"/>). Does not fire when only
+    /// health statuses change.
+    /// </summary>
+    public IObservable<TopologyChange> TopologyChanged { get; }
 
     /// <summary>
     /// Looks up any node in the graph by its <see cref="HealthNode.Name"/>.
@@ -169,6 +181,8 @@ public sealed class HealthGraph
 
     private void RefreshTopology()
     {
+        TopologyChange? change = null;
+
         lock (_topologyLock)
         {
             var fresh = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
@@ -178,7 +192,41 @@ public sealed class HealthGraph
             if (fresh.Count == current.Set.Count && fresh.SetEquals(current.Set))
                 return;
 
+            var added = new List<HealthNode>();
+            var removed = new List<HealthNode>();
+
+            foreach (var node in fresh)
+            {
+                if (!current.Set.Contains(node))
+                    added.Add(node);
+            }
+
+            foreach (var node in current.Set)
+            {
+                if (!fresh.Contains(node))
+                    removed.Add(node);
+            }
+
             _snapshot = new NodeSnapshot(fresh);
+            change = new TopologyChange(added, removed);
+        }
+
+        NotifyTopologyObservers(change);
+    }
+
+    private void NotifyTopologyObservers(TopologyChange change)
+    {
+        List<IObserver<TopologyChange>>? snapshot;
+        lock (_topologyObserverLock)
+        {
+            if (_topologyObservers.Count == 0)
+                return;
+            snapshot = new List<IObserver<TopologyChange>>(_topologyObservers);
+        }
+
+        foreach (var observer in snapshot)
+        {
+            observer.OnNext(change);
         }
     }
 
@@ -215,6 +263,29 @@ public sealed class HealthGraph
         path.RemoveAt(path.Count - 1);
         gray.Remove(node);
         black.Add(node);
+    }
+
+    private sealed class TopologyObservable(HealthGraph graph) : IObservable<TopologyChange>
+    {
+        public IDisposable Subscribe(IObserver<TopologyChange> observer)
+        {
+            lock (graph._topologyObserverLock)
+            {
+                graph._topologyObservers.Add(observer);
+            }
+            return new Unsubscriber(graph, observer);
+        }
+    }
+
+    private sealed class Unsubscriber(HealthGraph graph, IObserver<TopologyChange> observer) : IDisposable
+    {
+        public void Dispose()
+        {
+            lock (graph._topologyObserverLock)
+            {
+                graph._topologyObservers.Remove(observer);
+            }
+        }
     }
 
     private sealed class NodeSnapshot
