@@ -315,11 +315,11 @@ var graph = HealthGraph.Create(app);
 
 // Timer-driven polling — emits HealthReport on change.
 graph.PollHealthReport(TimeSpan.FromSeconds(30))
-    .Subscribe(report => Console.WriteLine(report.OverallStatus));
+    .Subscribe(report => Console.WriteLine(report.Nodes.Count));
 
 // Push-triggered — reacts to StatusChanged events from the root, no polling delay.
 graph.ObserveHealthReport()
-    .Subscribe(report => Console.WriteLine(report.OverallStatus));
+    .Subscribe(report => Console.WriteLine(report.Nodes.Count));
 
 // Diff-based change stream — composable with any report source.
 graph.PollHealthReport(TimeSpan.FromSeconds(30))
@@ -356,9 +356,7 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 
 ```json
 {
-  "Timestamp": "2026-02-13T18:30:00+00:00",
-  "OverallStatus": "Healthy",
-  "Services": [
+  "Nodes": [
     { "Name": "Database.Connection", "Status": "Healthy" },
     { "Name": "Database.Latency", "Status": "Healthy" },
     { "Name": "Database.ConnectionPool", "Status": "Healthy" },
