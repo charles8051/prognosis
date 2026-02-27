@@ -1,6 +1,14 @@
 using System.Reactive.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Prognosis;
 using Prognosis.Reactive;
+
+var jsonOptions = new JsonSerializerOptions
+{
+    WriteIndented = true,
+    Converters = { new JsonStringEnumConverter() },
+};
 
 // ─────────────────────────────────────────────────────────────────────
 // Build a small health graph manually (same as core example).
@@ -42,7 +50,10 @@ Console.WriteLine();
 using var graphPollSub = graph
     .PollHealthReport(TimeSpan.FromSeconds(1))
     .Subscribe(report =>
-        Console.WriteLine($"  [Graph Poll] {report.Nodes.Count} nodes"));
+    {
+        Console.WriteLine("  [Graph Poll]");
+        Console.WriteLine(JsonSerializer.Serialize(report, jsonOptions));
+    });
 
 await Task.Delay(TimeSpan.FromSeconds(1.5));
 
@@ -67,7 +78,10 @@ Console.WriteLine();
 using var graphObserveSub = graph
     .ObserveHealthReport()
     .Subscribe(report =>
-        Console.WriteLine($"  [Graph Observe] {report.Nodes.Count} nodes"));
+    {
+        Console.WriteLine("  [Graph Observe]");
+        Console.WriteLine(JsonSerializer.Serialize(report, jsonOptions));
+    });
 
 Console.WriteLine("  Taking cache offline...");
 cache.IsConnected = false;
@@ -119,7 +133,10 @@ Console.WriteLine();
 using var pollSubscription = app
     .PollHealthReport(TimeSpan.FromSeconds(1))
     .Subscribe(report =>
-        Console.WriteLine($"  [Poll] {report.Nodes.Count} nodes"));
+    {
+        Console.WriteLine("  [Poll]");
+        Console.WriteLine(JsonSerializer.Serialize(report, jsonOptions));
+    });
 
 // Wait for the first tick to establish baseline.
 await Task.Delay(TimeSpan.FromSeconds(1.5));
@@ -146,9 +163,12 @@ Console.WriteLine();
 using var observeSubscription = app
     .ObserveHealthReport()
     .Subscribe(report =>
-        Console.WriteLine($"  [Observe] {report.Nodes.Count} nodes"));
+    {
+        Console.WriteLine("  [Observe]");
+        Console.WriteLine(JsonSerializer.Serialize(report, jsonOptions));
+    });
 
-// Trigger a change — the leaf's BubbleChange propagates to the root,
+// Trigger a change
 // which fires StatusChanged, and a report is emitted immediately.
 Console.WriteLine("  Taking cache offline...");
 cache.IsConnected = false;
@@ -198,6 +218,32 @@ await Task.Delay(TimeSpan.FromSeconds(1.5));
 
 Console.WriteLine();
 Console.WriteLine("Done.");
+
+// ─────────────────────────────────────────────────────────────────────
+// HealthGraph.CreateTreeSnapshot — hierarchical JSON output whose
+// nesting mirrors the dependency topology.
+// ─────────────────────────────────────────────────────────────────────
+
+Console.WriteLine("=== HealthGraph.CreateTreeSnapshot (hierarchical JSON) ===");
+Console.WriteLine();
+
+// Restore everything to healthy first.
+externalEmailApi.IsConnected = true;
+database.IsConnected = true;
+
+Console.WriteLine("All services healthy:");
+Console.WriteLine(JsonSerializer.Serialize(graph.CreateTreeSnapshot(), jsonOptions));
+Console.WriteLine();
+
+Console.WriteLine("Taking database offline...");
+database.IsConnected = false;
+Console.WriteLine(JsonSerializer.Serialize(graph.CreateTreeSnapshot(), jsonOptions));
+Console.WriteLine();
+
+Console.WriteLine("Restoring database...");
+database.IsConnected = true;
+Console.WriteLine(JsonSerializer.Serialize(graph.CreateTreeSnapshot(), jsonOptions));
+Console.WriteLine();
 
 // ─────────────────────────────────────────────────────────────────────
 // Example service classes (self-contained, same as core example)
