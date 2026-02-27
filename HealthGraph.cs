@@ -93,7 +93,7 @@ public sealed class HealthGraph
     /// trigger <see cref="HealthNode.BubbleChange"/> which refreshes the
     /// graph's internal collections.
     /// </summary>
-    public IEnumerable<HealthNode> Nodes => _snapshot.Set;
+    public IEnumerable<HealthNode> Nodes => _snapshot.Nodes;
 
     /// <summary>
     /// Evaluates the full graph and packages the result as a
@@ -143,7 +143,7 @@ public sealed class HealthGraph
         var path = new List<HealthNode>();
         var cycles = new List<IReadOnlyList<string>>();
 
-        foreach (var node in _snapshot.Set)
+        foreach (var node in _snapshot.Nodes)
         {
             DetectCyclesDfs(node, gray, black, path, cycles);
         }
@@ -221,10 +221,13 @@ public sealed class HealthGraph
     {
         public readonly HashSet<HealthNode> Set;
         public readonly Dictionary<string, HealthNode> Index;
+        public readonly HealthNode[] Nodes;
 
         public NodeSnapshot(HashSet<HealthNode> set)
         {
             Set = set;
+            Nodes = new HealthNode[set.Count];
+            set.CopyTo(Nodes);
             Index = new Dictionary<string, HealthNode>(set.Count, StringComparer.Ordinal);
             foreach (var node in set)
                 Index[node.Name] = node;
