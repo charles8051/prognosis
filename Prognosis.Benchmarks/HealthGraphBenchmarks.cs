@@ -57,11 +57,11 @@ public class HealthGraphBenchmarks
     public HealthReport CreateReport() => _graph.CreateReport();
 
     /// <summary>
-    /// Measures a single <see cref="HealthNode.Evaluate"/> call on the
+    /// Measures a single <see cref="HealthGraph.Evaluate(HealthNode)"/> call on the
     /// platform root — recursive aggregation through all dependencies.
     /// </summary>
     [Benchmark]
-    public HealthEvaluation EvaluateRoot() => _root.Evaluate();
+    public HealthEvaluation EvaluateRoot() => _graph.Evaluate(_root);
 
     /// <summary>
     /// Measures <see cref="HealthGraph.NotifyAll"/> — depth-first

@@ -111,8 +111,8 @@ Console.WriteLine(string.Join(Environment.NewLine, cycles.Select(c => "  Cycle: 
 Console.WriteLine();
 
 // Evaluation still works — the re-entrancy guard prevents a stack overflow.
-Console.WriteLine($"  ServiceA evaluates safely: {nodeA.Evaluate()}");
-Console.WriteLine($"  ServiceB evaluates safely: {nodeB.Evaluate()}");
+Console.WriteLine($"  ServiceA evaluates safely: {cycleGraph.Evaluate("ServiceA")}");
+Console.WriteLine($"  ServiceB evaluates safely: {cycleGraph.Evaluate("ServiceB")}");
 Console.WriteLine();
 
 // ── Serialization ────────────────────────────────────────────────────
@@ -130,9 +130,9 @@ database.IsConnected = true;
 cache.IsConnected = true;
 externalEmailApi.IsConnected = true;
 
-// Subscribe to an individual service's status changes.
-using var dbSubscription = database.HealthNode.StatusChanged.Subscribe(
-    new StatusObserver("Database"));
+// Subscribe to graph-level status changes.
+using var statusSubscription = graph.StatusChanged.Subscribe(
+    new ReportObserver());
 
 // Subscribe to graph-level report changes via HealthMonitor.
 // The HealthGraph overload re-queries Roots each tick, so runtime

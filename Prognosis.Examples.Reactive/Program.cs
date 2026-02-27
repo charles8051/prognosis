@@ -85,12 +85,12 @@ using var graphObserveSub = graph
 
 Console.WriteLine("  Taking cache offline...");
 cache.IsConnected = false;
-cache.HealthNode.BubbleChange();
+graph.NotifyChange(cache.HealthNode);
 await Task.Delay(TimeSpan.FromSeconds(1));
 
 Console.WriteLine("  Restoring cache...");
 cache.IsConnected = true;
-cache.HealthNode.BubbleChange();
+graph.NotifyChange(cache.HealthNode);
 await Task.Delay(TimeSpan.FromSeconds(1));
 Console.WriteLine();
 
@@ -124,13 +124,14 @@ Console.WriteLine();
 graphChangeSub.Dispose();
 
 // ─────────────────────────────────────────────────────────────────────
-// HealthNode extensions — same API on a single subtree.
+// HealthGraph.PollHealthReport — polling on a graph (same as above
+// but demonstrates a second subscription on the same graph).
 // ─────────────────────────────────────────────────────────────────────
 
-Console.WriteLine("=== HealthNode.PollHealthReport (single subtree, polling every 1 second) ===");
+Console.WriteLine("=== HealthGraph.PollHealthReport (second subscription, polling every 1 second) ===");
 Console.WriteLine();
 
-using var pollSubscription = app
+using var pollSubscription = graph
     .PollHealthReport(TimeSpan.FromSeconds(1))
     .Subscribe(report =>
     {
@@ -154,13 +155,13 @@ Console.WriteLine();
 pollSubscription.Dispose();
 
 // ─────────────────────────────────────────────────────────────────────
-// HealthNode.ObserveHealthReport — push-triggered on a single node.
+// HealthGraph.ObserveHealthReport — push-triggered via NotifyChange.
 // ─────────────────────────────────────────────────────────────────────
 
-Console.WriteLine("=== HealthNode.ObserveHealthReport (push-triggered on node) ===");
+Console.WriteLine("=== HealthGraph.ObserveHealthReport (push-triggered via NotifyChange) ===");
 Console.WriteLine();
 
-using var observeSubscription = app
+using var observeSubscription = graph
     .ObserveHealthReport()
     .Subscribe(report =>
     {
@@ -168,30 +169,30 @@ using var observeSubscription = app
         Console.WriteLine(JsonSerializer.Serialize(report, jsonOptions));
     });
 
-// Trigger a change
-// which fires StatusChanged, and a report is emitted immediately.
+// Trigger a change via NotifyChange, which fires StatusChanged and
+// a report is emitted immediately.
 Console.WriteLine("  Taking cache offline...");
 cache.IsConnected = false;
-cache.HealthNode.BubbleChange(); // push the change
+graph.NotifyChange(cache.HealthNode); // push the change
 await Task.Delay(TimeSpan.FromSeconds(1));
 
 Console.WriteLine("  Restoring cache...");
 cache.IsConnected = true;
-cache.HealthNode.BubbleChange();
+graph.NotifyChange(cache.HealthNode);
 await Task.Delay(TimeSpan.FromSeconds(1));
 Console.WriteLine();
 
 observeSubscription.Dispose();
 
 // ─────────────────────────────────────────────────────────────────────
-// HealthNode.SelectServiceChanges — diffs consecutive reports into
-// individual StatusChange events.
+// HealthGraph.PollHealthReport + SelectServiceChanges — diffs
+// consecutive reports into individual StatusChange events.
 // ─────────────────────────────────────────────────────────────────────
 
-Console.WriteLine("=== HealthNode.PollHealthReport + SelectServiceChanges ===");
+Console.WriteLine("=== HealthGraph.PollHealthReport + SelectServiceChanges ===");
 Console.WriteLine();
 
-using var changeSubscription = app
+using var changeSubscription = graph
     .PollHealthReport(TimeSpan.FromSeconds(1))
     .SelectHealthChanges()
     .Subscribe(change =>

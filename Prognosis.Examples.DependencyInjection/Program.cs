@@ -116,7 +116,7 @@ Console.WriteLine();
 Console.WriteLine("=== HealthGraph lookup ===");
 foreach (var node in graph.Nodes)
 {
-    Console.WriteLine($"  {node.Name}: {node.Evaluate()}");
+    Console.WriteLine($"  {node.Name}: {graph.Evaluate(node)}");
 }
 Console.WriteLine();
 
