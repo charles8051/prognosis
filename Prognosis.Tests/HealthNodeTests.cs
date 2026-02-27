@@ -194,6 +194,28 @@ public class HealthNodeTests
         Assert.Equal(HealthStatus.Unhealthy, emitted1[0]);
         Assert.Equal(HealthStatus.Unhealthy, emitted2[0]);
     }
+
+    // ── CreateTreeSnapshot ───────────────────────────────────────────
+
+    [Fact]
+    public void CreateTreeSnapshot_ReturnsTreeFromSubtree()
+    {
+        var leaf = new DelegateHealthNode("Leaf",
+            () => new HealthEvaluation(HealthStatus.Degraded, "slow"));
+        var mid = new DelegateHealthNode("Mid")
+            .DependsOn(leaf, Importance.Important);
+        var root = new DelegateHealthNode("Root")
+            .DependsOn(mid, Importance.Required);
+
+        // Call on the subtree node, not the root.
+        var tree = mid.CreateTreeSnapshot();
+
+        Assert.Equal("Mid", tree.Name);
+        Assert.Single(tree.Dependencies);
+        Assert.Equal("Leaf", tree.Dependencies[0].Node.Name);
+        Assert.Equal(HealthStatus.Degraded, tree.Dependencies[0].Node.Status);
+        Assert.Equal(Importance.Important, tree.Dependencies[0].Importance);
+    }
 }
 
 file class TestObserver<T>(Action<T> onNext) : IObserver<T>

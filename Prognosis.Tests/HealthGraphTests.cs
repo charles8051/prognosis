@@ -255,6 +255,79 @@ public class HealthGraphTests
         var node = Assert.Single(report.Nodes);
         Assert.Equal(HealthStatus.Healthy, node.Status);
     }
+
+    // ── CreateTreeSnapshot ───────────────────────────────────────────
+
+    [Fact]
+    public void CreateTreeSnapshot_SingleNode_ReturnsLeafWithNoDependencies()
+    {
+        var graph = HealthGraph.Create(new DelegateHealthNode("Only"));
+
+        var tree = graph.CreateTreeSnapshot();
+
+        Assert.Equal("Only", tree.Name);
+        Assert.Equal(HealthStatus.Healthy, tree.Status);
+        Assert.Empty(tree.Dependencies);
+    }
+
+    [Fact]
+    public void CreateTreeSnapshot_PreservesHierarchyAndImportance()
+    {
+        var db = new DelegateHealthNode("Database");
+        var cache = new DelegateHealthNode("Cache");
+        var auth = new DelegateHealthNode("Auth")
+            .DependsOn(db, Importance.Required)
+            .DependsOn(cache, Importance.Important);
+        var graph = HealthGraph.Create(auth);
+
+        var tree = graph.CreateTreeSnapshot();
+
+        Assert.Equal("Auth", tree.Name);
+        Assert.Equal(2, tree.Dependencies.Count);
+        Assert.Equal("Database", tree.Dependencies[0].Node.Name);
+        Assert.Equal(Importance.Required, tree.Dependencies[0].Importance);
+        Assert.Equal("Cache", tree.Dependencies[1].Node.Name);
+        Assert.Equal(Importance.Important, tree.Dependencies[1].Importance);
+    }
+
+    [Fact]
+    public void CreateTreeSnapshot_PropagatesUnhealthyStatus()
+    {
+        var child = new DelegateHealthNode("Child",
+            () => new HealthEvaluation(HealthStatus.Unhealthy, "down"));
+        var root = new DelegateHealthNode("Root")
+            .DependsOn(child, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        var tree = graph.CreateTreeSnapshot();
+
+        Assert.Equal(HealthStatus.Unhealthy, tree.Status);
+        Assert.Equal(HealthStatus.Unhealthy, tree.Dependencies[0].Node.Status);
+        Assert.Equal("down", tree.Dependencies[0].Node.Reason);
+    }
+
+    [Fact]
+    public void CreateTreeSnapshot_DiamondDependency_SecondOccurrenceIsLeaf()
+    {
+        var shared = new DelegateHealthNode("Shared");
+        var a = new DelegateHealthNode("A").DependsOn(shared, Importance.Required);
+        var b = new DelegateHealthNode("B").DependsOn(shared, Importance.Required);
+        var root = new CompositeHealthNode("Root")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        var tree = graph.CreateTreeSnapshot();
+
+        // First branch includes Shared with children walked.
+        var sharedUnderA = tree.Dependencies[0].Node.Dependencies[0].Node;
+        Assert.Equal("Shared", sharedUnderA.Name);
+
+        // Second branch: Shared was already visited — rendered as a leaf.
+        var sharedUnderB = tree.Dependencies[1].Node.Dependencies[0].Node;
+        Assert.Equal("Shared", sharedUnderB.Name);
+        Assert.Empty(sharedUnderB.Dependencies);
+    }
 }
 
 /// <summary>Minimal IHealthAware stub for generic TryGetService tests.</summary>
