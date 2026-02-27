@@ -105,7 +105,7 @@ Console.WriteLine();
 
 using var graphChangeSub = graph
     .PollHealthReport(TimeSpan.FromSeconds(1))
-    .SelectServiceChanges()
+    .SelectHealthChanges()
     .Subscribe(change =>
         Console.WriteLine($"  [Graph Change] {change.Name}: {change.Previous} → {change.Current}" +
             (change.Reason is not null ? $" ({change.Reason})" : "")));
@@ -193,7 +193,7 @@ Console.WriteLine();
 
 using var changeSubscription = app
     .PollHealthReport(TimeSpan.FromSeconds(1))
-    .SelectServiceChanges()
+    .SelectHealthChanges()
     .Subscribe(change =>
         Console.WriteLine($"  [Change] {change.Name}: {change.Previous} → {change.Current}" +
             (change.Reason is not null ? $" ({change.Reason})" : "")));

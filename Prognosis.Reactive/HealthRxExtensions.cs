@@ -65,11 +65,11 @@ public static class HealthRxExtensions
     /// <summary>
     /// Projects a stream of <see cref="HealthReport"/>s into individual
     /// <see cref="StatusChange"/> events by diffing consecutive reports.
-    /// Only services whose status actually changed are emitted.
+    /// Only nodes whose status actually changed are emitted.
     /// Composable with any report source — <see cref="PollHealthReport"/>,
     /// <see cref="ObserveHealthReport"/>, or custom pipelines.
     /// </summary>
-    public static IObservable<StatusChange> SelectServiceChanges(
+    public static IObservable<StatusChange> SelectHealthChanges(
         this IObservable<HealthReport> reports)
     {
         return reports

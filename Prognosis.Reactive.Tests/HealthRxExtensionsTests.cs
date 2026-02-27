@@ -170,7 +170,7 @@ public class HealthRxExtensionsTests
 
         var changes = new List<StatusChange>();
         using var sub = subject
-            .SelectServiceChanges()
+            .SelectHealthChanges()
             .Subscribe(c => changes.Add(c));
 
         var report1 = new HealthReport(new[]
@@ -198,7 +198,7 @@ public class HealthRxExtensionsTests
 
         var changes = new List<StatusChange>();
         using var sub = subject
-            .SelectServiceChanges()
+            .SelectHealthChanges()
             .Subscribe(c => changes.Add(c));
 
         var report = new HealthReport(new[]
@@ -219,7 +219,7 @@ public class HealthRxExtensionsTests
 
         var changes = new List<StatusChange>();
         using var sub = subject
-            .SelectServiceChanges()
+            .SelectHealthChanges()
             .Subscribe(c => changes.Add(c));
 
         var report1 = new HealthReport(Array.Empty<HealthSnapshot>());
@@ -243,7 +243,7 @@ public class HealthRxExtensionsTests
 
         var changes = new List<StatusChange>();
         using var sub = subject
-            .SelectServiceChanges()
+            .SelectHealthChanges()
             .Subscribe(c => changes.Add(c));
 
         var report = new HealthReport(new[]
