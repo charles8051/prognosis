@@ -22,19 +22,16 @@ namespace Prognosis;
 public sealed class HealthGraph
 {
     private readonly HealthNode _root;
-    private volatile HashSet<HealthNode> _allNodes;
-    private volatile Dictionary<string, HealthNode> _nodesByName;
+    private volatile NodeSnapshot _snapshot;
 
     internal HealthGraph(HealthNode root)
     {
         _root = root;
 
-        _allNodes = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
-        Collect(root, _allNodes);
+        var allNodes = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+        Collect(root, allNodes);
 
-        _nodesByName = new Dictionary<string, HealthNode>(_allNodes.Count, StringComparer.Ordinal);
-        foreach (var node in _allNodes)
-            _nodesByName[node.Name] = node;
+        _snapshot = new NodeSnapshot(allNodes);
 
         _root._topologyCallback = RefreshTopology;
     }
@@ -75,7 +72,7 @@ public sealed class HealthGraph
     /// if no node with the given name exists.
     /// </summary>
     public bool TryGetNode(string name, out HealthNode node) =>
-        _nodesByName.TryGetValue(name, out node!);
+        _snapshot.Index.TryGetValue(name, out node!);
 
     /// <summary>
     /// Looks up a node whose <see cref="HealthNode.Name"/> matches
@@ -95,7 +92,7 @@ public sealed class HealthGraph
     /// trigger <see cref="HealthNode.BubbleChange"/> which refreshes the
     /// graph's internal collections.
     /// </summary>
-    public IEnumerable<HealthNode> Nodes => _allNodes;
+    public IEnumerable<HealthNode> Nodes => _snapshot.Set;
 
     /// <summary>
     /// Evaluates the full graph and packages the result as a
@@ -145,7 +142,7 @@ public sealed class HealthGraph
         var path = new List<HealthNode>();
         var cycles = new List<IReadOnlyList<string>>();
 
-        foreach (var node in _allNodes)
+        foreach (var node in _snapshot.Set)
         {
             DetectCyclesDfs(node, gray, black, path, cycles);
         }
@@ -174,16 +171,11 @@ public sealed class HealthGraph
         var fresh = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
         Collect(_root, fresh);
 
-        var current = _allNodes;
-        if (fresh.Count == current.Count && fresh.SetEquals(current))
+        var current = _snapshot;
+        if (fresh.Count == current.Set.Count && fresh.SetEquals(current.Set))
             return;
 
-        var index = new Dictionary<string, HealthNode>(fresh.Count, StringComparer.Ordinal);
-        foreach (var node in fresh)
-            index[node.Name] = node;
-
-        _nodesByName = index;
-        _allNodes = fresh;
+        _snapshot = new NodeSnapshot(fresh);
     }
 
     private static void DetectCyclesDfs(
@@ -219,5 +211,19 @@ public sealed class HealthGraph
         path.RemoveAt(path.Count - 1);
         gray.Remove(node);
         black.Add(node);
+    }
+
+    private sealed class NodeSnapshot
+    {
+        public readonly HashSet<HealthNode> Set;
+        public readonly Dictionary<string, HealthNode> Index;
+
+        public NodeSnapshot(HashSet<HealthNode> set)
+        {
+            Set = set;
+            Index = new Dictionary<string, HealthNode>(set.Count, StringComparer.Ordinal);
+            foreach (var node in set)
+                Index[node.Name] = node;
+        }
     }
 }
