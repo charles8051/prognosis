@@ -26,33 +26,6 @@ public enum ShareStrategy
 public static class HealthRxShared
 {
     public static IObservable<HealthReport> CreateSharedReportStream(
-        this HealthNode node,
-        TimeSpan interval,
-        ShareStrategy strategy = ShareStrategy.RefCount)
-    {
-        var source = node.PollHealthReport(interval);
-        return strategy switch
-        {
-            ShareStrategy.ReplayLatest => source.Replay(1).RefCount(),
-            _ => source.Publish().RefCount(),
-        };
-    }
-
-    public static IObservable<HealthReport> CreateSharedObserveStream(
-        this HealthNode node,
-        ShareStrategy strategy = ShareStrategy.RefCount)
-    {
-        var source = node.ObserveHealthReport();
-        return strategy switch
-        {
-            ShareStrategy.ReplayLatest => source.Replay(1).RefCount(),
-            _ => source.Publish().RefCount(),
-        };
-    }
-
-    // ── HealthGraph overloads ────────────────────────────────────────
-
-    public static IObservable<HealthReport> CreateSharedReportStream(
         this HealthGraph graph,
         TimeSpan interval,
         ShareStrategy strategy = ShareStrategy.RefCount)
