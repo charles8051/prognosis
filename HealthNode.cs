@@ -25,20 +25,19 @@ public abstract class HealthNode
     private readonly Func<HealthEvaluation> _intrinsicCheck;
     private readonly object _dependencyWriteLock = new();
     private readonly object _parentWriteLock = new();
-    private readonly object _observerLock = new();
-    private readonly List<IObserver<HealthStatus>> _observers = new();
     private volatile IReadOnlyList<HealthNode> _parents = Array.Empty<HealthNode>();
     private volatile IReadOnlyList<HealthDependency> _dependencies = Array.Empty<HealthDependency>();
-    private volatile HealthEvaluation? _cachedEvaluation;
-    private HealthStatus? _lastEmitted;
+    internal volatile HealthEvaluation? _cachedEvaluation;
 
     /// <summary>
-    /// Optional callback invoked when <see cref="BubbleChange"/> reaches
-    /// this node. Used by <see cref="HealthGraph"/> to refresh its internal
-    /// node collections when the topology changes (e.g., nodes added or
-    /// removed via <see cref="DependsOn"/> / <see cref="RemoveDependency"/>).
+    /// Strategy for propagating health changes after topology mutations
+    /// (<see cref="DependsOn"/> / <see cref="RemoveDependency"/>).
+    /// Defaults to a direct <see cref="BubbleChange"/> call. When a
+    /// <see cref="HealthGraph"/> is attached, it installs a serialized
+    /// strategy that wraps propagation under a lock, refreshes topology,
+    /// rebuilds the cached report, and emits <c>StatusChanged</c>.
     /// </summary>
-    internal volatile Action? _topologyCallback;
+    internal Action<HealthNode> _bubbleStrategy = static node => node.BubbleChange();
 
     /// <param name="intrinsicCheck">
     /// A callback that returns the owning service's intrinsic health
@@ -47,7 +46,6 @@ public abstract class HealthNode
     private protected HealthNode(Func<HealthEvaluation> intrinsicCheck)
     {
         _intrinsicCheck = intrinsicCheck;
-        StatusChanged = new StatusObservable(this);
     }
 
     /// <summary>Display name for this node in the health graph.</summary>
@@ -107,7 +105,7 @@ public abstract class HealthNode
     /// The effective health of this service, taking its own state and all
     /// dependency statuses (weighted by importance) into account.
     /// </summary>
-    public HealthEvaluation Evaluate()
+    internal HealthEvaluation Evaluate()
     {
         s_evaluating ??= new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
 
@@ -125,37 +123,6 @@ public abstract class HealthNode
         {
             s_evaluating.Remove(this);
         }
-    }
-
-    /// <summary>
-    /// Evaluates this node and its full dependency subtree and returns a
-    /// point-in-time <see cref="HealthReport"/>. Each node appears at most
-    /// once (depth-first post-order).
-    /// </summary>
-    public HealthReport CreateReport()
-    {
-        var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
-        var results = new List<HealthSnapshot>();
-        WalkEvaluate(this, visited, results);
-
-        return new HealthReport(results);
-    }
-
-    /// <summary>
-    /// Evaluates this node and its full dependency subtree and returns a
-    /// tree-shaped <see cref="HealthTreeSnapshot"/> whose nesting mirrors
-    /// the dependency topology. Ideal for JSON serialization where hierarchy
-    /// should be visible in the output structure.
-    /// <para>
-    /// Diamond joins and cycles are handled — a node already visited is
-    /// rendered as a leaf (evaluated status preserved, children omitted)
-    /// to avoid infinite recursion.
-    /// </para>
-    /// </summary>
-    public HealthTreeSnapshot CreateTreeSnapshot()
-    {
-        var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
-        return BuildTreeSnapshot(this, visited);
     }
 
     internal static HealthTreeSnapshot BuildTreeSnapshot(
@@ -184,22 +151,15 @@ public abstract class HealthNode
     }
 
     /// <summary>
-    /// Emits the new <see cref="HealthStatus"/> each time the service's
-    /// effective health changes.
-    /// </summary>
-    public IObservable<HealthStatus> StatusChanged { get; }
-
-    /// <summary>
-    /// Re-evaluates the current health, pushes a notification through
-    /// <see cref="StatusChanged"/> if the status has changed, and
-    /// automatically bubbles upward through <see cref="Parents"/>
-    /// so that the entire ancestor chain is re-evaluated.
+    /// Re-evaluates the current health and automatically bubbles upward
+    /// through <see cref="Parents"/> so that the entire ancestor chain
+    /// is re-evaluated.
     /// <para>
     /// Diamond graphs and cycles are handled correctly — each node
     /// is visited at most once per propagation wave.
     /// </para>
     /// </summary>
-    public void BubbleChange()
+    internal void BubbleChange()
     {
         var isRoot = s_propagating is null;
         s_propagating ??= new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
@@ -210,7 +170,6 @@ public abstract class HealthNode
                 return;
 
             NotifyChangedCore();
-            _topologyCallback?.Invoke();
 
             foreach (var parent in _parents)
                 parent.BubbleChange();
@@ -223,8 +182,7 @@ public abstract class HealthNode
     }
 
     /// <summary>
-    /// Re-evaluates the current health and pushes a notification through
-    /// <see cref="StatusChanged"/> if the status has changed.
+    /// Re-evaluates the current health and updates <see cref="_cachedEvaluation"/>.
     /// Does <b>not</b> propagate to parents — used internally by
     /// <see cref="RefreshDescendants"/> and <see cref="HealthGraph.RefreshAll"/>
     /// which walk the graph themselves.
@@ -234,25 +192,6 @@ public abstract class HealthNode
         var deps = _dependencies;
         var eval = Aggregate(_intrinsicCheck(), deps, useCachedDependencies: true);
         _cachedEvaluation = eval;
-        var current = eval.Status;
-
-        List<IObserver<HealthStatus>>? snapshot = null;
-        lock (_observerLock)
-        {
-            if (current == _lastEmitted)
-                return;
-            _lastEmitted = current;
-            if (_observers.Count > 0)
-                snapshot = new List<IObserver<HealthStatus>>(_observers);
-        }
-
-        if (snapshot is not null)
-        {
-            foreach (var observer in snapshot)
-            {
-                observer.OnNext(current);
-            }
-        }
     }
 
     /// <summary>
@@ -278,7 +217,7 @@ public abstract class HealthNode
             var updated = new List<HealthNode>(node._parents) { this };
             node._parents = updated;
         }
-        BubbleChange();
+        _bubbleStrategy(this);
         return this;
     }
 
@@ -345,7 +284,7 @@ public abstract class HealthNode
                     node._parents = updated;
                 }
             }
-            BubbleChange();
+            _bubbleStrategy(this);
         }
         return removed;
     }
@@ -434,36 +373,6 @@ public abstract class HealthNode
         results.Add(new HealthSnapshot(node.Name, eval.Status, eval.Reason));
     }
 
-    private void AddObserver(IObserver<HealthStatus> observer)
-    {
-        lock (_observerLock)
-        {
-            _observers.Add(observer);
-        }
-    }
-
-    private void RemoveObserver(IObserver<HealthStatus> observer)
-    {
-        lock (_observerLock)
-        {
-            _observers.Remove(observer);
-        }
-    }
-
-    private sealed class StatusObservable(HealthNode node) : IObservable<HealthStatus>
-    {
-        public IDisposable Subscribe(IObserver<HealthStatus> observer)
-        {
-            node.AddObserver(observer);
-            return new Unsubscriber(node, observer);
-        }
-    }
-
-    private sealed class Unsubscriber(HealthNode node, IObserver<HealthStatus> observer) : IDisposable
-    {
-        public void Dispose() => node.RemoveObserver(observer);
-    }
-
     /// <summary>
     /// Re-evaluates the intrinsic health of every node in this node's
     /// dependency subtree (depth-first, leaves before parents), firing
@@ -476,7 +385,7 @@ public abstract class HealthNode
     /// dependencies to refresh the entire subtree.
     /// </para>
     /// </summary>
-    public void RefreshDescendants()
+    internal void RefreshDescendants()
     {
         var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
         NotifyDfs(this, visited);

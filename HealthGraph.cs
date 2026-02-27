@@ -22,10 +22,14 @@ namespace Prognosis;
 public sealed class HealthGraph
 {
     private readonly HealthNode _root;
+    private readonly object _propagationLock = new();
     private readonly object _topologyLock = new();
     private readonly object _topologyObserverLock = new();
     private readonly List<IObserver<TopologyChange>> _topologyObservers = new();
+    private readonly object _statusObserverLock = new();
+    private readonly List<IObserver<HealthReport>> _statusObservers = new();
     private volatile NodeSnapshot _snapshot;
+    private volatile HealthReport? _cachedReport;
 
     internal HealthGraph(HealthNode root)
     {
@@ -36,9 +40,11 @@ public sealed class HealthGraph
 
         _snapshot = new NodeSnapshot(allNodes);
 
-        _root._topologyCallback = RefreshTopology;
+        foreach (var node in allNodes)
+            node._bubbleStrategy = SerializedBubble;
 
         TopologyChanged = new TopologyObservable(this);
+        StatusChanged = new StatusObservable(this);
     }
 
     /// <summary>
@@ -61,6 +67,42 @@ public sealed class HealthGraph
     /// health statuses change.
     /// </summary>
     public IObservable<TopologyChange> TopologyChanged { get; }
+
+    /// <summary>
+    /// Emits a <see cref="HealthReport"/> each time the graph's effective
+    /// health state changes. Emissions are driven by
+    /// <see cref="NotifyChange"/>, <see cref="HealthNode.DependsOn"/>,
+    /// <see cref="HealthNode.RemoveDependency"/>, and <see cref="RefreshAll"/>.
+    /// Only fires when the report actually differs from the previous one.
+    /// </summary>
+    public IObservable<HealthReport> StatusChanged { get; }
+
+    /// <summary>
+    /// Notifies the graph that <paramref name="node"/>'s intrinsic health
+    /// may have changed. Propagates upward through ancestors, rebuilds the
+    /// cached report, and emits <see cref="StatusChanged"/> if the overall
+    /// state changed.
+    /// </summary>
+    public void NotifyChange(HealthNode node)
+    {
+        SerializedBubble(node);
+    }
+
+    /// <summary>
+    /// Evaluates a single node's effective health (intrinsic check plus
+    /// its dependency subtree).
+    /// </summary>
+    /// <param name="name">The <see cref="HealthNode.Name"/> of the node to evaluate.</param>
+    /// <exception cref="KeyNotFoundException">
+    /// No node with the given name exists in the graph.
+    /// </exception>
+    public HealthEvaluation Evaluate(string name) => this[name].Evaluate();
+
+    /// <summary>
+    /// Evaluates a single node's effective health (intrinsic check plus
+    /// its dependency subtree).
+    /// </summary>
+    public HealthEvaluation Evaluate(HealthNode node) => node.Evaluate();
 
     /// <summary>
     /// Looks up any node in the graph by its <see cref="HealthNode.Name"/>.
@@ -108,15 +150,12 @@ public sealed class HealthGraph
     public IEnumerable<HealthNode> Nodes => _snapshot.Nodes;
 
     /// <summary>
-    /// Evaluates the full graph and packages the result as a
-    /// <see cref="HealthReport"/>.
+    /// Returns the cached <see cref="HealthReport"/> that reflects the
+    /// latest state after the most recent propagation or refresh. If no
+    /// propagation has occurred yet, builds the report on first access.
     /// </summary>
-    public HealthReport CreateReport()
-    {
-        var nodes = EvaluateAll();
-
-        return new HealthReport(nodes);
-    }
+    public HealthReport CreateReport() =>
+        _cachedReport ?? RebuildReport();
 
     /// <summary>
     /// Evaluates the full graph and returns a tree-shaped
@@ -124,7 +163,11 @@ public sealed class HealthGraph
     /// topology. Ideal for JSON serialization where hierarchy should be
     /// visible in the output structure.
     /// </summary>
-    public HealthTreeSnapshot CreateTreeSnapshot() => _root.CreateTreeSnapshot();
+    public HealthTreeSnapshot CreateTreeSnapshot()
+    {
+        var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+        return HealthNode.BuildTreeSnapshot(_root, visited);
+    }
 
     /// <summary>
     /// Walks the full dependency graph from the root and returns every
@@ -168,7 +211,27 @@ public sealed class HealthGraph
     /// <see cref="HealthNode.NotifyChangedCore"/> on every node encountered.
     /// Leaves are refreshed before their parents.
     /// </summary>
-    public void RefreshAll() => _root.RefreshDescendants();
+    public void RefreshAll()
+    {
+        HealthReport? reportToEmit = null;
+
+        lock (_propagationLock)
+        {
+            _root.RefreshDescendants();
+
+            var previous = _cachedReport;
+            var report = RebuildReport();
+
+            if (previous is null
+                || !HealthReportComparer.Instance.Equals(previous, report))
+            {
+                reportToEmit = report;
+            }
+        }
+
+        if (reportToEmit is not null)
+            EmitStatusChanged(reportToEmit);
+    }
 
     private static void Collect(HealthNode node, HashSet<HealthNode> visited)
     {
@@ -177,6 +240,43 @@ public sealed class HealthGraph
 
         foreach (var dep in node.Dependencies)
             Collect(dep.Node, visited);
+    }
+
+    private HealthReport RebuildReport()
+    {
+        var nodes = _snapshot.Nodes;
+        var results = new List<HealthSnapshot>(nodes.Length);
+        foreach (var node in nodes)
+        {
+            var eval = node._cachedEvaluation ?? node.Evaluate();
+            results.Add(new HealthSnapshot(node.Name, eval.Status, eval.Reason));
+        }
+        var report = new HealthReport(results);
+        _cachedReport = report;
+        return report;
+    }
+
+    private void SerializedBubble(HealthNode origin)
+    {
+        HealthReport? reportToEmit = null;
+
+        lock (_propagationLock)
+        {
+            origin.BubbleChange();
+            RefreshTopology();
+
+            var previous = _cachedReport;
+            var report = RebuildReport();
+
+            if (previous is null
+                || !HealthReportComparer.Instance.Equals(previous, report))
+            {
+                reportToEmit = report;
+            }
+        }
+
+        if (reportToEmit is not null)
+            EmitStatusChanged(reportToEmit);
     }
 
     private void RefreshTopology()
@@ -206,6 +306,12 @@ public sealed class HealthGraph
                 if (!fresh.Contains(node))
                     removed.Add(node);
             }
+
+            foreach (var node in added)
+                node._bubbleStrategy = SerializedBubble;
+
+            foreach (var node in removed)
+                node._bubbleStrategy = static n => n.BubbleChange();
 
             _snapshot = new NodeSnapshot(fresh);
             change = new TopologyChange(added, removed);
@@ -284,6 +390,45 @@ public sealed class HealthGraph
             lock (graph._topologyObserverLock)
             {
                 graph._topologyObservers.Remove(observer);
+            }
+        }
+    }
+
+    private void EmitStatusChanged(HealthReport report)
+    {
+        List<IObserver<HealthReport>>? snapshot;
+        lock (_statusObserverLock)
+        {
+            if (_statusObservers.Count == 0)
+                return;
+            snapshot = new List<IObserver<HealthReport>>(_statusObservers);
+        }
+
+        foreach (var observer in snapshot)
+        {
+            observer.OnNext(report);
+        }
+    }
+
+    private sealed class StatusObservable(HealthGraph graph) : IObservable<HealthReport>
+    {
+        public IDisposable Subscribe(IObserver<HealthReport> observer)
+        {
+            lock (graph._statusObserverLock)
+            {
+                graph._statusObservers.Add(observer);
+            }
+            return new StatusUnsubscriber(graph, observer);
+        }
+    }
+
+    private sealed class StatusUnsubscriber(HealthGraph graph, IObserver<HealthReport> observer) : IDisposable
+    {
+        public void Dispose()
+        {
+            lock (graph._statusObserverLock)
+            {
+                graph._statusObservers.Remove(observer);
             }
         }
     }
