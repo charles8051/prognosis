@@ -332,7 +332,7 @@ public abstract class HealthNode
                 _ => HealthStatus.Healthy,
             };
 
-            if (contribution > effective)
+            if (contribution.IsWorseThan(effective))
             {
                 effective = contribution;
                 reason = depEval.Reason is not null
