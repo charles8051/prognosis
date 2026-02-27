@@ -39,7 +39,7 @@ builder.Services.AddPrognosis(health =>
 [DependsOn<CacheService>(Importance.Important)]
 class AuthService : IHealthAware
 {
-    public HealthNode HealthNode { get; } = new DelegateHealthNode("AuthService");
+    public HealthNode HealthNode { get; } = HealthNode.CreateDelegate("AuthService");
 }
 ```
 
@@ -65,7 +65,7 @@ Wrap a DI-registered service you don't own with a health-check delegate:
 health.AddDelegate<ThirdPartyEmailClient>("EmailProvider",
     client => client.IsConnected
         ? HealthStatus.Healthy
-        : new HealthEvaluation(HealthStatus.Unhealthy, "SMTP refused"));
+        : HealthEvaluation.Unhealthy("SMTP refused"));
 ```
 
 ### Roots
