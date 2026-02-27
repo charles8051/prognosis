@@ -1,9 +1,11 @@
 namespace Prognosis;
 
 /// <summary>
-/// Polls the health graph on a configurable interval, calls
-/// <see cref="HealthNode.BubbleChange"/> on every node in the graph,
-/// and emits a <see cref="HealthReport"/> when the state changes.
+/// Polls the health graph on a configurable interval, calling
+/// <see cref="HealthGraph.RefreshAll"/> on every tick to re-evaluate
+/// all intrinsic checks. Subscribe to <see cref="ReportChanged"/>
+/// (which delegates to <see cref="HealthGraph.StatusChanged"/>) to
+/// receive notifications when the graph's effective health changes.
 /// </summary>
 public sealed class HealthMonitor : IAsyncDisposable, IDisposable
 {
@@ -11,15 +13,14 @@ public sealed class HealthMonitor : IAsyncDisposable, IDisposable
     private readonly TimeSpan _interval;
     private readonly CancellationTokenSource _cts = new();
     private readonly object _lock = new();
-    private readonly List<IObserver<HealthReport>> _observers = new();
     private Task? _pollingTask;
-    private HealthReport? _lastReport;
 
     /// <summary>
     /// Emits a new <see cref="HealthReport"/> whenever the graph's health state
-    /// changes between polling ticks.
+    /// changes between polling ticks. Delegates to
+    /// <see cref="HealthGraph.StatusChanged"/>.
     /// </summary>
-    public IObservable<HealthReport> ReportChanged { get; }
+    public IObservable<HealthReport> ReportChanged => _graph.StatusChanged;
 
     /// <summary>
     /// Creates a monitor that polls the given <see cref="HealthGraph"/> on
@@ -29,7 +30,6 @@ public sealed class HealthMonitor : IAsyncDisposable, IDisposable
     {
         _graph = graph;
         _interval = interval;
-        ReportChanged = new ReportObservable(this);
     }
 
     public HealthMonitor(HealthNode root, TimeSpan interval)
@@ -54,26 +54,6 @@ public sealed class HealthMonitor : IAsyncDisposable, IDisposable
     public void Poll()
     {
         _graph.RefreshAll();
-
-        var report = _graph.CreateReport();
-
-        List<IObserver<HealthReport>>? snapshot = null;
-        lock (_lock)
-        {
-            if (_lastReport is not null && HealthReportComparer.Instance.Equals(_lastReport, report))
-                return;
-            _lastReport = report;
-            if (_observers.Count > 0)
-                snapshot = new List<IObserver<HealthReport>>(_observers);
-        }
-
-        if (snapshot is not null)
-        {
-            foreach (var observer in snapshot)
-            {
-                observer.OnNext(report);
-            }
-        }
     }
 
     public async ValueTask DisposeAsync()
@@ -116,35 +96,5 @@ public sealed class HealthMonitor : IAsyncDisposable, IDisposable
 
             Poll();
         }
-    }
-
-    private void AddObserver(IObserver<HealthReport> observer)
-    {
-        lock (_lock)
-        {
-            _observers.Add(observer);
-        }
-    }
-
-    private void RemoveObserver(IObserver<HealthReport> observer)
-    {
-        lock (_lock)
-        {
-            _observers.Remove(observer);
-        }
-    }
-
-    private sealed class ReportObservable(HealthMonitor monitor) : IObservable<HealthReport>
-    {
-        public IDisposable Subscribe(IObserver<HealthReport> observer)
-        {
-            monitor.AddObserver(observer);
-            return new Unsubscriber(monitor, observer);
-        }
-    }
-
-    private sealed class Unsubscriber(HealthMonitor monitor, IObserver<HealthReport> observer) : IDisposable
-    {
-        public void Dispose() => monitor.RemoveObserver(observer);
     }
 }
