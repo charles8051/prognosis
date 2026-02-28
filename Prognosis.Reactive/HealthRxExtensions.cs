@@ -27,6 +27,26 @@ public static class HealthRxExtensions
             .SelectMany(state => state.Previous!.DiffTo(state.Current!));
     }
 
+    /// <summary>
+    /// Filters a <see cref="StatusChange"/> stream to only include changes
+    /// for the specified node names. Case-sensitive ordinal comparison.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// graph.StatusChanged
+    ///     .SelectHealthChanges()
+    ///     .ForNodes("Database", "Cache")
+    ///     .Subscribe(change => Console.WriteLine($"{change.Name}: {change.Current}"));
+    /// </code>
+    /// </example>
+    public static IObservable<StatusChange> ForNodes(
+        this IObservable<StatusChange> changes,
+        params string[] names)
+    {
+        var set = new HashSet<string>(names, StringComparer.Ordinal);
+        return changes.Where(c => set.Contains(c.Name));
+    }
+
     // ── HealthGraph extensions ───────────────────────────────────────
 
     /// <summary>

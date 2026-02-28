@@ -102,6 +102,95 @@ public class HealthRxExtensionsTests
         Assert.Empty(changes);
     }
 
+    // ── ForNodes ─────────────────────────────────────────────────────
+
+    [Fact]
+    public void ForNodes_FiltersToNamedNodes()
+    {
+        var subject = new Subject<HealthReport>();
+
+        var changes = new List<StatusChange>();
+        using var sub = subject
+            .SelectHealthChanges()
+            .ForNodes("DB")
+            .Subscribe(c => changes.Add(c));
+
+        var report1 = new HealthReport(new[]
+        {
+            new HealthSnapshot("DB", HealthStatus.Healthy),
+            new HealthSnapshot("Cache", HealthStatus.Healthy),
+        });
+        var report2 = new HealthReport(new[]
+        {
+            new HealthSnapshot("DB", HealthStatus.Unhealthy, "down"),
+            new HealthSnapshot("Cache", HealthStatus.Unhealthy, "timeout"),
+        });
+
+        subject.OnNext(report1);
+        subject.OnNext(report2);
+
+        Assert.Single(changes);
+        Assert.Equal("DB", changes[0].Name);
+    }
+
+    [Fact]
+    public void ForNodes_MultipleNames_MatchesAll()
+    {
+        var subject = new Subject<HealthReport>();
+
+        var changes = new List<StatusChange>();
+        using var sub = subject
+            .SelectHealthChanges()
+            .ForNodes("DB", "Cache")
+            .Subscribe(c => changes.Add(c));
+
+        var report1 = new HealthReport(new[]
+        {
+            new HealthSnapshot("DB", HealthStatus.Healthy),
+            new HealthSnapshot("Cache", HealthStatus.Healthy),
+            new HealthSnapshot("Auth", HealthStatus.Healthy),
+        });
+        var report2 = new HealthReport(new[]
+        {
+            new HealthSnapshot("DB", HealthStatus.Unhealthy, "down"),
+            new HealthSnapshot("Cache", HealthStatus.Degraded, "slow"),
+            new HealthSnapshot("Auth", HealthStatus.Unhealthy, "expired"),
+        });
+
+        subject.OnNext(report1);
+        subject.OnNext(report2);
+
+        Assert.Equal(2, changes.Count);
+        Assert.Contains(changes, c => c.Name == "DB");
+        Assert.Contains(changes, c => c.Name == "Cache");
+    }
+
+    [Fact]
+    public void ForNodes_NoMatch_NoEmission()
+    {
+        var subject = new Subject<HealthReport>();
+
+        var changes = new List<StatusChange>();
+        using var sub = subject
+            .SelectHealthChanges()
+            .ForNodes("NonExistent")
+            .Subscribe(c => changes.Add(c));
+
+        var report1 = new HealthReport(new[]
+        {
+            new HealthSnapshot("DB", HealthStatus.Healthy),
+        });
+        var report2 = new HealthReport(new[]
+        {
+            new HealthSnapshot("DB", HealthStatus.Unhealthy, "down"),
+        });
+
+        subject.OnNext(report1);
+        subject.OnNext(report2);
+
+        Assert.Empty(changes);
+    }
+
     // ── PollHealthReport (HealthGraph) ─────────────────────────────────
 
     [Fact]
