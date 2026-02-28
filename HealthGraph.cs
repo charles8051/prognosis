@@ -88,6 +88,16 @@ public sealed class HealthGraph
     }
 
     /// <summary>
+    /// Re-evaluates the node with the given <paramref name="name"/> and
+    /// propagates upward through its ancestors, rebuilds the cached report,
+    /// and emits <see cref="StatusChanged"/> if the overall state changed.
+    /// </summary>
+    /// <exception cref="KeyNotFoundException">
+    /// No node with the given name exists in the graph.
+    /// </exception>
+    public void Refresh(string name) => Refresh(this[name]);
+
+    /// <summary>
     /// Evaluates a single node's effective health (intrinsic check plus
     /// its dependency subtree).
     /// </summary>
