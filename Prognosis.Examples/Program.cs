@@ -242,16 +242,8 @@ class ThirdPartyEmailClient
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// Minimal IObserver<T> implementations for the demo
+// Minimal IObserver<T> implementation for the demo
 // ─────────────────────────────────────────────────────────────────────
-
-class StatusObserver(string name) : IObserver<HealthStatus>
-{
-    public void OnNext(HealthStatus value) =>
-        Console.WriteLine($"    >> {name} status changed: {value}");
-    public void OnError(Exception error) { }
-    public void OnCompleted() { }
-}
 
 class ReportObserver : IObserver<HealthReport>
 {

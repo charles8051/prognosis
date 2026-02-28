@@ -10,7 +10,7 @@ dotnet add package Prognosis.Reactive
 
 ## API
 
-All extensions are available on both `HealthGraph` (whole graph) and `HealthNode` (single subtree). Use `HealthGraph` when you want a report covering the full graph from its root; use `HealthNode` when you only care about one service and its dependencies.
+All extensions operate on `HealthGraph`. Use `HealthGraph.Create(root)` to materialize the graph, then chain Rx operators.
 
 ### `PollHealthReport` — timer-driven polling
 
@@ -19,51 +19,29 @@ Polls on a fixed interval, re-evaluates every node, and emits a `HealthReport` w
 ```csharp
 using Prognosis.Reactive;
 
-// Whole graph — calls RefreshAll() + CreateReport() on each tick.
 var graph = HealthGraph.Create(app);
 graph.PollHealthReport(TimeSpan.FromSeconds(30))
-    .Subscribe(report =>
-        Console.WriteLine($"{report.Nodes.Count} nodes"));
-
-// Single subtree — calls RefreshDescendants() + CreateReport() on the node.
-app.PollHealthReport(TimeSpan.FromSeconds(30))
     .Subscribe(report =>
         Console.WriteLine($"{report.Nodes.Count} nodes"));
 ```
 
 ### `ObserveHealthReport` — push-triggered evaluation
 
-Reacts to `StatusChanged` events and produces a fresh report immediately — no polling delay. Changes in any transitive dependency bubble up to the root automatically.
+Reacts to `HealthGraph.StatusChanged` events and produces a fresh report immediately — no polling delay. Changes in any transitive dependency bubble up automatically.
 
 ```csharp
-// Whole graph — subscribes to StatusChanged on the root node.
 graph.ObserveHealthReport()
     .Subscribe(report =>
         Console.WriteLine($"{report.Nodes.Count} nodes"));
-
-// Single subtree — subscribes to the node's own StatusChanged stream.
-app.ObserveHealthReport()
-    .Subscribe(report =>
-        Console.WriteLine($"{report.Nodes.Count} nodes"));
 ```
 
-### `ObserveStatus` — per-node evaluation stream
-
-Emits the node's `HealthEvaluation` (status + reason) each time its effective health changes:
-
-```csharp
-database.HealthNode.ObserveStatus()
-    .Subscribe(eval =>
-        Console.WriteLine($"Database: {eval.Status} — {eval.Reason}"));
-```
-
-### `SelectServiceChanges` — diff-based change stream
+### `SelectHealthChanges` — diff-based change stream
 
 Projects consecutive `HealthReport` emissions into individual `StatusChange` events by diffing the reports. Composable with any report source:
 
 ```csharp
 graph.PollHealthReport(TimeSpan.FromSeconds(30))
-    .SelectServiceChanges()
+    .SelectHealthChanges()
     .Subscribe(change =>
         Console.WriteLine($"{change.Name}: {change.Previous} → {change.Current}"));
 ```
@@ -75,7 +53,6 @@ Each `StatusChange` includes the service name, previous status, current status, 
 The Rx helpers produce cold `IObservable<HealthReport>` streams — each subscription runs an independent pipeline and triggers its own evaluations. To share a single evaluation across multiple subscribers:
 
 ```csharp
-// Convenience helpers — available on both HealthGraph and HealthNode.
 var shared = graph.CreateSharedReportStream(TimeSpan.FromSeconds(30));
 var shared = graph.CreateSharedObserveStream();
 

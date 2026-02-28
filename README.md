@@ -174,7 +174,7 @@ Only `Resilient`-marked siblings participate in the resilience check — `Requir
 var graph = HealthGraph.Create(app);
 
 // Evaluate a single service (walks its dependencies)
-HealthEvaluation eval = app.Evaluate();
+HealthEvaluation eval = graph.Evaluate(app);
 
 // Snapshot the entire graph (depth-first post-order)
 IReadOnlyList<HealthSnapshot> snapshots = graph.EvaluateAll();
@@ -191,13 +191,16 @@ IReadOnlyList<StatusChange> changes = before.DiffTo(after);
 
 ## Observable health monitoring
 
-Every `HealthNode` node supports push-based notifications. Subscribe to individual services or monitor the full graph:
+`HealthGraph` exposes push-based observables for health state changes and topology mutations:
 
 ```csharp
-// Individual service notifications
-database.HealthNode.StatusChanged.Subscribe(observer);
+// Graph-level status changes — emits a HealthReport whenever the effective state changes.
+graph.StatusChanged.Subscribe(reportObserver);
 
-// Graph-level polling with HealthMonitor
+// Topology changes — emits when nodes are added or removed.
+graph.TopologyChanged.Subscribe(topoObserver);
+
+// Timer-based polling with HealthMonitor
 await using var monitor = new HealthMonitor(graph, TimeSpan.FromSeconds(5));
 monitor.Start();
 monitor.ReportChanged.Subscribe(reportObserver);
@@ -308,7 +311,7 @@ HealthNode dbService = graph["Database"];
 
 ## Reactive extensions
 
-The `Prognosis.Reactive` package provides Rx-based alternatives to polling. All extensions work on both `HealthGraph` (whole graph) and `HealthNode` (single subtree):
+The `Prognosis.Reactive` package provides Rx-based alternatives to polling. All extensions operate on `HealthGraph`:
 
 ```csharp
 var graph = HealthGraph.Create(app);
@@ -317,19 +320,15 @@ var graph = HealthGraph.Create(app);
 graph.PollHealthReport(TimeSpan.FromSeconds(30))
     .Subscribe(report => Console.WriteLine(report.Nodes.Count));
 
-// Push-triggered — reacts to StatusChanged events from the root, no polling delay.
+// Push-triggered — reacts to StatusChanged, no polling delay.
 graph.ObserveHealthReport()
     .Subscribe(report => Console.WriteLine(report.Nodes.Count));
 
 // Diff-based change stream — composable with any report source.
 graph.PollHealthReport(TimeSpan.FromSeconds(30))
-    .SelectServiceChanges()
+    .SelectHealthChanges()
     .Subscribe(change =>
         Console.WriteLine($"{change.Name}: {change.Previous} → {change.Current}"));
-
-// Per-node evaluation stream.
-database.HealthNode.ObserveStatus()
-    .Subscribe(eval => Console.WriteLine($"Database: {eval.Status}"));
 ```
 
 ### Sharing streams across subscribers
@@ -372,7 +371,7 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 
 | File | Purpose |
 |---|---|
-| `HealthNode.cs` | Sealed class — `Name`, `Dependencies`, `Evaluate()`, `StatusChanged`, `BubbleChange()`, `DependsOn()`, factory methods (`CreateDelegate`, `CreateComposite`) |
+| `HealthNode.cs` | Sealed class — `Name`, `Dependencies`, `Parents`, `DependsOn()`, `RemoveDependency()`, `Refresh()`, factory methods (`CreateDelegate`, `CreateComposite`) |
 | `IHealthAware.cs` | Marker interface — implement on your classes with a single `HealthNode` property |
 | `HealthStatus.cs` | `Healthy` → `Unknown` → `Degraded` → `Unhealthy` enum |
 | `HealthEvaluation.cs` | Status + optional reason pair, with implicit conversion from `HealthStatus` |

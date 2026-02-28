@@ -134,14 +134,14 @@ HealthNode db = graph["Database"];
 // Enumerate all nodes reachable from the root.
 foreach (var node in graph.Nodes)
 {
-    Console.WriteLine($"{node.Name}: {node.Evaluate()}");
+    Console.WriteLine($"{node.Name}: {graph.Evaluate(node)}");
 }
 ```
 
-The `Root` property gives direct access to the root node, compatible with the Rx extensions in `Prognosis.Reactive`:
+The Rx extensions in `Prognosis.Reactive` operate directly on `HealthGraph`:
 
 ```csharp
-graph.Root.PollHealthReport(TimeSpan.FromSeconds(30)).Subscribe(...);
+graph.PollHealthReport(TimeSpan.FromSeconds(30)).Subscribe(...);
 ```
 
 ### Hosted monitoring
@@ -152,7 +152,7 @@ graph.Root.PollHealthReport(TimeSpan.FromSeconds(30)).Subscribe(...);
 health.UseMonitor(TimeSpan.FromSeconds(30));
 ```
 
-This is optional — Rx users can skip it and build their own pipeline from `HealthGraph.Root`.
+This is optional — Rx users can skip it and build their own pipeline from `HealthGraph`.
 
 ## Dependencies
 
