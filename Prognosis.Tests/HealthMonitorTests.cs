@@ -119,6 +119,31 @@ public class HealthMonitorTests : IAsyncDisposable
         Assert.Equal(2, reports.Count);
         Assert.Equal(HealthStatus.Unhealthy, reports[1].Nodes.First(s => s.Name == "A").Status);
     }
+
+    [Fact]
+    public void Dispose_Synchronous_StopsPolling()
+    {
+        var svc = HealthNode.CreateDelegate("Svc");
+        _monitor = new HealthMonitor(svc, TimeSpan.FromMilliseconds(50));
+        _monitor.Start();
+
+        _monitor.Dispose();
+        _monitor = null; // prevent double dispose in DisposeAsync
+
+        // If we get here without hanging, the test passes.
+    }
+
+    [Fact]
+    public void Start_CalledMultipleTimes_IsIdempotent()
+    {
+        var svc = HealthNode.CreateDelegate("Svc");
+        _monitor = new HealthMonitor(svc, TimeSpan.FromHours(1));
+
+        // Should not throw or create multiple polling tasks.
+        _monitor.Start();
+        _monitor.Start();
+        _monitor.Start();
+    }
 }
 
 file class TestObserver<T>(Action<T> onNext) : IObserver<T>

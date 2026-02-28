@@ -117,4 +117,34 @@ public class HealthNodeTests
         Assert.Equal(HealthStatus.Unhealthy, result.Status);
         Assert.Contains("Circular", result.Reason);
     }
+
+    // ── Factory validation ───────────────────────────────────────────
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void CreateDelegate_NullOrEmptyName_ThrowsArgumentException(string? name)
+    {
+        Assert.Throws<ArgumentException>(() => HealthNode.CreateDelegate(name!));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void CreateDelegate_WithCheck_NullOrEmptyName_ThrowsArgumentException(string? name)
+    {
+        Assert.Throws<ArgumentException>(
+            () => HealthNode.CreateDelegate(name!, () => HealthStatus.Healthy));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void CreateComposite_NullOrEmptyName_ThrowsArgumentException(string? name)
+    {
+        Assert.Throws<ArgumentException>(() => HealthNode.CreateComposite(name!));
+    }
 }
