@@ -48,6 +48,27 @@ public abstract class HealthNode
         _intrinsicCheck = intrinsicCheck;
     }
 
+    /// <summary>
+    /// Re-evaluates this node's health and propagates upward through all
+    /// ancestors. If one or more <see cref="HealthGraph"/> instances are
+    /// attached, propagation is serialized through each graph's lock and
+    /// <see cref="HealthGraph.StatusChanged"/> is emitted when the report
+    /// changes. If no graph is attached, falls back to a direct upward walk.
+    /// <para>
+    /// Call this from an <see cref="IHealthAware"/> service when the
+    /// underlying state changes (e.g., a connection drops) to push the
+    /// change immediately without waiting for the next poll tick.
+    /// </para>
+    /// </summary>
+    public void Refresh()
+    {
+        var strategy = _bubbleStrategy;
+        if (strategy is not null)
+            strategy(this);
+        else
+            BubbleChange();
+    }
+
     /// <summary>Display name for this node in the health graph.</summary>
     public abstract string Name { get; }
 
@@ -84,23 +105,6 @@ public abstract class HealthNode
     {
         var eval = _cachedEvaluation ?? Evaluate();
         return $"{Name}: {eval}";
-    }
-
-    /// <summary>
-    /// Re-evaluates this node's health and propagates the change upward
-    /// through all ancestors. If the node is attached to one or more
-    /// <see cref="HealthGraph"/> instances, each graph's serialized
-    /// propagation strategy is invoked (rebuilding cached reports and
-    /// emitting <c>StatusChanged</c>). If no graph is attached, falls
-    /// back to a direct upward walk.
-    /// </summary>
-    public void Refresh()
-    {
-        var strategy = _bubbleStrategy;
-        if (strategy is not null)
-            strategy(this);
-        else
-            BubbleChange();
     }
 
     /// <summary>
