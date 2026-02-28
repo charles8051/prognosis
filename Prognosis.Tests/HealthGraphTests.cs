@@ -422,117 +422,103 @@ public class HealthGraphTests
 
         Assert.Empty(emitted);
     }
+    // ── Shared nodes across multiple graphs ────────────────────────────
+
+    [Fact]
+    public void SharedNode_TwoGraphs_BothReceiveStatusChanged()
+    {
+        var isHealthy = true;
+        var shared = HealthNode.CreateDelegate("Shared",
+            () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
+
+        var root1 = HealthNode.CreateDelegate("Root1")
+            .DependsOn(shared, Importance.Required);
+        var root2 = HealthNode.CreateDelegate("Root2")
+            .DependsOn(shared, Importance.Required);
+
+        var graph1 = HealthGraph.Create(root1);
+        var graph2 = HealthGraph.Create(root2);
+
+        var reports1 = new List<HealthReport>();
+        var reports2 = new List<HealthReport>();
+        graph1.StatusChanged.Subscribe(new TestObserver<HealthReport>(reports1.Add));
+        graph2.StatusChanged.Subscribe(new TestObserver<HealthReport>(reports2.Add));
+
+        isHealthy = false;
+        graph1.Refresh(shared);
+
+        Assert.Single(reports1);
+        Assert.Single(reports2);
+        Assert.Equal(HealthStatus.Unhealthy,
+            reports1[0].Nodes.First(n => n.Name == "Shared").Status);
+        Assert.Equal(HealthStatus.Unhealthy,
+            reports2[0].Nodes.First(n => n.Name == "Shared").Status);
+    }
+
+    [Fact]
+    public void SharedNode_DependsOn_BothGraphsNotified()
+    {
+        var shared = HealthNode.CreateDelegate("Shared");
+        var root1 = HealthNode.CreateDelegate("Root1")
+            .DependsOn(shared, Importance.Required);
+        var root2 = HealthNode.CreateDelegate("Root2")
+            .DependsOn(shared, Importance.Required);
+
+        var graph1 = HealthGraph.Create(root1);
+        var graph2 = HealthGraph.Create(root2);
+
+        var topo1 = new List<TopologyChange>();
+        var topo2 = new List<TopologyChange>();
+        graph1.TopologyChanged.Subscribe(new TestObserver<TopologyChange>(topo1.Add));
+        graph2.TopologyChanged.Subscribe(new TestObserver<TopologyChange>(topo2.Add));
+
+        // Add a new child to the shared node — both graphs should detect
+        // the topology change.
+        var child = HealthNode.CreateDelegate("Child",
+            () => HealthEvaluation.Unhealthy("down"));
+        shared.DependsOn(child, Importance.Required);
+
+        Assert.Single(topo1);
+        Assert.Contains(topo1[0].Added, n => n.Name == "Child");
+        Assert.Single(topo2);
+        Assert.Contains(topo2[0].Added, n => n.Name == "Child");
+    }
+
+    [Fact]
+    public void SharedNode_RemovedFromOneGraph_OtherGraphStillWorks()
+    {
+        var isHealthy = true;
+        var shared = HealthNode.CreateDelegate("Shared",
+            () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
+
+        var root1 = HealthNode.CreateDelegate("Root1")
+            .DependsOn(shared, Importance.Required);
+        var root2 = HealthNode.CreateDelegate("Root2")
+            .DependsOn(shared, Importance.Required);
+
+        var graph1 = HealthGraph.Create(root1);
+        var graph2 = HealthGraph.Create(root2);
+
+        // Detach shared from graph1's root.
+        root1.RemoveDependency(shared);
+
+        // Graph2 should still receive updates from the shared node.
+        var reports2 = new List<HealthReport>();
+        graph2.StatusChanged.Subscribe(new TestObserver<HealthReport>(reports2.Add));
+
+        isHealthy = false;
+        graph2.Refresh(shared);
+
+        Assert.Single(reports2);
+        Assert.Equal(HealthStatus.Unhealthy,
+            reports2[0].Nodes.First(n => n.Name == "Shared").Status);
+    }
 }
 
 /// <summary>Minimal IHealthAware stub for generic TryGetService tests.</summary>
 file class StubHealthAware : IHealthAware
 {
     public HealthNode HealthNode { get; } = HealthNode.CreateDelegate(typeof(StubHealthAware).Name);
-}
-
-// ── Multi-graph shared nodes ─────────────────────────────────────
-
-public class HealthGraphMultiGraphTests
-{
-    [Fact]
-    public void SharedNode_BothGraphs_ReceiveStatusChanged()
-    {
-        // shared is a leaf in both graphs.
-        var shared = HealthNode.CreateDelegate("Shared",
-            () => HealthEvaluation.Unhealthy("down"));
-        var rootA = HealthNode.CreateDelegate("RootA")
-            .DependsOn(shared, Importance.Required);
-        var rootB = HealthNode.CreateDelegate("RootB")
-            .DependsOn(shared, Importance.Required);
-
-        var graphA = HealthGraph.Create(rootA);
-        var graphB = HealthGraph.Create(rootB);
-
-        var reportsA = new List<HealthReport>();
-        var reportsB = new List<HealthReport>();
-        graphA.StatusChanged.Subscribe(new TestObserver<HealthReport>(reportsA.Add));
-        graphB.StatusChanged.Subscribe(new TestObserver<HealthReport>(reportsB.Add));
-
-        // Refresh via graphA — both graphs should see the change.
-        graphA.Refresh(shared);
-
-        Assert.Single(reportsA);
-        Assert.Single(reportsB);
-    }
-
-    [Fact]
-    public void SharedNode_DependsOn_BothGraphs_ReceiveTopologyChange()
-    {
-        var shared = HealthNode.CreateDelegate("Shared");
-        var rootA = HealthNode.CreateDelegate("RootA")
-            .DependsOn(shared, Importance.Required);
-        var rootB = HealthNode.CreateDelegate("RootB")
-            .DependsOn(shared, Importance.Required);
-
-        var graphA = HealthGraph.Create(rootA);
-        var graphB = HealthGraph.Create(rootB);
-
-        var topoA = new List<TopologyChange>();
-        var topoB = new List<TopologyChange>();
-        graphA.TopologyChanged.Subscribe(new TestObserver<TopologyChange>(topoA.Add));
-        graphB.TopologyChanged.Subscribe(new TestObserver<TopologyChange>(topoB.Add));
-
-        // Add a new child to the shared node — both graphs discover it.
-        var newChild = HealthNode.CreateDelegate("NewChild");
-        shared.DependsOn(newChild, Importance.Required);
-
-        Assert.Single(topoA);
-        Assert.Contains(topoA[0].Added, n => n.Name == "NewChild");
-        Assert.Single(topoB);
-        Assert.Contains(topoB[0].Added, n => n.Name == "NewChild");
-    }
-
-    [Fact]
-    public void SharedNode_SecondGraph_DoesNotBreakFirst()
-    {
-        var shared = HealthNode.CreateDelegate("Shared");
-        var rootA = HealthNode.CreateDelegate("RootA")
-            .DependsOn(shared, Importance.Required);
-
-        var graphA = HealthGraph.Create(rootA);
-
-        var reportsA = new List<HealthReport>();
-        graphA.StatusChanged.Subscribe(new TestObserver<HealthReport>(reportsA.Add));
-
-        // Creating a second graph on the same shared node must not break graphA.
-        var rootB = HealthNode.CreateDelegate("RootB")
-            .DependsOn(shared, Importance.Required);
-        var graphB = HealthGraph.Create(rootB);
-
-        graphA.RefreshAll();
-
-        Assert.Single(reportsA);
-    }
-
-    [Fact]
-    public void SharedNode_RemoveDependency_DetachesOnlyFromRemovedGraph()
-    {
-        var shared = HealthNode.CreateDelegate("Shared",
-            () => HealthEvaluation.Degraded("slow"));
-        var rootA = HealthNode.CreateDelegate("RootA")
-            .DependsOn(shared, Importance.Required);
-        var rootB = HealthNode.CreateDelegate("RootB")
-            .DependsOn(shared, Importance.Required);
-
-        var graphA = HealthGraph.Create(rootA);
-        var graphB = HealthGraph.Create(rootB);
-
-        // Remove shared from graphA's tree.
-        rootA.RemoveDependency(shared);
-
-        // graphB still has shared — refresh should still work.
-        var reportsB = new List<HealthReport>();
-        graphB.StatusChanged.Subscribe(new TestObserver<HealthReport>(reportsB.Add));
-        graphB.RefreshAll();
-
-        Assert.Single(reportsB);
-        Assert.Contains(reportsB[0].Nodes, n => n.Name == "Shared");
-    }
 }
 
 file class TestObserver<T>(Action<T> onNext) : IObserver<T>

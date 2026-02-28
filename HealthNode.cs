@@ -29,70 +29,15 @@ public abstract class HealthNode
     private volatile IReadOnlyList<HealthDependency> _dependencies = Array.Empty<HealthDependency>();
     internal volatile HealthEvaluation? _cachedEvaluation;
 
-    private readonly object _graphSetLock = new();
-    private HashSet<HealthGraph>? _attachedGraphs;
-
     /// <summary>
-    /// Strategy for propagating health changes after topology mutations
-    /// (<see cref="DependsOn"/> / <see cref="RemoveDependency"/>).
-    /// Defaults to a direct <see cref="BubbleChange"/> call. When one or
-    /// more <see cref="HealthGraph"/> instances are attached, the strategy
-    /// is rebuilt to call each graph's serialized propagation, so multiple
-    /// graphs sharing the same node each receive their own propagation wave.
+    /// Multicast delegate for propagating health changes after topology
+    /// mutations (<see cref="DependsOn"/> / <see cref="RemoveDependency"/>).
+    /// <see langword="null"/> when no <see cref="HealthGraph"/> is attached,
+    /// in which case callers fall back to a direct <see cref="BubbleChange"/>.
+    /// Each attached graph adds its own callback via <c>+=</c>, so multiple
+    /// graphs sharing a node all receive propagation notifications.
     /// </summary>
-    private volatile Action<HealthNode> _bubbleStrategy = static node => node.BubbleChange();
-
-    internal void AttachGraph(HealthGraph graph)
-    {
-        lock (_graphSetLock)
-        {
-            _attachedGraphs ??= new(ReferenceEqualityComparer.Instance);
-            _attachedGraphs.Add(graph);
-            RebuildBubbleStrategy();
-        }
-    }
-
-    internal void DetachGraph(HealthGraph graph)
-    {
-        lock (_graphSetLock)
-        {
-            _attachedGraphs?.Remove(graph);
-            RebuildBubbleStrategy();
-        }
-    }
-
-    private void RebuildBubbleStrategy()
-    {
-        if (_attachedGraphs is null || _attachedGraphs.Count == 0)
-        {
-            _bubbleStrategy = static node => node.BubbleChange();
-            return;
-        }
-
-        var graphs = new HealthGraph[_attachedGraphs.Count];
-        _attachedGraphs.CopyTo(graphs);
-
-        if (graphs.Length == 1)
-        {
-            var single = graphs[0];
-            _bubbleStrategy = single.SerializedBubble;
-        }
-        else
-        {
-            _bubbleStrategy = node =>
-            {
-                foreach (var g in graphs)
-                    g.SerializedBubble(node);
-            };
-        }
-    }
-
-    /// <summary>
-    /// Invokes the bubble strategy, dispatching to all attached graphs.
-    /// Used by <see cref="HealthGraph.Refresh(HealthNode)"/> so that a
-    /// refresh on any one graph propagates to every graph sharing this node.
-    /// </summary>
-    internal void InvokeBubbleStrategy() => _bubbleStrategy(this);
+    internal Action<HealthNode>? _bubbleStrategy;
 
     /// <param name="intrinsicCheck">
     /// A callback that returns the owning service's intrinsic health
@@ -272,7 +217,11 @@ public abstract class HealthNode
             var updated = new List<HealthNode>(node._parents) { this };
             node._parents = updated;
         }
-        _bubbleStrategy(this);
+        var strategy = _bubbleStrategy;
+        if (strategy is not null)
+            strategy(this);
+        else
+            BubbleChange();
         return this;
     }
 
@@ -339,7 +288,11 @@ public abstract class HealthNode
                     node._parents = updated;
                 }
             }
-            _bubbleStrategy(this);
+            var strategy = _bubbleStrategy;
+            if (strategy is not null)
+                strategy(this);
+            else
+                BubbleChange();
         }
         return removed;
     }

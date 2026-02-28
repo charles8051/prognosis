@@ -41,7 +41,7 @@ public sealed class HealthGraph
         _snapshot = new NodeSnapshot(allNodes);
 
         foreach (var node in allNodes)
-            node.AttachGraph(this);
+            node._bubbleStrategy += SerializedBubble;
 
         TopologyChanged = new TopologyObservable(this);
         StatusChanged = new StatusObservable(this);
@@ -81,11 +81,15 @@ public sealed class HealthGraph
     /// Re-evaluates <paramref name="node"/> and propagates upward through
     /// its ancestors, rebuilds the cached report, and emits
     /// <see cref="StatusChanged"/> if the overall state changed.
-    /// If the node belongs to multiple graphs, all of them are notified.
+    /// If the node is shared across multiple graphs, all graphs are notified.
     /// </summary>
     public void Refresh(HealthNode node)
     {
-        node.InvokeBubbleStrategy();
+        var strategy = node._bubbleStrategy;
+        if (strategy is not null)
+            strategy(node);
+        else
+            SerializedBubble(node);
     }
 
     /// <summary>
@@ -266,7 +270,7 @@ public sealed class HealthGraph
         return report;
     }
 
-    internal void SerializedBubble(HealthNode origin)
+    private void SerializedBubble(HealthNode origin)
     {
         HealthReport? reportToEmit = null;
 
@@ -318,10 +322,10 @@ public sealed class HealthGraph
             }
 
             foreach (var node in added)
-                node.AttachGraph(this);
+                node._bubbleStrategy += SerializedBubble;
 
             foreach (var node in removed)
-                node.DetachGraph(this);
+                node._bubbleStrategy -= SerializedBubble;
 
             _snapshot = new NodeSnapshot(fresh);
             change = new TopologyChange(added, removed);
