@@ -166,7 +166,7 @@ public class HealthRxExtensionsTests
             .Subscribe(r => reports.Add(r));
 
         isHealthy = false;
-        graph.NotifyChange(leaf);
+        graph.Refresh(leaf);
 
         Assert.Single(reports);
         Assert.Equal(HealthStatus.Unhealthy, reports[0].Nodes.First(n => n.Name == "Leaf").Status);
@@ -191,7 +191,7 @@ public class HealthRxExtensionsTests
             .Subscribe(r => reports.Add(r));
 
         isHealthy = false;
-        graph.NotifyChange(a);
+        graph.Refresh(a);
 
         Assert.Single(reports);
         Assert.Equal(HealthStatus.Unhealthy, reports[0].Nodes.First(n => n.Name == "A").Status);

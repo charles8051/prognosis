@@ -380,8 +380,8 @@ public class HealthGraphTests
         var emitted = new List<TopologyChange>();
         graph.TopologyChanged.Subscribe(new TestObserver<TopologyChange>(emitted.Add));
 
-        // NotifyChange fires but topology is unchanged — no notification expected.
-        graph.NotifyChange(child);
+        // Refresh fires but topology is unchanged — no notification expected.
+        graph.Refresh(child);
 
         Assert.Empty(emitted);
     }

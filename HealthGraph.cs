@@ -71,19 +71,18 @@ public sealed class HealthGraph
     /// <summary>
     /// Emits a <see cref="HealthReport"/> each time the graph's effective
     /// health state changes. Emissions are driven by
-    /// <see cref="NotifyChange"/>, <see cref="HealthNode.DependsOn"/>,
+    /// <see cref="Refresh(HealthNode)"/>, <see cref="HealthNode.DependsOn"/>,
     /// <see cref="HealthNode.RemoveDependency"/>, and <see cref="RefreshAll"/>.
     /// Only fires when the report actually differs from the previous one.
     /// </summary>
     public IObservable<HealthReport> StatusChanged { get; }
 
     /// <summary>
-    /// Notifies the graph that <paramref name="node"/>'s intrinsic health
-    /// may have changed. Propagates upward through ancestors, rebuilds the
-    /// cached report, and emits <see cref="StatusChanged"/> if the overall
-    /// state changed.
+    /// Re-evaluates <paramref name="node"/> and propagates upward through
+    /// its ancestors, rebuilds the cached report, and emits
+    /// <see cref="StatusChanged"/> if the overall state changed.
     /// </summary>
-    public void NotifyChange(HealthNode node)
+    public void Refresh(HealthNode node)
     {
         SerializedBubble(node);
     }

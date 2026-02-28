@@ -5,7 +5,7 @@ public class HealthNodePropagateTests
     // ── StatusChanged basics ─────────────────────────────────────────
 
     [Fact]
-    public void NotifyChange_EmitsReportOnStatusChange()
+    public void Refresh_EmitsReportOnStatusChange()
     {
         var node = HealthNode.CreateDelegate("Node",
             () => HealthEvaluation.Unhealthy("down"));
@@ -14,14 +14,14 @@ public class HealthNodePropagateTests
         var emitted = new List<HealthReport>();
         graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
 
-        graph.NotifyChange(node);
+        graph.Refresh(node);
 
         Assert.Single(emitted);
         Assert.Equal(HealthStatus.Unhealthy, emitted[0].Nodes[0].Status);
     }
 
     [Fact]
-    public void NotifyChange_PropagatesFromChildToParent()
+    public void Refresh_PropagatesFromChildToParent()
     {
         var isUnhealthy = false;
         var leaf = HealthNode.CreateDelegate("Leaf",
@@ -33,9 +33,9 @@ public class HealthNodePropagateTests
         var emitted = new List<HealthReport>();
         graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
 
-        // Leaf degrades after the edge was wired. NotifyChange bubbles it up.
+        // Leaf degrades after the edge was wired. Refresh bubbles it up.
         isUnhealthy = true;
-        graph.NotifyChange(leaf);
+        graph.Refresh(leaf);
 
         Assert.Single(emitted);
         Assert.Equal(HealthStatus.Unhealthy,
@@ -43,7 +43,7 @@ public class HealthNodePropagateTests
     }
 
     [Fact]
-    public void NotifyChange_PropagatesThroughChain()
+    public void Refresh_PropagatesThroughChain()
     {
         var isUnhealthy = false;
         var leaf = HealthNode.CreateDelegate("Leaf",
@@ -58,7 +58,7 @@ public class HealthNodePropagateTests
         graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
 
         isUnhealthy = true;
-        graph.NotifyChange(leaf);
+        graph.Refresh(leaf);
 
         Assert.Single(emitted);
         Assert.Equal(HealthStatus.Unhealthy,
@@ -66,7 +66,7 @@ public class HealthNodePropagateTests
     }
 
     [Fact]
-    public void NotifyChange_Diamond_EmitsExactlyOneReport()
+    public void Refresh_Diamond_EmitsExactlyOneReport()
     {
         // leaf → A and leaf → B, both → root (diamond shape)
         var isUnhealthy = false;
@@ -85,7 +85,7 @@ public class HealthNodePropagateTests
         graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
 
         isUnhealthy = true;
-        graph.NotifyChange(leaf);
+        graph.Refresh(leaf);
 
         // Root has two paths from the leaf but should emit exactly one report.
         Assert.Single(emitted);
@@ -94,7 +94,7 @@ public class HealthNodePropagateTests
     }
 
     [Fact]
-    public void NotifyChange_Cycle_DoesNotStackOverflow()
+    public void Refresh_Cycle_DoesNotStackOverflow()
     {
         var a = HealthNode.CreateDelegate("A");
         var b = HealthNode.CreateDelegate("B")
@@ -103,12 +103,12 @@ public class HealthNodePropagateTests
         var graph = HealthGraph.Create(a);
 
         // Should not throw or hang.
-        var exception = Record.Exception(() => graph.NotifyChange(a));
+        var exception = Record.Exception(() => graph.Refresh(a));
         Assert.Null(exception);
     }
 
     [Fact]
-    public void NotifyChange_NoParents_EmitsReport()
+    public void Refresh_NoParents_EmitsReport()
     {
         var node = HealthNode.CreateDelegate("Lone",
             () => HealthEvaluation.Degraded("slow"));
@@ -117,7 +117,7 @@ public class HealthNodePropagateTests
         var emitted = new List<HealthReport>();
         graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
 
-        graph.NotifyChange(node);
+        graph.Refresh(node);
 
         Assert.Single(emitted);
         Assert.Equal(HealthStatus.Degraded, emitted[0].Nodes[0].Status);

@@ -85,12 +85,12 @@ using var graphObserveSub = graph
 
 Console.WriteLine("  Taking cache offline...");
 cache.IsConnected = false;
-graph.NotifyChange(cache.HealthNode);
+graph.Refresh(cache.HealthNode);
 await Task.Delay(TimeSpan.FromSeconds(1));
 
 Console.WriteLine("  Restoring cache...");
 cache.IsConnected = true;
-graph.NotifyChange(cache.HealthNode);
+graph.Refresh(cache.HealthNode);
 await Task.Delay(TimeSpan.FromSeconds(1));
 Console.WriteLine();
 
@@ -155,10 +155,10 @@ Console.WriteLine();
 pollSubscription.Dispose();
 
 // ─────────────────────────────────────────────────────────────────────
-// HealthGraph.ObserveHealthReport — push-triggered via NotifyChange.
+// HealthGraph.ObserveHealthReport — push-triggered via Refresh.
 // ─────────────────────────────────────────────────────────────────────
 
-Console.WriteLine("=== HealthGraph.ObserveHealthReport (push-triggered via NotifyChange) ===");
+Console.WriteLine("=== HealthGraph.ObserveHealthReport (push-triggered via Refresh) ===");
 Console.WriteLine();
 
 using var observeSubscription = graph
@@ -169,16 +169,16 @@ using var observeSubscription = graph
         Console.WriteLine(JsonSerializer.Serialize(report, jsonOptions));
     });
 
-// Trigger a change via NotifyChange, which fires StatusChanged and
+// Trigger a change via Refresh, which fires StatusChanged and
 // a report is emitted immediately.
 Console.WriteLine("  Taking cache offline...");
 cache.IsConnected = false;
-graph.NotifyChange(cache.HealthNode); // push the change
+graph.Refresh(cache.HealthNode); // push the change
 await Task.Delay(TimeSpan.FromSeconds(1));
 
 Console.WriteLine("  Restoring cache...");
 cache.IsConnected = true;
-graph.NotifyChange(cache.HealthNode);
+graph.Refresh(cache.HealthNode);
 await Task.Delay(TimeSpan.FromSeconds(1));
 Console.WriteLine();
 

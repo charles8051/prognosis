@@ -41,7 +41,7 @@ Add to `HealthGraph`:
 - `HealthEvaluation Evaluate(string name)` — single-node query by name
 - `HealthEvaluation Evaluate(HealthNode node)` — single-node query by reference
 - `IObservable<HealthReport> StatusChanged` — emits a full `HealthReport` when the graph's effective state changes
-- `void NotifyChange(HealthNode node)` — public entry point that replaces direct `BubbleChange()` calls from consumers
+- `void Refresh(HealthNode node)` — re-evaluates a single node and propagates; symmetric with `RefreshAll()`
 
 `HealthNode` retains only: `Name`, `Dependencies`, `Parents`, `HasParents`, `DependsOn()`, `RemoveDependency()`, `ToString()`, and the static factory methods.
 
