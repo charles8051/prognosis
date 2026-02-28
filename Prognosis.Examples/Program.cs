@@ -6,7 +6,7 @@ var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
 // ─────────────────────────────────────────────────────────────────────
 // Pattern 1 — Implement IHealthAware on a class you own.
 //             Embed a HealthNode property.
-//             DatabaseService uses a CompositeHealthNode backed by
+//             DatabaseService uses a composite HealthNode backed by
 //             fine-grained sub-nodes (connection, latency, pool).
 // ─────────────────────────────────────────────────────────────────────
 var database = new DatabaseService();
@@ -14,7 +14,7 @@ var cache = new CacheService();
 
 // ─────────────────────────────────────────────────────────────────────
 // Pattern 2 — Wrap a service you don't own (or don't want to modify)
-//             with DelegateHealthNode and a health-check delegate.
+//             with HealthNode.CreateDelegate and a health-check delegate.
 // ─────────────────────────────────────────────────────────────────────
 var externalEmailApi = new ThirdPartyEmailClient();        // some closed class
 var emailHealth = HealthNode.CreateDelegate("EmailProvider",
@@ -234,7 +234,7 @@ class CacheService : IHealthAware
 
 /// <summary>
 /// A third-party class you cannot modify — no <see cref="IHealthAware"/> on it.
-/// Wrapped via <see cref="DelegateHealthNode"/> above.
+/// Wrapped via <see cref="HealthNode.CreateDelegate(string, Func{HealthEvaluation})"/> above.
 /// </summary>
 class ThirdPartyEmailClient
 {

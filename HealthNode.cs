@@ -1,20 +1,19 @@
 namespace Prognosis;
 
 /// <summary>
-/// Base class for all nodes in the health graph. Use the static factory methods
-/// <see cref="CreateDelegate(string, Func{HealthEvaluation})"/> (wraps a
-/// health-check delegate) and <see cref="CreateComposite"/> (aggregates
-/// dependencies with no backing service of its own) to create nodes.
+/// Represents a single node in the health graph. Create instances via the
+/// static factory methods <see cref="CreateDelegate(string, Func{HealthEvaluation})"/>
+/// (wraps a health-check delegate) and <see cref="CreateComposite"/>
+/// (aggregates dependencies with no backing service of its own).
 /// <para>
 /// Consumers who own a service class should implement <see cref="IHealthAware"/>
 /// and expose a <see cref="HealthNode"/> property — typically via
 /// <see cref="CreateDelegate(string, Func{HealthEvaluation})"/> when the
 /// service has its own intrinsic check, or <see cref="CreateComposite"/>
-/// when health is derived entirely from sub-dependencies. There is no need
-/// to subclass <see cref="HealthNode"/> directly.
+/// when health is derived entirely from sub-dependencies.
 /// </para>
 /// </summary>
-public abstract class HealthNode
+public sealed class HealthNode
 {
     [ThreadStatic]
     private static HashSet<HealthNode>? s_propagating;
@@ -39,14 +38,17 @@ public abstract class HealthNode
     /// </summary>
     internal Action<HealthNode>? _bubbleStrategy;
 
-    /// <param name="intrinsicCheck">
-    /// A callback that returns the owning service's intrinsic health
-    /// (e.g., whether a connection is alive). Called on every <see cref="Evaluate"/>.
-    /// </param>
-    private protected HealthNode(Func<HealthEvaluation> intrinsicCheck)
+    private HealthNode(string name, Func<HealthEvaluation> intrinsicCheck)
     {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("A service must have a name.", nameof(name));
+
+        Name = name;
         _intrinsicCheck = intrinsicCheck;
     }
+
+    private HealthNode(string name)
+        : this(name, () => HealthStatus.Healthy) { }
 
     /// <summary>
     /// Re-evaluates this node's health and propagates upward through all
@@ -70,7 +72,7 @@ public abstract class HealthNode
     }
 
     /// <summary>Display name for this node in the health graph.</summary>
-    public abstract string Name { get; }
+    public string Name { get; }
 
     /// <summary>
     /// Creates a node backed by a health-check delegate. The delegate is
@@ -82,7 +84,7 @@ public abstract class HealthNode
     /// A delegate that returns the service's intrinsic health evaluation.
     /// </param>
     public static HealthNode CreateDelegate(string name, Func<HealthEvaluation> healthCheck)
-        => new DelegateHealthNode(name, healthCheck);
+        => new HealthNode(name, healthCheck);
 
     /// <summary>
     /// Creates a node backed by a health-check delegate whose intrinsic
@@ -90,7 +92,7 @@ public abstract class HealthNode
     /// </summary>
     /// <param name="name">Display name for the service.</param>
     public static HealthNode CreateDelegate(string name)
-        => new DelegateHealthNode(name);
+        => new HealthNode(name);
 
     /// <summary>
     /// Creates an aggregation-only node with no underlying service of its own.
@@ -98,7 +100,7 @@ public abstract class HealthNode
     /// </summary>
     /// <param name="name">Display name for this composite in the health graph.</param>
     public static HealthNode CreateComposite(string name)
-        => new CompositeHealthNode(name);
+        => new HealthNode(name);
 
     /// <inheritdoc/>
     public override string ToString()
@@ -223,9 +225,9 @@ public abstract class HealthNode
     /// Registers a dependency on another service. Thread-safe and may be
     /// called at any time, including after evaluation has started. The new
     /// edge is visible to the next <see cref="Evaluate"/> call.
-    /// Immediately calls <see cref="BubbleChange"/> so the new dependency's
-    /// current health is reflected in all ancestors without waiting for the
-    /// next poll cycle.
+    /// Immediately triggers propagation so the new dependency's current
+    /// health is reflected in all ancestors without waiting for the next
+    /// poll cycle.
     /// </summary>
     public HealthNode DependsOn(HealthNode node, Importance importance)
     {

@@ -14,8 +14,8 @@ namespace Prognosis.Benchmarks;
 ///
 /// Each layer depends on 2-4 nodes from the layer below, mixing Required,
 /// Important, and Optional importance levels. Infrastructure nodes use
-/// DelegateHealthNode with synthetic health delegates; higher layers use
-/// CompositeHealthNode composites. Some infrastructure nodes have sub-checks
+/// HealthNode.CreateDelegate with synthetic health delegates; higher layers use
+/// HealthNode.CreateComposite composites. Some infrastructure nodes have sub-checks
 /// (connection, latency, pool) to model fine-grained health like
 /// DatabaseService in the examples.
 ///

@@ -372,14 +372,12 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 
 | File | Purpose |
 |---|---|
-| `HealthNode.cs` | Abstract base class — `Name`, `Dependencies`, `Evaluate()`, `StatusChanged`, `BubbleChange()`, `DependsOn()` |
+| `HealthNode.cs` | Sealed class — `Name`, `Dependencies`, `Evaluate()`, `StatusChanged`, `BubbleChange()`, `DependsOn()`, factory methods (`CreateDelegate`, `CreateComposite`) |
 | `IHealthAware.cs` | Marker interface — implement on your classes with a single `HealthNode` property |
 | `HealthStatus.cs` | `Healthy` → `Unknown` → `Degraded` → `Unhealthy` enum |
 | `HealthEvaluation.cs` | Status + optional reason pair, with implicit conversion from `HealthStatus` |
 | `Importance.cs` | `Required`, `Important`, `Optional`, `Resilient` enum |
 | `HealthDependency.cs` | Record linking a `HealthNode` with its importance |
-| `DelegateHealthNode.cs` | Wraps a `Func<HealthEvaluation>` — use for services with intrinsic health checks |
-| `CompositeHealthNode.cs` | Pure aggregation point — health derived entirely from dependencies |
 | `HealthReport.cs` | Serialization-ready report DTO with `DiffTo` for change detection |
 | `HealthSnapshot.cs` | Serialization-ready per-service snapshot DTO |
 | `StatusChange.cs` | Record describing a single service's status transition |

@@ -206,8 +206,8 @@ public class AggregationTests
     [Fact]
     public void DetectCycles_AcyclicGraph_ReturnsEmpty()
     {
-        var leaf = new DelegateHealthNode("Leaf");
-        var root = new DelegateHealthNode("Root")
+        var leaf = HealthNode.CreateDelegate("Leaf");
+        var root = HealthNode.CreateDelegate("Root")
             .DependsOn(leaf, Importance.Required);
         var graph = HealthGraph.Create(root);
 
@@ -219,8 +219,8 @@ public class AggregationTests
     [Fact]
     public void DetectCycles_DirectCycle_Detected()
     {
-        var a = new DelegateHealthNode("A");
-        var b = new DelegateHealthNode("B").DependsOn(a, Importance.Required);
+        var a = HealthNode.CreateDelegate("A");
+        var b = HealthNode.CreateDelegate("B").DependsOn(a, Importance.Required);
         a.DependsOn(b, Importance.Required);
         var graph = HealthGraph.Create(a);
 
@@ -236,9 +236,9 @@ public class AggregationTests
     [Fact]
     public void RefreshAll_ReevaluatesAllNodes()
     {
-        var leaf = new DelegateHealthNode("Leaf",
+        var leaf = HealthNode.CreateDelegate("Leaf",
             () => HealthEvaluation.Unhealthy("down"));
-        var root = new DelegateHealthNode("Root")
+        var root = HealthNode.CreateDelegate("Root")
             .DependsOn(leaf, Importance.Required);
         var graph = HealthGraph.Create(root);
 

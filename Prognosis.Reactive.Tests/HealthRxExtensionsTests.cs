@@ -196,8 +196,8 @@ public class HealthRxExtensionsTests
     [Fact]
     public async Task PollHealthReport_Graph_EmitsReportOnInterval()
     {
-        var leaf = new DelegateHealthNode("Leaf");
-        var root = new DelegateHealthNode("Root")
+        var leaf = HealthNode.CreateDelegate("Leaf");
+        var root = HealthNode.CreateDelegate("Root")
             .DependsOn(leaf, Importance.Required);
         var graph = HealthGraph.Create(root);
 
@@ -217,9 +217,9 @@ public class HealthRxExtensionsTests
     public async Task PollHealthReport_Graph_EmitsOnStateChange()
     {
         var isHealthy = true;
-        var leaf = new DelegateHealthNode("Leaf",
+        var leaf = HealthNode.CreateDelegate("Leaf",
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
-        var root = new DelegateHealthNode("Root")
+        var root = HealthNode.CreateDelegate("Root")
             .DependsOn(leaf, Importance.Required);
         var graph = HealthGraph.Create(root);
 
@@ -243,9 +243,9 @@ public class HealthRxExtensionsTests
     public void ObserveHealthReport_Graph_EmitsOnStatusChange()
     {
         var isHealthy = true;
-        var leaf = new DelegateHealthNode("Leaf",
+        var leaf = HealthNode.CreateDelegate("Leaf",
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
-        var root = new DelegateHealthNode("Root")
+        var root = HealthNode.CreateDelegate("Root")
             .DependsOn(leaf, Importance.Required);
         var graph = HealthGraph.Create(root);
 
@@ -266,10 +266,10 @@ public class HealthRxExtensionsTests
     public void ObserveHealthReport_Graph_RootReflectsDescendantChange()
     {
         var isHealthy = true;
-        var a = new DelegateHealthNode("A",
+        var a = HealthNode.CreateDelegate("A",
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
-        var b = new DelegateHealthNode("B");
-        var root = new CompositeHealthNode("Root")
+        var b = HealthNode.CreateDelegate("B");
+        var root = HealthNode.CreateComposite("Root")
             .DependsOn(a, Importance.Required)
             .DependsOn(b, Importance.Required);
         var graph = HealthGraph.Create(root);
