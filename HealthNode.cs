@@ -80,7 +80,11 @@ public abstract class HealthNode
         => new CompositeHealthNode(name);
 
     /// <inheritdoc/>
-    public override string ToString() => $"{Name}: {Evaluate()}";
+    public override string ToString()
+    {
+        var eval = _cachedEvaluation ?? Evaluate();
+        return $"{Name}: {eval}";
+    }
 
     /// <summary>
     /// The nodes that list this node as a dependency. Updated automatically
