@@ -87,6 +87,29 @@ public abstract class HealthNode
     }
 
     /// <summary>
+    /// Re-evaluates this node's health and propagates the change upward
+    /// through all ancestors. If one or more <see cref="HealthGraph"/>
+    /// instances are attached, each graph's serialized propagation strategy
+    /// fires (rebuilding cached reports and emitting
+    /// <see cref="HealthGraph.StatusChanged"/>). If no graph is attached,
+    /// falls back to a direct upward walk.
+    /// <para>
+    /// Call this from an <see cref="IHealthAware"/> service when the
+    /// underlying state changes (e.g., a connection drops) and you want
+    /// immediate push-based notification without waiting for the next
+    /// poll tick.
+    /// </para>
+    /// </summary>
+    public void Refresh()
+    {
+        var strategy = _bubbleStrategy;
+        if (strategy is not null)
+            strategy(this);
+        else
+            BubbleChange();
+    }
+
+    /// <summary>
     /// The nodes that list this node as a dependency. Updated automatically
     /// when edges are added or removed via <see cref="DependsOn"/> /
     /// <see cref="RemoveDependency"/>. Thread-safe (copy-on-write).
@@ -155,33 +178,15 @@ public abstract class HealthNode
     }
 
     /// <summary>
-    /// Notifies the graph(s) that this node's health may have changed.
-    /// If a <see cref="HealthGraph"/> is attached, propagation is
-    /// serialized under the graph's lock and the cached report is rebuilt.
-    /// If no graph is attached, performs a direct upward walk.
+    /// Re-evaluates the current health and automatically bubbles upward
+    /// through <see cref="Parents"/> so that the entire ancestor chain
+    /// is re-evaluated.
     /// <para>
-    /// Call this from your service when underlying state changes (e.g. a
-    /// connection drops) to push the change immediately without waiting
-    /// for the next poll cycle.
+    /// Diamond graphs and cycles are handled correctly — each node
+    /// is visited at most once per propagation wave.
     /// </para>
     /// </summary>
-    public void BubbleChange()
-    {
-        var strategy = _bubbleStrategy;
-        if (strategy is not null)
-            strategy(this);
-        else
-            BubbleChangeCore();
-    }
-
-    /// <summary>
-    /// Raw upward propagation — re-evaluates this node and walks up
-    /// through <see cref="Parents"/>. Called by
-    /// <see cref="HealthGraph.SerializedBubble"/> inside the propagation
-    /// lock. Diamond graphs and cycles are handled correctly — each node
-    /// is visited at most once per propagation wave.
-    /// </summary>
-    internal void BubbleChangeCore()
+    internal void BubbleChange()
     {
         var isRoot = s_propagating is null;
         s_propagating ??= new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
@@ -194,7 +199,7 @@ public abstract class HealthNode
             NotifyChangedCore();
 
             foreach (var parent in _parents)
-                parent.BubbleChangeCore();
+                parent.BubbleChange();
         }
         finally
         {
@@ -239,7 +244,7 @@ public abstract class HealthNode
             var updated = new List<HealthNode>(node._parents) { this };
             node._parents = updated;
         }
-        BubbleChange();
+        Refresh();
         return this;
     }
 
@@ -306,7 +311,7 @@ public abstract class HealthNode
                     node._parents = updated;
                 }
             }
-            BubbleChange();
+            Refresh();
         }
         return removed;
     }
