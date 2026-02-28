@@ -12,13 +12,14 @@ namespace Prognosis.Benchmarks;
 ///   dotnet run -c Release -- --filter *HealthGraphBenchmarks*
 /// </summary>
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net10_0)]
+[ShortRunJob(RuntimeMoniker.Net10_0)]
 public class HealthGraphBenchmarks
 {
     private HealthNode _root = null!;
+    private HealthNode _createRoot = null!;
     private HealthGraph _graph = null!;
 
-    [Params(100, 1000)]
+    [Params(100)]
     public int NodeCount { get; set; }
 
     [GlobalSetup]
@@ -28,12 +29,18 @@ public class HealthGraphBenchmarks
         _graph = HealthGraph.Create(_root);
     }
 
+    [IterationSetup(Target = nameof(Create))]
+    public void SetupCreate()
+    {
+        _createRoot = RealisticGraphBuilder.Build(NodeCount);
+    }
+
     /// <summary>
     /// Measures <see cref="HealthGraph.Create"/> — stores the root and
     /// makes the graph available for queries.
     /// </summary>
     [Benchmark]
-    public HealthGraph Create() => HealthGraph.Create(_root);
+    public HealthGraph Create() => HealthGraph.Create(_createRoot);
 
     /// <summary>
     /// Measures root access — returns the stored root.
@@ -42,16 +49,8 @@ public class HealthGraphBenchmarks
     public HealthNode Root() => _graph.Root;
 
     /// <summary>
-    /// Measures <see cref="HealthGraph.EvaluateAll"/> — depth-first
-    /// walk producing a <see cref="HealthSnapshot"/> for every node.
-    /// </summary>
-    [Benchmark]
-    public IReadOnlyList<HealthSnapshot> EvaluateAll()
-        => _graph.EvaluateAll();
-
-    /// <summary>
-    /// Measures <see cref="HealthGraph.CreateReport"/> — EvaluateAll +
-    /// overall status computation + report construction.
+    /// Measures <see cref="HealthGraph.CreateReport"/> — returns the
+    /// cached report without re-evaluation.
     /// </summary>
     [Benchmark]
     public HealthReport CreateReport() => _graph.CreateReport();
@@ -64,11 +63,12 @@ public class HealthGraphBenchmarks
     public HealthEvaluation EvaluateRoot() => _graph.Evaluate(_root);
 
     /// <summary>
-    /// Measures <see cref="HealthGraph.NotifyAll"/> — depth-first
-    /// walk calling BubbleChange on every node.
+    /// Measures <see cref="HealthGraph.RefreshAll"/> — depth-first
+    /// walk calling NotifyChangedCore on every node, rebuilds the
+    /// cached report, and emits StatusChanged if it changed.
     /// </summary>
     [Benchmark]
-    public void RefreshGraph() => _graph.RefreshAll();
+    public HealthReport RefreshAll() => _graph.RefreshAll();
 
     /// <summary>
     /// Measures <see cref="HealthGraph.DetectCycles"/> — full DFS
