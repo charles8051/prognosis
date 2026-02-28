@@ -82,15 +82,9 @@ public sealed class HealthGraph
     /// its ancestors, rebuilds the cached report, and emits
     /// <see cref="StatusChanged"/> if the overall state changed.
     /// If the node is shared across multiple graphs, all graphs are notified.
+    /// Equivalent to calling <see cref="HealthNode.Refresh"/> on the node directly.
     /// </summary>
-    public void Refresh(HealthNode node)
-    {
-        var strategy = node._bubbleStrategy;
-        if (strategy is not null)
-            strategy(node);
-        else
-            SerializedBubble(node);
-    }
+    public void Refresh(HealthNode node) => node.Refresh();
 
     /// <summary>
     /// Re-evaluates the node with the given <paramref name="name"/> and

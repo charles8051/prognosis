@@ -88,17 +88,11 @@ public abstract class HealthNode
 
     /// <summary>
     /// Re-evaluates this node's health and propagates the change upward
-    /// through all ancestors. If one or more <see cref="HealthGraph"/>
-    /// instances are attached, each graph's serialized propagation strategy
-    /// fires (rebuilding cached reports and emitting
-    /// <see cref="HealthGraph.StatusChanged"/>). If no graph is attached,
-    /// falls back to a direct upward walk.
-    /// <para>
-    /// Call this from an <see cref="IHealthAware"/> service when the
-    /// underlying state changes (e.g., a connection drops) and you want
-    /// immediate push-based notification without waiting for the next
-    /// poll tick.
-    /// </para>
+    /// through all ancestors. If the node is attached to one or more
+    /// <see cref="HealthGraph"/> instances, each graph's serialized
+    /// propagation strategy is invoked (rebuilding cached reports and
+    /// emitting <c>StatusChanged</c>). If no graph is attached, falls
+    /// back to a direct upward walk.
     /// </summary>
     public void Refresh()
     {
