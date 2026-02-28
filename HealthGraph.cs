@@ -276,7 +276,7 @@ public sealed class HealthGraph
 
         lock (_propagationLock)
         {
-            origin.BubbleChange();
+            origin.BubbleChangeCore();
             RefreshTopology();
 
             var previous = _cachedReport;

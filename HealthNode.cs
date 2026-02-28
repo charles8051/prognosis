@@ -155,15 +155,33 @@ public abstract class HealthNode
     }
 
     /// <summary>
-    /// Re-evaluates the current health and automatically bubbles upward
-    /// through <see cref="Parents"/> so that the entire ancestor chain
-    /// is re-evaluated.
+    /// Notifies the graph(s) that this node's health may have changed.
+    /// If a <see cref="HealthGraph"/> is attached, propagation is
+    /// serialized under the graph's lock and the cached report is rebuilt.
+    /// If no graph is attached, performs a direct upward walk.
     /// <para>
-    /// Diamond graphs and cycles are handled correctly — each node
-    /// is visited at most once per propagation wave.
+    /// Call this from your service when underlying state changes (e.g. a
+    /// connection drops) to push the change immediately without waiting
+    /// for the next poll cycle.
     /// </para>
     /// </summary>
-    internal void BubbleChange()
+    public void BubbleChange()
+    {
+        var strategy = _bubbleStrategy;
+        if (strategy is not null)
+            strategy(this);
+        else
+            BubbleChangeCore();
+    }
+
+    /// <summary>
+    /// Raw upward propagation — re-evaluates this node and walks up
+    /// through <see cref="Parents"/>. Called by
+    /// <see cref="HealthGraph.SerializedBubble"/> inside the propagation
+    /// lock. Diamond graphs and cycles are handled correctly — each node
+    /// is visited at most once per propagation wave.
+    /// </summary>
+    internal void BubbleChangeCore()
     {
         var isRoot = s_propagating is null;
         s_propagating ??= new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
@@ -176,7 +194,7 @@ public abstract class HealthNode
             NotifyChangedCore();
 
             foreach (var parent in _parents)
-                parent.BubbleChange();
+                parent.BubbleChangeCore();
         }
         finally
         {
@@ -221,11 +239,7 @@ public abstract class HealthNode
             var updated = new List<HealthNode>(node._parents) { this };
             node._parents = updated;
         }
-        var strategy = _bubbleStrategy;
-        if (strategy is not null)
-            strategy(this);
-        else
-            BubbleChange();
+        BubbleChange();
         return this;
     }
 
@@ -292,11 +306,7 @@ public abstract class HealthNode
                     node._parents = updated;
                 }
             }
-            var strategy = _bubbleStrategy;
-            if (strategy is not null)
-                strategy(this);
-            else
-                BubbleChange();
+            BubbleChange();
         }
         return removed;
     }
