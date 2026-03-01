@@ -14,8 +14,9 @@ public class ResilientImportanceTests
         var parent = HealthNode.CreateComposite("Root")
             .DependsOn(healthy, Importance.Resilient)
             .DependsOn(unhealthy, Importance.Resilient);
+        var graph = HealthGraph.Create(parent);
 
-        Assert.Equal(HealthStatus.Degraded, parent.Evaluate().Status);
+        Assert.Equal(HealthStatus.Degraded, graph.Evaluate("Root").Status);
     }
 
     [Fact]
@@ -29,8 +30,9 @@ public class ResilientImportanceTests
         var parent = HealthNode.CreateComposite("Root")
             .DependsOn(a, Importance.Resilient)
             .DependsOn(b, Importance.Resilient);
+        var graph = HealthGraph.Create(parent);
 
-        Assert.Equal(HealthStatus.Unhealthy, parent.Evaluate().Status);
+        Assert.Equal(HealthStatus.Unhealthy, graph.Evaluate("Root").Status);
     }
 
     [Fact]
@@ -42,8 +44,9 @@ public class ResilientImportanceTests
         var parent = HealthNode.CreateComposite("Root")
             .DependsOn(a, Importance.Resilient)
             .DependsOn(b, Importance.Resilient);
+        var graph = HealthGraph.Create(parent);
 
-        Assert.Equal(HealthStatus.Healthy, parent.Evaluate().Status);
+        Assert.Equal(HealthStatus.Healthy, graph.Evaluate("Root").Status);
     }
 
     [Fact]
@@ -54,8 +57,9 @@ public class ResilientImportanceTests
 
         var parent = HealthNode.CreateComposite("Root")
             .DependsOn(unhealthy, Importance.Resilient);
+        var graph = HealthGraph.Create(parent);
 
-        Assert.Equal(HealthStatus.Unhealthy, parent.Evaluate().Status);
+        Assert.Equal(HealthStatus.Unhealthy, graph.Evaluate("Root").Status);
     }
 
     [Fact]
@@ -69,8 +73,9 @@ public class ResilientImportanceTests
         var parent = HealthNode.CreateComposite("Root")
             .DependsOn(unhealthy, Importance.Resilient)
             .DependsOn(healthyRequired, Importance.Required);
+        var graph = HealthGraph.Create(parent);
 
-        Assert.Equal(HealthStatus.Unhealthy, parent.Evaluate().Status);
+        Assert.Equal(HealthStatus.Unhealthy, graph.Evaluate("Root").Status);
     }
 
     [Fact]
@@ -86,11 +91,12 @@ public class ResilientImportanceTests
             .DependsOn(primaryDb, Importance.Resilient)
             .DependsOn(replicaDb, Importance.Resilient)
             .DependsOn(cache, Importance.Important);
+        var graph = HealthGraph.Create(parent);
 
         // ReplicaDb unhealthy but PrimaryDb healthy → capped at Degraded.
         // Cache unhealthy + Important → also capped at Degraded.
         // Worst = Degraded.
-        Assert.Equal(HealthStatus.Degraded, parent.Evaluate().Status);
+        Assert.Equal(HealthStatus.Degraded, graph.Evaluate("Root").Status);
     }
 
     [Fact]
@@ -101,7 +107,8 @@ public class ResilientImportanceTests
         var parent = HealthNode.CreateDelegate("Root",
             () => HealthEvaluation.Unhealthy("self broken"))
             .DependsOn(healthy, Importance.Resilient);
+        var graph = HealthGraph.Create(parent);
 
-        Assert.Equal(HealthStatus.Unhealthy, parent.Evaluate().Status);
+        Assert.Equal(HealthStatus.Unhealthy, graph.Evaluate("Root").Status);
     }
 }

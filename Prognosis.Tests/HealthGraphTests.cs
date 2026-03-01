@@ -567,10 +567,11 @@ public class HealthGraphTests
         var emitted = new List<HealthReport>();
         graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
 
-        graph.RefreshAll();
+        var report = graph.RefreshAll();
 
         Assert.Single(emitted);
         Assert.Equal(HealthStatus.Unhealthy, emitted[0].Nodes[0].Status);
+        Assert.Same(emitted[0], report);
     }
 
     [Fact]
@@ -599,13 +600,14 @@ public class HealthGraphTests
         var emitted = new List<HealthReport>();
         graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
 
-        graph.RefreshAll();
+        var report1 = graph.RefreshAll();
 
         isHealthy = false;
-        graph.RefreshAll();
+        var report2 = graph.RefreshAll();
 
         Assert.Equal(2, emitted.Count);
-        Assert.Equal(HealthStatus.Unhealthy, emitted[1].Nodes[0].Status);
+        Assert.Equal(HealthStatus.Healthy, report1.Root.Status);
+        Assert.Equal(HealthStatus.Unhealthy, report2.Root.Status);
     }
 
     // ── StatusChanged unsubscribe ────────────────────────────────────

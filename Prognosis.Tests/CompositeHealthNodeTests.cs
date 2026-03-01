@@ -8,8 +8,9 @@ public class CompositeHealthNodeTests
         var dep = HealthNode.CreateDelegate("Dep");
         var composite = HealthNode.CreateComposite("Comp")
             .DependsOn(dep, Importance.Required);
+        var graph = HealthGraph.Create(composite);
 
-        Assert.Equal(HealthStatus.Healthy, composite.Evaluate().Status);
+        Assert.Equal(HealthStatus.Healthy, graph.Evaluate("Comp").Status);
     }
 
     [Fact]
@@ -19,8 +20,9 @@ public class CompositeHealthNodeTests
             () => HealthEvaluation.Unhealthy("down"));
         var composite = HealthNode.CreateComposite("Comp")
             .DependsOn(dep, Importance.Required);
+        var graph = HealthGraph.Create(composite);
 
-        Assert.Equal(HealthStatus.Unhealthy, composite.Evaluate().Status);
+        Assert.Equal(HealthStatus.Unhealthy, graph.Evaluate("Comp").Status);
     }
 
     [Fact]
@@ -36,10 +38,11 @@ public class CompositeHealthNodeTests
             .DependsOn(required, Importance.Required)
             .DependsOn(important, Importance.Important)
             .DependsOn(optional, Importance.Optional);
+        var graph = HealthGraph.Create(composite);
 
-        // Important+Unhealthy → Degraded. Optional ignored. Intrinsic = Unknown.
-        // Degraded > Unknown, so Degraded wins.
-        Assert.Equal(HealthStatus.Degraded, composite.Evaluate().Status);
+        // Important+Unhealthy → Degraded. Optional ignored. Intrinsic = Healthy.
+        // Degraded > Healthy, so Degraded wins.
+        Assert.Equal(HealthStatus.Degraded, graph.Evaluate("Comp").Status);
     }
 
     [Fact]

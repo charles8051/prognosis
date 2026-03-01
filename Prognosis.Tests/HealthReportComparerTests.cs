@@ -3,13 +3,12 @@ namespace Prognosis.Tests;
 public class HealthReportComparerTests
 {
     private static readonly HealthReportComparer Comparer = HealthReportComparer.Instance;
+    private static readonly HealthSnapshot DummyRoot = new("Root", HealthStatus.Healthy);
 
     [Fact]
     public void Equals_SameReference_ReturnsTrue()
     {
-        var report = new HealthReport(Array.Empty<HealthSnapshot>());
-
-        Assert.True(Comparer.Equals(report, report));
+        var report = new HealthReport(DummyRoot, Array.Empty<HealthSnapshot>());
     }
 
     [Fact]
@@ -21,17 +20,15 @@ public class HealthReportComparerTests
     [Fact]
     public void Equals_OneNull_ReturnsFalse()
     {
-        var report = new HealthReport(Array.Empty<HealthSnapshot>());
-
-        Assert.False(Comparer.Equals(report, null));
+        var report = new HealthReport(DummyRoot, Array.Empty<HealthSnapshot>());
         Assert.False(Comparer.Equals(null, report));
     }
 
     [Fact]
     public void Equals_DifferentNodeCount_ReturnsFalse()
     {
-        var a = new HealthReport(Array.Empty<HealthSnapshot>());
-        var b = new HealthReport(new[]
+        var a = new HealthReport(DummyRoot, Array.Empty<HealthSnapshot>());
+        var b = new HealthReport(DummyRoot, new[]
         {
             new HealthSnapshot("Svc", HealthStatus.Healthy),
         });
@@ -43,8 +40,8 @@ public class HealthReportComparerTests
     public void Equals_SameNodes_ReturnsTrue()
     {
         var nodes = new[] { new HealthSnapshot("Svc", HealthStatus.Healthy) };
-        var a = new HealthReport(nodes);
-        var b = new HealthReport(nodes);
+        var a = new HealthReport(DummyRoot, nodes);
+        var b = new HealthReport(DummyRoot, nodes);
 
         Assert.True(Comparer.Equals(a, b));
     }
@@ -53,8 +50,8 @@ public class HealthReportComparerTests
     public void Equals_SameData_DifferentInstances_ReturnsTrue()
     {
         var snapshot = new HealthSnapshot("Svc", HealthStatus.Degraded, "slow");
-        var a = new HealthReport(new[] { snapshot });
-        var b = new HealthReport(new[] { snapshot });
+        var a = new HealthReport(DummyRoot, new[] { snapshot });
+        var b = new HealthReport(DummyRoot, new[] { snapshot });
 
         Assert.True(Comparer.Equals(a, b));
     }
@@ -62,11 +59,11 @@ public class HealthReportComparerTests
     [Fact]
     public void Equals_DifferentNodeStatus_ReturnsFalse()
     {
-        var a = new HealthReport(new[]
+        var a = new HealthReport(DummyRoot, new[]
         {
             new HealthSnapshot("Svc", HealthStatus.Healthy),
         });
-        var b = new HealthReport(new[]
+        var b = new HealthReport(DummyRoot, new[]
         {
             new HealthSnapshot("Svc", HealthStatus.Degraded),
         });

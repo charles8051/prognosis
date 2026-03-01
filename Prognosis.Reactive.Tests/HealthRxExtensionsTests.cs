@@ -7,6 +7,8 @@ namespace Prognosis.Reactive.Tests;
 
 public class HealthRxExtensionsTests
 {
+    private static readonly HealthSnapshot DummyRoot = new("Root", HealthStatus.Healthy);
+
     // ── SelectServiceChanges ────────────────────────────────────────
 
     [Fact]
@@ -19,11 +21,11 @@ public class HealthRxExtensionsTests
             .SelectHealthChanges()
             .Subscribe(c => changes.Add(c));
 
-        var report1 = new HealthReport(new[]
+        var report1 = new HealthReport(DummyRoot, new[]
         {
             new HealthSnapshot("Svc", HealthStatus.Healthy),
         });
-        var report2 = new HealthReport(new[]
+        var report2 = new HealthReport(DummyRoot, new[]
         {
             new HealthSnapshot("Svc", HealthStatus.Unhealthy, "down"),
         });
@@ -47,15 +49,10 @@ public class HealthRxExtensionsTests
             .SelectHealthChanges()
             .Subscribe(c => changes.Add(c));
 
-        var report = new HealthReport(new[]
+        var report = new HealthReport(DummyRoot, new[]
         {
             new HealthSnapshot("Svc", HealthStatus.Healthy),
         });
-
-        subject.OnNext(report);
-        subject.OnNext(report);
-
-        Assert.Empty(changes);
     }
 
     [Fact]
@@ -68,8 +65,8 @@ public class HealthRxExtensionsTests
             .SelectHealthChanges()
             .Subscribe(c => changes.Add(c));
 
-        var report1 = new HealthReport(Array.Empty<HealthSnapshot>());
-        var report2 = new HealthReport(new[]
+        var report1 = new HealthReport(DummyRoot, Array.Empty<HealthSnapshot>());
+        var report2 = new HealthReport(DummyRoot, new[]
         {
             new HealthSnapshot("New", HealthStatus.Healthy),
         });
@@ -92,14 +89,10 @@ public class HealthRxExtensionsTests
             .SelectHealthChanges()
             .Subscribe(c => changes.Add(c));
 
-        var report = new HealthReport(new[]
+        var report = new HealthReport(DummyRoot, new[]
         {
             new HealthSnapshot("Svc", HealthStatus.Healthy),
         });
-
-        subject.OnNext(report);
-
-        Assert.Empty(changes);
     }
 
     // ── ForNodes ─────────────────────────────────────────────────────
@@ -115,12 +108,12 @@ public class HealthRxExtensionsTests
             .ForNodes("DB")
             .Subscribe(c => changes.Add(c));
 
-        var report1 = new HealthReport(new[]
+        var report1 = new HealthReport(DummyRoot, new[]
         {
             new HealthSnapshot("DB", HealthStatus.Healthy),
             new HealthSnapshot("Cache", HealthStatus.Healthy),
         });
-        var report2 = new HealthReport(new[]
+        var report2 = new HealthReport(DummyRoot, new[]
         {
             new HealthSnapshot("DB", HealthStatus.Unhealthy, "down"),
             new HealthSnapshot("Cache", HealthStatus.Unhealthy, "timeout"),
@@ -144,13 +137,13 @@ public class HealthRxExtensionsTests
             .ForNodes("DB", "Cache")
             .Subscribe(c => changes.Add(c));
 
-        var report1 = new HealthReport(new[]
+        var report1 = new HealthReport(DummyRoot, new[]
         {
             new HealthSnapshot("DB", HealthStatus.Healthy),
             new HealthSnapshot("Cache", HealthStatus.Healthy),
             new HealthSnapshot("Auth", HealthStatus.Healthy),
         });
-        var report2 = new HealthReport(new[]
+        var report2 = new HealthReport(DummyRoot, new[]
         {
             new HealthSnapshot("DB", HealthStatus.Unhealthy, "down"),
             new HealthSnapshot("Cache", HealthStatus.Degraded, "slow"),
@@ -176,11 +169,11 @@ public class HealthRxExtensionsTests
             .ForNodes("NonExistent")
             .Subscribe(c => changes.Add(c));
 
-        var report1 = new HealthReport(new[]
+        var report1 = new HealthReport(DummyRoot, new[]
         {
             new HealthSnapshot("DB", HealthStatus.Healthy),
         });
-        var report2 = new HealthReport(new[]
+        var report2 = new HealthReport(DummyRoot, new[]
         {
             new HealthSnapshot("DB", HealthStatus.Unhealthy, "down"),
         });

@@ -11,8 +11,9 @@ public class AggregationTests
     {
         var check = HealthNode.CreateDelegate("Svc",
             () => HealthEvaluation.Degraded("slow"));
+        var graph = HealthGraph.Create(check);
 
-        var result = check.Evaluate();
+        var result = graph.Evaluate("Svc");
 
         Assert.Equal(HealthStatus.Degraded, result.Status);
         Assert.Equal("slow", result.Reason);
@@ -34,8 +35,9 @@ public class AggregationTests
         var dep = HealthNode.CreateDelegate("Dep", () => depStatus);
         var parent = HealthNode.CreateDelegate("Parent")
             .DependsOn(dep, importance);
+        var graph = HealthGraph.Create(parent);
 
-        Assert.Equal(expected, parent.Evaluate().Status);
+        Assert.Equal(expected, graph.Evaluate("Parent").Status);
     }
 
     [Fact]
@@ -50,8 +52,9 @@ public class AggregationTests
             .DependsOn(healthy, Importance.Required)
             .DependsOn(degraded, Importance.Required)
             .DependsOn(unhealthy, Importance.Required);
+        var graph = HealthGraph.Create(parent);
 
-        var result = parent.Evaluate();
+        var result = graph.Evaluate("Parent");
 
         Assert.Equal(HealthStatus.Unhealthy, result.Status);
         Assert.Contains("C", result.Reason!);
@@ -64,32 +67,33 @@ public class AggregationTests
         var parent = HealthNode.CreateDelegate("Parent",
             () => HealthEvaluation.Unhealthy("self broken"))
             .DependsOn(healthy, Importance.Required);
+        var graph = HealthGraph.Create(parent);
 
-        var result = parent.Evaluate();
+        var result = graph.Evaluate("Parent");
 
         Assert.Equal(HealthStatus.Unhealthy, result.Status);
         Assert.Equal("self broken", result.Reason);
     }
 
-    // ── EvaluateAll ──────────────────────────────────────────────────
+    // ── RefreshAll (snapshot content) ───────────────────────────────
 
     [Fact]
-    public void EvaluateAll_ReturnsPostOrder_LeavesBeforeParents()
+    public void RefreshAll_ReturnsAllNodes()
     {
         var leaf = HealthNode.CreateDelegate("Leaf");
         var parent = HealthNode.CreateDelegate("Parent")
             .DependsOn(leaf, Importance.Required);
         var graph = HealthGraph.Create(parent);
 
-        var snapshots = graph.EvaluateAll();
+        var report = graph.RefreshAll();
 
-        Assert.Equal(2, snapshots.Count);
-        Assert.Equal("Leaf", snapshots[0].Name);
-        Assert.Equal("Parent", snapshots[1].Name);
+        Assert.Equal(2, report.Nodes.Count);
+        Assert.Contains(report.Nodes, n => n.Name == "Leaf");
+        Assert.Contains(report.Nodes, n => n.Name == "Parent");
     }
 
     [Fact]
-    public void EvaluateAll_SharedDependency_AppearsOnce()
+    public void RefreshAll_SharedDependency_AppearsOnce()
     {
         var shared = HealthNode.CreateDelegate("Shared");
         var a = HealthNode.CreateDelegate("A").DependsOn(shared, Importance.Required);
@@ -99,8 +103,8 @@ public class AggregationTests
             .DependsOn(b, Importance.Required);
         var graph = HealthGraph.Create(root);
 
-        var snapshots = graph.EvaluateAll();
-        var names = snapshots.Select(s => s.Name).ToList();
+        var report = graph.RefreshAll();
+        var names = report.Nodes.Select(s => s.Name).ToList();
 
         Assert.Single(names, n => n == "Shared");
     }
@@ -140,14 +144,12 @@ public class AggregationTests
     [Fact]
     public void Diff_DetectsStatusChange()
     {
-        var before = new HealthReport(new[]
-        {
+        var before = new HealthReport(
             new HealthSnapshot("Svc", HealthStatus.Healthy),
-        });
-        var after = new HealthReport(new[]
-        {
+            new[] { new HealthSnapshot("Svc", HealthStatus.Healthy) });
+        var after = new HealthReport(
             new HealthSnapshot("Svc", HealthStatus.Unhealthy, "down"),
-        });
+            new[] { new HealthSnapshot("Svc", HealthStatus.Unhealthy, "down") });
 
         var changes = before.DiffTo(after);
 
@@ -161,7 +163,7 @@ public class AggregationTests
     public void Diff_NoChanges_ReturnsEmpty()
     {
         var snapshot = new HealthSnapshot("Svc", HealthStatus.Healthy);
-        var report = new HealthReport(new[] { snapshot });
+        var report = new HealthReport(snapshot, new[] { snapshot });
 
         var changes = report.DiffTo(report);
 
@@ -171,11 +173,12 @@ public class AggregationTests
     [Fact]
     public void Diff_NewServiceAppears_ReportsUnknownToCurrent()
     {
-        var before = new HealthReport(Array.Empty<HealthSnapshot>());
-        var after = new HealthReport(new[]
-        {
-            new HealthSnapshot("New", HealthStatus.Healthy),
-        });
+        var before = new HealthReport(
+            new HealthSnapshot("Root", HealthStatus.Healthy),
+            Array.Empty<HealthSnapshot>());
+        var after = new HealthReport(
+            new HealthSnapshot("Root", HealthStatus.Healthy),
+            new[] { new HealthSnapshot("New", HealthStatus.Healthy) });
 
         var changes = before.DiffTo(after);
 
@@ -187,11 +190,12 @@ public class AggregationTests
     [Fact]
     public void Diff_ServiceDisappears_ReportsCurrentToUnknown()
     {
-        var before = new HealthReport(new[]
-        {
-            new HealthSnapshot("Old", HealthStatus.Healthy),
-        });
-        var after = new HealthReport(Array.Empty<HealthSnapshot>());
+        var before = new HealthReport(
+            new HealthSnapshot("Root", HealthStatus.Healthy),
+            new[] { new HealthSnapshot("Old", HealthStatus.Healthy) });
+        var after = new HealthReport(
+            new HealthSnapshot("Root", HealthStatus.Healthy),
+            Array.Empty<HealthSnapshot>());
 
         var changes = before.DiffTo(after);
 
