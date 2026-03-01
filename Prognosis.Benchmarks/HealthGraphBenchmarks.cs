@@ -42,11 +42,6 @@ public class HealthGraphBenchmarks
     [Benchmark]
     public HealthGraph Create() => HealthGraph.Create(_createRoot);
 
-    /// <summary>
-    /// Measures root access — returns the stored root.
-    /// </summary>
-    [Benchmark]
-    public HealthNode Root() => _graph.Root;
 
     /// <summary>
     /// Measures <see cref="HealthGraph.CreateReport"/> — returns the
@@ -55,12 +50,6 @@ public class HealthGraphBenchmarks
     [Benchmark]
     public HealthReport CreateReport() => _graph.CreateReport();
 
-    /// <summary>
-    /// Measures a single <see cref="HealthGraph.Evaluate(HealthNode)"/> call on the
-    /// platform root — refreshes the node and returns the cached evaluation.
-    /// </summary>
-    [Benchmark]
-    public HealthEvaluation EvaluateRoot() => _graph.Evaluate(_root);
 
     /// <summary>
     /// Measures <see cref="HealthGraph.RefreshAll"/> — depth-first
