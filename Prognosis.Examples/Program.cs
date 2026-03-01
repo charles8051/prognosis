@@ -111,9 +111,10 @@ cycles = cycleGraph.DetectCycles();
 Console.WriteLine(string.Join(Environment.NewLine, cycles.Select(c => "  Cycle: " + string.Join(" → ", c))));
 Console.WriteLine();
 
-// Evaluation still works — the propagation guard prevents a stack overflow.
-Console.WriteLine($"  ServiceA evaluates safely: {cycleGraph.Evaluate("ServiceA")}");
-Console.WriteLine($"  ServiceB evaluates safely: {cycleGraph.Evaluate("ServiceB")}");
+// The propagation guard prevents a stack overflow — nodes are still usable.
+var cycleReport = cycleGraph.CreateReport();
+Console.WriteLine($"  ServiceA status: {cycleReport.Nodes.First(n => n.Name == "ServiceA")}");
+Console.WriteLine($"  ServiceB status: {cycleReport.Nodes.First(n => n.Name == "ServiceB")}");
 Console.WriteLine();
 
 // ── Serialization ────────────────────────────────────────────────────

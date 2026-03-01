@@ -85,12 +85,12 @@ using var graphObserveSub = graph
 
 Console.WriteLine("  Taking cache offline...");
 cache.IsConnected = false;
-graph.Refresh(cache.HealthNode);
+cache.HealthNode.Refresh();
 await Task.Delay(TimeSpan.FromSeconds(1));
 
 Console.WriteLine("  Restoring cache...");
 cache.IsConnected = true;
-graph.Refresh(cache.HealthNode);
+cache.HealthNode.Refresh();
 await Task.Delay(TimeSpan.FromSeconds(1));
 Console.WriteLine();
 
@@ -173,12 +173,12 @@ using var observeSubscription = graph
 // a report is emitted immediately.
 Console.WriteLine("  Taking cache offline...");
 cache.IsConnected = false;
-graph.Refresh(cache.HealthNode); // push the change
+cache.HealthNode.Refresh(); // push the change
 await Task.Delay(TimeSpan.FromSeconds(1));
 
 Console.WriteLine("  Restoring cache...");
 cache.IsConnected = true;
-graph.Refresh(cache.HealthNode);
+cache.HealthNode.Refresh();
 await Task.Delay(TimeSpan.FromSeconds(1));
 Console.WriteLine();
 
