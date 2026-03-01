@@ -50,7 +50,8 @@ var graph = HealthGraph.Create(app);
 // ── Demo ─────────────────────────────────────────────────────────────
 void PrintHealth()
 {
-    foreach (var snapshot in graph.EvaluateAll())
+    var report = graph.RefreshAll();
+    foreach (var snapshot in report.Nodes)
     {
         Console.WriteLine($"  {snapshot}");
     }
@@ -110,7 +111,7 @@ cycles = cycleGraph.DetectCycles();
 Console.WriteLine(string.Join(Environment.NewLine, cycles.Select(c => "  Cycle: " + string.Join(" → ", c))));
 Console.WriteLine();
 
-// Evaluation still works — the re-entrancy guard prevents a stack overflow.
+// Evaluation still works — the propagation guard prevents a stack overflow.
 Console.WriteLine($"  ServiceA evaluates safely: {cycleGraph.Evaluate("ServiceA")}");
 Console.WriteLine($"  ServiceB evaluates safely: {cycleGraph.Evaluate("ServiceB")}");
 Console.WriteLine();

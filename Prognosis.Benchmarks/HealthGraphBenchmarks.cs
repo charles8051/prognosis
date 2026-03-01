@@ -57,7 +57,7 @@ public class HealthGraphBenchmarks
 
     /// <summary>
     /// Measures a single <see cref="HealthGraph.Evaluate(HealthNode)"/> call on the
-    /// platform root — recursive aggregation through all dependencies.
+    /// platform root — refreshes the node and returns the cached evaluation.
     /// </summary>
     [Benchmark]
     public HealthEvaluation EvaluateRoot() => _graph.Evaluate(_root);
