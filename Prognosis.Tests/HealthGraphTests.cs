@@ -381,7 +381,7 @@ public class HealthGraphTests
         graph.TopologyChanged.Subscribe(new TestObserver<TopologyChange>(emitted.Add));
 
         // Refresh fires but topology is unchanged — no notification expected.
-        graph.Refresh(child);
+        child.Refresh();
 
         Assert.Empty(emitted);
     }
@@ -445,7 +445,7 @@ public class HealthGraphTests
         graph2.StatusChanged.Subscribe(new TestObserver<HealthReport>(reports2.Add));
 
         isHealthy = false;
-        graph1.Refresh(shared);
+        shared.Refresh();
 
         Assert.Single(reports1);
         Assert.Single(reports2);
@@ -507,52 +507,11 @@ public class HealthGraphTests
         graph2.StatusChanged.Subscribe(new TestObserver<HealthReport>(reports2.Add));
 
         isHealthy = false;
-        graph2.Refresh(shared);
+        shared.Refresh();
 
         Assert.Single(reports2);
         Assert.Equal(HealthStatus.Unhealthy,
             reports2[0].Nodes.First(n => n.Name == "Shared").Status);
-    }
-
-    // ── Refresh(string) overload ─────────────────────────────────────
-
-    [Fact]
-    public void Refresh_ByName_EmitsReportOnStatusChange()
-    {
-        var node = HealthNode.CreateDelegate("Svc",
-            () => HealthEvaluation.Unhealthy("down"));
-        var graph = HealthGraph.Create(node);
-
-        var emitted = new List<HealthReport>();
-        graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
-
-        graph.Refresh("Svc");
-
-        Assert.Single(emitted);
-        Assert.Equal(HealthStatus.Unhealthy, emitted[0].Nodes[0].Status);
-    }
-
-    [Fact]
-    public void Refresh_ByName_UnknownName_ThrowsKeyNotFound()
-    {
-        var graph = HealthGraph.Create(HealthNode.CreateDelegate("A"));
-
-        Assert.Throws<KeyNotFoundException>(() => graph.Refresh("Missing"));
-    }
-
-    // ── Evaluate(HealthNode) overload ────────────────────────────────
-
-    [Fact]
-    public void Evaluate_ByNodeReference_ReturnsEvaluation()
-    {
-        var node = HealthNode.CreateDelegate("Svc",
-            () => HealthEvaluation.Degraded("slow"));
-        var graph = HealthGraph.Create(node);
-
-        var result = graph.Evaluate(node);
-
-        Assert.Equal(HealthStatus.Degraded, result.Status);
-        Assert.Equal("slow", result.Reason);
     }
 
     // ── RefreshAll direct tests ──────────────────────────────────────
@@ -625,7 +584,7 @@ public class HealthGraphTests
 
         subscription.Dispose();
 
-        graph.Refresh(node);
+        node.Refresh();
 
         Assert.Empty(emitted);
     }

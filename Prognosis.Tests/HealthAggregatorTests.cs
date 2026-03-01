@@ -13,7 +13,7 @@ public class AggregationTests
             () => HealthEvaluation.Degraded("slow"));
         var graph = HealthGraph.Create(check);
 
-        var result = graph.Evaluate("Svc");
+        var result = graph.CreateReport().Nodes.First(n => n.Name == "Svc");
 
         Assert.Equal(HealthStatus.Degraded, result.Status);
         Assert.Equal("slow", result.Reason);
@@ -37,7 +37,7 @@ public class AggregationTests
             .DependsOn(dep, importance);
         var graph = HealthGraph.Create(parent);
 
-        Assert.Equal(expected, graph.Evaluate("Parent").Status);
+        Assert.Equal(expected, graph.CreateReport().Nodes.First(n => n.Name == "Parent").Status);
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class AggregationTests
             .DependsOn(unhealthy, Importance.Required);
         var graph = HealthGraph.Create(parent);
 
-        var result = graph.Evaluate("Parent");
+        var result = graph.CreateReport().Nodes.First(n => n.Name == "Parent");
 
         Assert.Equal(HealthStatus.Unhealthy, result.Status);
         Assert.Contains("C", result.Reason!);
@@ -69,7 +69,7 @@ public class AggregationTests
             .DependsOn(healthy, Importance.Required);
         var graph = HealthGraph.Create(parent);
 
-        var result = graph.Evaluate("Parent");
+        var result = graph.CreateReport().Nodes.First(n => n.Name == "Parent");
 
         Assert.Equal(HealthStatus.Unhealthy, result.Status);
         Assert.Equal("self broken", result.Reason);

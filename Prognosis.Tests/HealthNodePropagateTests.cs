@@ -14,7 +14,7 @@ public class HealthNodePropagateTests
         var emitted = new List<HealthReport>();
         graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
 
-        graph.Refresh(node);
+        node.Refresh();
 
         Assert.Single(emitted);
         Assert.Equal(HealthStatus.Unhealthy, emitted[0].Nodes[0].Status);
@@ -35,7 +35,7 @@ public class HealthNodePropagateTests
 
         // Leaf degrades after the edge was wired. Refresh bubbles it up.
         isUnhealthy = true;
-        graph.Refresh(leaf);
+        leaf.Refresh();
 
         Assert.Single(emitted);
         Assert.Equal(HealthStatus.Unhealthy,
@@ -58,7 +58,7 @@ public class HealthNodePropagateTests
         graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
 
         isUnhealthy = true;
-        graph.Refresh(leaf);
+        leaf.Refresh();
 
         Assert.Single(emitted);
         Assert.Equal(HealthStatus.Unhealthy,
@@ -85,9 +85,9 @@ public class HealthNodePropagateTests
         graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
 
         isUnhealthy = true;
-        graph.Refresh(leaf);
+        leaf.Refresh();
 
-        // Root has two paths from the leaf but should emit exactly one report.
+        // Root has two paths from the leaf
         Assert.Single(emitted);
         Assert.Equal(HealthStatus.Unhealthy,
             emitted[0].Nodes.First(n => n.Name == "Root").Status);
@@ -103,7 +103,7 @@ public class HealthNodePropagateTests
         var graph = HealthGraph.Create(a);
 
         // Should not throw or hang.
-        var exception = Record.Exception(() => graph.Refresh(a));
+        var exception = Record.Exception(() => a.Refresh());
         Assert.Null(exception);
     }
 
@@ -117,7 +117,7 @@ public class HealthNodePropagateTests
         var emitted = new List<HealthReport>();
         graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
 
-        graph.Refresh(node);
+        node.Refresh();
 
         Assert.Single(emitted);
         Assert.Equal(HealthStatus.Degraded, emitted[0].Nodes[0].Status);

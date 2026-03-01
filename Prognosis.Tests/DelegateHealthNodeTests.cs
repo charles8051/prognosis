@@ -16,7 +16,7 @@ public class DelegateHealthNodeTests
         var svc = HealthNode.CreateDelegate("MyService");
         var graph = HealthGraph.Create(svc);
 
-        Assert.Equal(HealthStatus.Healthy, graph.Evaluate("MyService").Status);
+        Assert.Equal(HealthStatus.Healthy, graph.CreateReport().Nodes.First(n => n.Name == "MyService").Status);
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public class DelegateHealthNodeTests
             () => HealthEvaluation.Degraded("slow"));
         var graph = HealthGraph.Create(svc);
 
-        var eval = graph.Evaluate("Svc");
+        var eval = graph.CreateReport().Nodes.First(n => n.Name == "Svc");
 
         Assert.Equal(HealthStatus.Degraded, eval.Status);
         Assert.Equal("slow", eval.Reason);
@@ -52,7 +52,7 @@ public class DelegateHealthNodeTests
             .DependsOn(dep, Importance.Required);
         var graph = HealthGraph.Create(svc);
 
-        Assert.Equal(HealthStatus.Unhealthy, graph.Evaluate("Svc").Status);
+        Assert.Equal(HealthStatus.Unhealthy, graph.CreateReport().Nodes.First(n => n.Name == "Svc").Status);
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public class DelegateHealthNodeTests
             .DependsOn(dep, Importance.Important);
         var graph = HealthGraph.Create(svc);
 
-        Assert.Equal(HealthStatus.Degraded, graph.Evaluate("Svc").Status);
+        Assert.Equal(HealthStatus.Degraded, graph.CreateReport().Nodes.First(n => n.Name == "Svc").Status);
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public class DelegateHealthNodeTests
             .DependsOn(dep, Importance.Optional);
         var graph = HealthGraph.Create(svc);
 
-        Assert.Equal(HealthStatus.Healthy, graph.Evaluate("Svc").Status);
+        Assert.Equal(HealthStatus.Healthy, graph.CreateReport().Nodes.First(n => n.Name == "Svc").Status);
     }
 
     [Fact]
@@ -133,13 +133,13 @@ public class DelegateHealthNodeTests
             .DependsOn(child, Importance.Required);
         var graph = HealthGraph.Create(parent);
 
-        Assert.Equal(HealthStatus.Unhealthy, graph.Evaluate("Parent").Status);
+        Assert.Equal(HealthStatus.Unhealthy, graph.CreateReport().Nodes.First(n => n.Name == "Parent").Status);
 
         var removed = parent.RemoveDependency(child);
 
         Assert.True(removed);
         Assert.Empty(parent.Dependencies);
-        Assert.Equal(HealthStatus.Healthy, graph.Evaluate("Parent").Status);
+        Assert.Equal(HealthStatus.Healthy, graph.CreateReport().Nodes.First(n => n.Name == "Parent").Status);
     }
 
     [Fact]

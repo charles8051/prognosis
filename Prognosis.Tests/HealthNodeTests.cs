@@ -2,7 +2,7 @@ namespace Prognosis.Tests;
 
 public class HealthNodeTests
 {
-    // ── Evaluate (via HealthGraph) ───────────────────────────────────
+    // ── Evaluation (via HealthGraph.CreateReport) ───────────────────────
 
     [Fact]
     public void Evaluate_NoDependencies_ReturnsIntrinsicCheck()
@@ -11,7 +11,7 @@ public class HealthNodeTests
             () => HealthEvaluation.Degraded("slow"));
         var graph = HealthGraph.Create(node);
 
-        var result = graph.Evaluate("Svc");
+        var result = graph.CreateReport().Nodes.First(n => n.Name == "Svc");
 
         Assert.Equal(HealthStatus.Degraded, result.Status);
         Assert.Equal("slow", result.Reason);
@@ -26,7 +26,7 @@ public class HealthNodeTests
             .DependsOn(dep, Importance.Required);
         var graph = HealthGraph.Create(node);
 
-        var result = graph.Evaluate("Svc");
+        var result = graph.CreateReport().Nodes.First(n => n.Name == "Svc");
 
         Assert.Equal(HealthStatus.Unhealthy, result.Status);
     }
@@ -58,20 +58,20 @@ public class HealthNodeTests
     }
 
     [Fact]
-    public void DependsOn_AfterEvaluate_IsAllowed()
+    public void DependsOn_AfterGraphCreation_IsAllowed()
     {
         var dep = HealthNode.CreateDelegate("Dep",
             () => HealthEvaluation.Unhealthy("down"));
         var node = HealthNode.CreateDelegate("Svc");
         var graph = HealthGraph.Create(node);
 
-        // Evaluate first — this used to freeze the graph.
-        var before = graph.Evaluate("Svc");
+        // Check initial state.
+        var before = graph.CreateReport().Nodes.First(n => n.Name == "Svc");
         Assert.Equal(HealthStatus.Healthy, before.Status);
 
         // Adding an edge at runtime now works.
         node.DependsOn(dep, Importance.Required);
-        var after = graph.Evaluate("Svc");
+        var after = graph.CreateReport().Nodes.First(n => n.Name == "Svc");
         Assert.Equal(HealthStatus.Unhealthy, after.Status);
     }
 
@@ -84,13 +84,13 @@ public class HealthNodeTests
             .DependsOn(dep, Importance.Required);
         var graph = HealthGraph.Create(node);
 
-        Assert.Equal(HealthStatus.Unhealthy, graph.Evaluate("Svc").Status);
+        Assert.Equal(HealthStatus.Unhealthy, graph.CreateReport().Nodes.First(n => n.Name == "Svc").Status);
 
         var removed = node.RemoveDependency(dep);
 
         Assert.True(removed);
         Assert.Empty(node.Dependencies);
-        Assert.Equal(HealthStatus.Healthy, graph.Evaluate("Svc").Status);
+        Assert.Equal(HealthStatus.Healthy, graph.CreateReport().Nodes.First(n => n.Name == "Svc").Status);
     }
 
     [Fact]
@@ -112,7 +112,8 @@ public class HealthNodeTests
         a.DependsOn(b, Importance.Required);
         var graph = HealthGraph.Create(a);
 
-        var result = graph.Evaluate("A");
+        a.Refresh();
+        var result = graph.CreateReport().Nodes.First(n => n.Name == "A");
 
         // Cycle is handled by propagation guard — the node evaluates
         // without stack overflow and returns a cached result.

@@ -94,7 +94,7 @@ public class ServiceCollectionExtensionsTests
         var graph = sp.GetRequiredService<HealthGraph>();
 
         Assert.True(graph.TryGetNode("ExternalApi", out var node));
-        Assert.Equal(HealthStatus.Healthy, graph.Evaluate("ExternalApi").Status);
+        Assert.Equal(HealthStatus.Healthy, graph.CreateReport().Nodes.First(n => n.Name == "ExternalApi").Status);
     }
 
     [Fact]
@@ -118,7 +118,8 @@ public class ServiceCollectionExtensionsTests
         client.IsUp = false;
 
         Assert.True(graph.TryGetNode("ExternalApi", out var node));
-        Assert.Equal(HealthStatus.Unhealthy, graph.Evaluate("ExternalApi").Status);
+        node.Refresh();
+        Assert.Equal(HealthStatus.Unhealthy, graph.CreateReport().Nodes.First(n => n.Name == "ExternalApi").Status);
     }
 
     [Fact]
@@ -163,7 +164,7 @@ public class ServiceCollectionExtensionsTests
 
         Assert.True(graph.TryGetNode("Platform", out var platform));
         Assert.Equal(2, platform.Dependencies.Count);
-        Assert.Equal(HealthStatus.Healthy, graph.Evaluate("Platform").Status);
+        Assert.Equal(HealthStatus.Healthy, graph.CreateReport().Nodes.First(n => n.Name == "Platform").Status);
     }
 
     [Fact]
@@ -212,7 +213,7 @@ public class ServiceCollectionExtensionsTests
         var graph = sp.GetRequiredService<HealthGraph>();
 
         Assert.True(graph.TryGetNode("Resilient", out var node));
-        Assert.Equal(HealthStatus.Healthy, graph.Evaluate("Resilient").Status);
+        Assert.Equal(HealthStatus.Healthy, graph.CreateReport().Nodes.First(n => n.Name == "Resilient").Status);
     }
 
     // ── HealthGraph singleton ───────────────────────────────────────
