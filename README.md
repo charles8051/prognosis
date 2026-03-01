@@ -336,21 +336,7 @@ graph.PollHealthReport(TimeSpan.FromSeconds(30))
 
 ### Sharing streams across subscribers
 
-The Rx helpers produce cold observables — each subscription runs its own pipeline. To share a single evaluation across multiple subscribers:
-
-```csharp
-// Auto-stop when last subscriber unsubscribes.
-var shared = graph.CreateSharedReportStream(TimeSpan.FromSeconds(30));
-
-// Replay latest report to late subscribers.
-var shared = graph.CreateSharedReportStream(TimeSpan.FromSeconds(30),
-    ShareStrategy.ReplayLatest);
-
-// Push-triggered variant.
-var shared = graph.CreateSharedObserveStream();
-```
-
-Or use standard Rx multicast operators directly: `Publish().RefCount()` or `Replay(1).RefCount()`.
+The Rx helpers produce cold observables — each subscription runs its own pipeline. To share a single evaluation across multiple subscribers, use standard Rx multicast operators directly: `Publish().RefCount()` or `Replay(1).RefCount()`.
 
 ## Serialization
 

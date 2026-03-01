@@ -588,6 +588,106 @@ public class HealthGraphTests
 
         Assert.Empty(emitted);
     }
+
+    // ── Duplicate node names ─────────────────────────────────────────
+
+    [Fact]
+    public void Create_DuplicateNodeNames_ThrowsArgumentException()
+    {
+        var a = HealthNode.CreateDelegate("Dup");
+        var b = HealthNode.CreateDelegate("Dup");
+        var root = HealthNode.CreateComposite("Root")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Required);
+
+        Assert.Throws<ArgumentException>(() => HealthGraph.Create(root));
+    }
+
+    // ── Dispose ──────────────────────────────────────────────────────
+
+    [Fact]
+    public void Dispose_StopsStatusChangedNotifications()
+    {
+        var isHealthy = true;
+        var node = HealthNode.CreateDelegate("Svc",
+            () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
+        var graph = HealthGraph.Create(node);
+
+        var emitted = new List<HealthReport>();
+        graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
+
+        graph.Dispose();
+
+        isHealthy = false;
+        node.Refresh();
+
+        Assert.Empty(emitted);
+    }
+
+    [Fact]
+    public void Dispose_CompletesObservers()
+    {
+        var node = HealthNode.CreateDelegate("Svc");
+        var graph = HealthGraph.Create(node);
+
+        var completed = false;
+        graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(
+            _ => { }, () => completed = true));
+
+        graph.Dispose();
+
+        Assert.True(completed);
+    }
+
+    [Fact]
+    public void Dispose_TopologyChanged_CompletesObservers()
+    {
+        var node = HealthNode.CreateDelegate("Svc");
+        var graph = HealthGraph.Create(node);
+
+        var completed = false;
+        graph.TopologyChanged.Subscribe(new TestObserver<TopologyChange>(
+            _ => { }, () => completed = true));
+
+        graph.Dispose();
+
+        Assert.True(completed);
+    }
+
+    [Fact]
+    public void Dispose_SharedNode_OtherGraphStillWorks()
+    {
+        var isHealthy = true;
+        var shared = HealthNode.CreateDelegate("Shared",
+            () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
+
+        var root1 = HealthNode.CreateDelegate("Root1")
+            .DependsOn(shared, Importance.Required);
+        var root2 = HealthNode.CreateDelegate("Root2")
+            .DependsOn(shared, Importance.Required);
+
+        var graph1 = HealthGraph.Create(root1);
+        var graph2 = HealthGraph.Create(root2);
+
+        graph1.Dispose();
+
+        var reports2 = new List<HealthReport>();
+        graph2.StatusChanged.Subscribe(new TestObserver<HealthReport>(reports2.Add));
+
+        isHealthy = false;
+        shared.Refresh();
+
+        Assert.Single(reports2);
+    }
+
+    [Fact]
+    public void Dispose_CalledMultipleTimes_IsIdempotent()
+    {
+        var graph = HealthGraph.Create(HealthNode.CreateDelegate("Svc"));
+
+        graph.Dispose();
+        graph.Dispose();
+    }
 }
 
 /// <summary>Minimal IHealthAware stub for generic TryGetService tests.</summary>
@@ -596,9 +696,18 @@ file class StubHealthAware : IHealthAware
     public HealthNode HealthNode { get; } = HealthNode.CreateDelegate(typeof(StubHealthAware).Name);
 }
 
-file class TestObserver<T>(Action<T> onNext) : IObserver<T>
+file class TestObserver<T> : IObserver<T>
 {
-    public void OnNext(T value) => onNext(value);
+    private readonly Action<T> _onNext;
+    private readonly Action _onCompleted;
+
+    public TestObserver(Action<T> onNext, Action? onCompleted = null)
+    {
+        _onNext = onNext;
+        _onCompleted = onCompleted ?? (() => { });
+    }
+
+    public void OnNext(T value) => _onNext(value);
     public void OnError(Exception error) { }
-    public void OnCompleted() { }
+    public void OnCompleted() => _onCompleted();
 }

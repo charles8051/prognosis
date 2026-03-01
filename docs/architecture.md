@@ -263,8 +263,6 @@ Provides idiomatic System.Reactive operators as an opt-in layer over the core's 
 | `ObserveHealthReport()` | `HealthGraph` | `IObservable<HealthReport>` | Push-triggered via `StatusChanged`, no polling delay |
 | `SelectHealthChanges()` | `IObservable<HealthReport>` | `IObservable<StatusChange>` | Diffs consecutive reports, emits per-node changes |
 | `ForNodes(names)` | `IObservable<StatusChange>` | `IObservable<StatusChange>` | Filters to specific node names |
-| `CreateSharedReportStream(interval, strategy)` | `HealthGraph` | `IObservable<HealthReport>` | Multicasted (`RefCount` or `ReplayLatest`) |
-| `CreateSharedObserveStream(strategy)` | `HealthGraph` | `IObservable<HealthReport>` | Multicasted push-triggered variant |
 
 ---
 

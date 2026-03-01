@@ -144,6 +144,26 @@ public class HealthMonitorTests : IAsyncDisposable
         _monitor.Start();
         _monitor.Start();
     }
+
+    [Fact]
+    public void Graph_WithHealthGraph_ReturnsSameInstance()
+    {
+        var root = HealthNode.CreateDelegate("Root");
+        var graph = HealthGraph.Create(root);
+        _monitor = new HealthMonitor(graph, TimeSpan.FromHours(1));
+
+        Assert.Same(graph, _monitor.Graph);
+    }
+
+    [Fact]
+    public void Graph_WithHealthNode_ReturnsCreatedGraph()
+    {
+        var root = HealthNode.CreateDelegate("Root");
+        _monitor = new HealthMonitor(root, TimeSpan.FromHours(1));
+
+        Assert.NotNull(_monitor.Graph);
+        Assert.Same(root, _monitor.Graph.Root);
+    }
 }
 
 file class TestObserver<T>(Action<T> onNext) : IObserver<T>

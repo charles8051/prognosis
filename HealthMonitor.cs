@@ -23,6 +23,11 @@ public sealed class HealthMonitor : IAsyncDisposable, IDisposable
     public IObservable<HealthReport> ReportChanged => _graph.StatusChanged;
 
     /// <summary>
+    /// The underlying <see cref="HealthGraph"/> being polled by this monitor.
+    /// </summary>
+    public HealthGraph Graph => _graph;
+
+    /// <summary>
     /// Creates a monitor that polls the given <see cref="HealthGraph"/> on
     /// every tick. Call <see cref="Start"/> to begin the background polling loop.
     /// </summary>

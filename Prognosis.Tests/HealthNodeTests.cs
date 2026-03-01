@@ -149,4 +149,29 @@ public class HealthNodeTests
     {
         Assert.Throws<ArgumentException>(() => HealthNode.CreateComposite(name!));
     }
+
+    // ── Duplicate edge guard ─────────────────────────────────────────
+
+    [Fact]
+    public void DependsOn_SameNodeTwice_ThrowsInvalidOperationException()
+    {
+        var dep = HealthNode.CreateDelegate("Dep");
+        var node = HealthNode.CreateDelegate("Svc")
+            .DependsOn(dep, Importance.Required);
+
+        Assert.Throws<InvalidOperationException>(
+            () => node.DependsOn(dep, Importance.Optional));
+    }
+
+    [Fact]
+    public void DependsOn_DifferentNodes_Allowed()
+    {
+        var a = HealthNode.CreateDelegate("A");
+        var b = HealthNode.CreateDelegate("B");
+        var node = HealthNode.CreateDelegate("Svc")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Required);
+
+        Assert.Equal(2, node.Dependencies.Count);
+    }
 }

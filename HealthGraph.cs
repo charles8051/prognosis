@@ -19,7 +19,7 @@ namespace Prognosis;
 /// var graph = serviceProvider.GetRequiredService&lt;HealthGraph&gt;();
 /// </code>
 /// </remarks>
-public sealed class HealthGraph
+public sealed class HealthGraph : IDisposable
 {
     private readonly HealthNode _root;
     private readonly object _propagationLock = new();
@@ -30,6 +30,7 @@ public sealed class HealthGraph
     private readonly List<IObserver<HealthReport>> _statusObservers = new();
     private volatile NodeSnapshot _snapshot;
     private volatile HealthReport? _cachedReport;
+    private volatile bool _disposed;
 
     internal HealthGraph(HealthNode root)
     {
@@ -37,6 +38,8 @@ public sealed class HealthGraph
 
         var allNodes = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
         Collect(root, allNodes);
+
+        ValidateUniqueNames(allNodes);
 
         _snapshot = new NodeSnapshot(allNodes);
 
@@ -198,6 +201,55 @@ public sealed class HealthGraph
             EmitStatusChanged(reportToEmit);
 
         return report;
+    }
+
+    /// <summary>
+    /// Detaches this graph from all tracked nodes by removing its
+    /// <see cref="HealthNode._bubbleStrategy"/> callback, and completes all
+    /// <see cref="StatusChanged"/> and <see cref="TopologyChanged"/> observers.
+    /// After disposal, the graph still holds its last snapshot and can be
+    /// queried, but it will no longer receive propagation notifications.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+
+        lock (_topologyLock)
+        {
+            foreach (var node in _snapshot.Nodes)
+                node._bubbleStrategy -= SerializedBubble;
+        }
+
+        List<IObserver<TopologyChange>> topoSnapshot;
+        lock (_topologyObserverLock)
+        {
+            topoSnapshot = new List<IObserver<TopologyChange>>(_topologyObservers);
+            _topologyObservers.Clear();
+        }
+        foreach (var observer in topoSnapshot)
+            observer.OnCompleted();
+
+        List<IObserver<HealthReport>> statusSnapshot;
+        lock (_statusObserverLock)
+        {
+            statusSnapshot = new List<IObserver<HealthReport>>(_statusObservers);
+            _statusObservers.Clear();
+        }
+        foreach (var observer in statusSnapshot)
+            observer.OnCompleted();
+    }
+
+    private static void ValidateUniqueNames(HashSet<HealthNode> nodes)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var node in nodes)
+        {
+            if (!seen.Add(node.Name))
+                throw new ArgumentException(
+                    $"Duplicate node name '{node.Name}'. Each node in the graph must have a unique name.");
+        }
     }
 
     private static void Collect(HealthNode node, HashSet<HealthNode> visited)

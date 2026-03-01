@@ -33,7 +33,7 @@ public sealed class HealthNode
     /// Each attached graph adds its own callback via <c>+=</c>, so multiple
     /// graphs sharing a node all receive propagation notifications.
     /// </summary>
-    internal Action<HealthNode>? _bubbleStrategy;
+    internal volatile Action<HealthNode>? _bubbleStrategy;
 
     private HealthNode(string name, Func<HealthEvaluation> intrinsicCheck)
     {
@@ -207,7 +207,15 @@ public sealed class HealthNode
     {
         lock (_dependencyWriteLock)
         {
-            var updated = new List<HealthDependency>(_dependencies)
+            var current = _dependencies;
+            for (var i = 0; i < current.Count; i++)
+            {
+                if (ReferenceEquals(current[i].Node, node))
+                    throw new InvalidOperationException(
+                        $"'{Name}' already depends on '{node.Name}'.");
+            }
+
+            var updated = new List<HealthDependency>(current)
             {
                 new(node, importance)
             };
@@ -232,7 +240,6 @@ public sealed class HealthNode
     /// </summary>
     public bool RemoveDependency(HealthNode node)
     {
-        bool removed;
         lock (_dependencyWriteLock)
         {
             var current = _dependencies;
@@ -256,38 +263,34 @@ public sealed class HealthNode
                     updated.Add(current[i]);
             }
             _dependencies = updated;
-            removed = true;
         }
 
-        if (removed)
+        lock (node._parentWriteLock)
         {
-            lock (node._parentWriteLock)
+            var current = node._parents;
+            var index = -1;
+            for (var i = 0; i < current.Count; i++)
             {
-                var current = node._parents;
-                var index = -1;
-                for (var i = 0; i < current.Count; i++)
+                if (ReferenceEquals(current[i], this))
                 {
-                    if (ReferenceEquals(current[i], this))
-                    {
-                        index = i;
-                        break;
-                    }
-                }
-
-                if (index >= 0)
-                {
-                    var updated = new List<HealthNode>(current.Count - 1);
-                    for (var i = 0; i < current.Count; i++)
-                    {
-                        if (i != index)
-                            updated.Add(current[i]);
-                    }
-                    node._parents = updated;
+                    index = i;
+                    break;
                 }
             }
-            Refresh();
+
+            if (index >= 0)
+            {
+                var updated = new List<HealthNode>(current.Count - 1);
+                for (var i = 0; i < current.Count; i++)
+                {
+                    if (i != index)
+                        updated.Add(current[i]);
+                }
+                node._parents = updated;
+            }
         }
-        return removed;
+        Refresh();
+        return true;
     }
 
     /// <summary>

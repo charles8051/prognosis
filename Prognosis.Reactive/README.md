@@ -50,18 +50,7 @@ Each `StatusChange` includes the service name, previous status, current status, 
 
 ### Sharing streams across subscribers
 
-The Rx helpers produce cold `IObservable<HealthReport>` streams — each subscription runs an independent pipeline and triggers its own evaluations. To share a single evaluation across multiple subscribers:
-
-```csharp
-var shared = graph.CreateSharedReportStream(TimeSpan.FromSeconds(30));
-var shared = graph.CreateSharedObserveStream();
-
-// With replay for late subscribers:
-var shared = graph.CreateSharedReportStream(TimeSpan.FromSeconds(30),
-    ShareStrategy.ReplayLatest);
-```
-
-Or use standard Rx multicast operators directly: `Publish().RefCount()` or `Replay(1).RefCount()`.
+The Rx helpers produce cold `IObservable<HealthReport>` streams — each subscription runs an independent pipeline and triggers its own evaluations. To share a single evaluation across multiple subscribers, use standard Rx multicast operators directly: `Publish().RefCount()` or `Replay(1).RefCount()`.
 
 ## Dependencies
 
