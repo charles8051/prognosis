@@ -111,8 +111,8 @@ Both are stored as **volatile `IReadOnlyList<T>` references** updated via copy-o
 
 `HealthNode.Aggregate()` is the core computation, running in two passes over a node's dependencies:
 
-**Pass 1 — Evaluate all dependencies:**
-- Calls `Evaluate()` (or reads `_cachedEvaluation`) on each dependency.
+**Pass 1 — Read cached dependency evaluations:**
+- Reads `_cachedEvaluation` from each dependency (always populated — seeded in constructor, maintained by propagation).
 - Tracks whether any `Resilient`-marked sibling is healthy (needed for the resilience rule).
 
 **Pass 2 — Compute effective status:**
@@ -134,7 +134,7 @@ AuthService: Degraded — Database: Database.Latency: ...
 
 ### 3. Cycle Detection
 
-`HealthNode.Evaluate()` uses a `[ThreadStatic]` `HashSet<HealthNode>` to detect re-entrant evaluation (cycles). If a node is encountered twice in the same evaluation stack, it returns `HealthEvaluation.Unhealthy("Circular dependency detected")` instead of recursing infinitely.
+Cycles in the dependency graph are handled safely at each propagation level. `BubbleChange()` uses a `[ThreadStatic]` `HashSet<HealthNode>` to prevent visiting the same node twice during upward propagation. `RefreshDescendants()` uses a local `visited` set for the same purpose during downward DFS walks.
 
 `HealthGraph.DetectCycles()` performs a full DFS with gray/black coloring to enumerate all cycles as ordered name lists.
 
@@ -274,8 +274,7 @@ Provides idiomatic System.Reactive operators as an opt-in layer over the core's 
 |---|---|
 | Edge reads (`Dependencies`, `Parents`) | Volatile snapshot of copy-on-write `IReadOnlyList<T>` — lock-free |
 | Edge writes (`DependsOn`, `RemoveDependency`) | Per-node `_dependencyWriteLock` / `_parentWriteLock` |
-| Evaluation cycle detection | `[ThreadStatic] HashSet<HealthNode>` — no cross-thread contention |
-| Propagation cycle detection | `[ThreadStatic] HashSet<HealthNode>` — same pattern |
+| Propagation cycle detection | `[ThreadStatic] HashSet<HealthNode>` — no cross-thread contention |
 | Propagation serialization | `HealthGraph._propagationLock` — one wave at a time per graph |
 | Topology updates | `HealthGraph._topologyLock` inside propagation lock |
 | Observer dispatch | Snapshot observer list under dedicated locks, dispatch outside all locks |

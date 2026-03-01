@@ -15,7 +15,7 @@ Extension packages reference only the core. The core has zero project references
 ## Core Types
 
 - **`HealthNode`** — sealed, private constructors. Created via `CreateDelegate(name, healthCheck)`, `CreateDelegate(name)`, or `CreateComposite(name)`. Owns edges (`DependsOn`/`RemoveDependency`), aggregation, and upward propagation.
-- **`HealthGraph`** — materialized read-only view of the graph. Entry point for `Evaluate`, `CreateReport`, `EvaluateAll`, `RefreshAll`, and observables (`StatusChanged`, `TopologyChanged`).
+- **`HealthGraph`** — materialized read-only view of the graph. Entry point for `Refresh`, `CreateReport`, `RefreshAll`, and observables (`StatusChanged`, `TopologyChanged`).
 - **`HealthStatus`** — enum: `Healthy(0)`, `Unknown(1)`, `Degraded(2)`, `Unhealthy(3)`. Worst-is-highest.
 - **`Importance`** — enum: `Required`, `Important`, `Optional`, `Resilient`. Controls how dependency failures propagate.
 - **`HealthEvaluation`** — `(HealthStatus, string? Reason)` record. Implicit conversion from `HealthStatus`.
@@ -44,7 +44,7 @@ Extension packages reference only the core. The core has zero project references
 
 ## Propagation
 
-- **Push path:** `node.Refresh()` → `_bubbleStrategy` → `SerializedBubble` (under lock) → `BubbleChange` → `RefreshTopology` → `RebuildReport` → `EmitStatusChanged`.
+- **Push path:** `node.Refresh()` → `_bubbleStrategy` → `SerializedBubble` (under lock) → `BubbleChange` → `NotifyChangedCore` → `RefreshTopology` → `RebuildReport` → `EmitStatusChanged`.
 - **Poll path:** `HealthMonitor` tick → `graph.RefreshAll()` → DFS `NotifyChangedCore` on every node → `RebuildReport` → `EmitStatusChanged`.
 
 ## DI Integration

@@ -134,7 +134,7 @@ HealthNode db = graph["Database"];
 // Enumerate all nodes reachable from the root.
 foreach (var node in graph.Nodes)
 {
-    Console.WriteLine($"{node.Name}: {graph.Evaluate(node)}");
+    Console.WriteLine($"{node.Name}: {node}");
 }
 ```
 

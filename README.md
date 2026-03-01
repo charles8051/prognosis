@@ -121,7 +121,7 @@ class DatabaseService : IHealthAware
 }
 ```
 
-The sub-nodes show up automatically in `EvaluateAll`, `CreateReport`, and the JSON output. Reason strings chain from the leaf all the way up:
+The sub-nodes show up automatically in `CreateReport`, `RefreshAll`, and the JSON output. Reason strings chain from the leaf all the way up:
 
 ```
 Database.Latency: Degraded — Avg latency 600ms exceeds 500ms threshold
@@ -173,14 +173,17 @@ Only `Resilient`-marked siblings participate in the resilience check — `Requir
 ```csharp
 var graph = HealthGraph.Create(app);
 
-// Evaluate a single service (walks its dependencies)
+// Refresh a single service (re-evaluates intrinsic check, propagates upward, emits StatusChanged)
+graph.Refresh(app);
+
+// Evaluate a single service (refreshes and returns the result)
 HealthEvaluation eval = graph.Evaluate(app);
 
-// Snapshot the entire graph (depth-first post-order)
-IReadOnlyList<HealthSnapshot> snapshots = graph.EvaluateAll();
+// Re-evaluate all intrinsic checks and return a fresh report
+HealthReport report = graph.RefreshAll();
 
-// Package as a serialization-ready report with timestamp
-HealthReport report = graph.CreateReport();
+// Return the cached report (cheap, no re-evaluation)
+HealthReport cached = graph.CreateReport();
 
 // Detect circular dependencies
 IReadOnlyList<IReadOnlyList<string>> cycles = graph.DetectCycles();

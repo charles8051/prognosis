@@ -1,11 +1,11 @@
 namespace Prognosis;
 
 /// <summary>
-/// A point-in-time evaluation of a node and its full dependency subgraph.
-/// Can be created from any <see cref="HealthNode"/>; when created from the
-/// root the report covers the entire service graph.
+/// A point-in-time evaluation of a health graph. <see cref="Root"/> carries the
+/// graph root's aggregated status while <see cref="Nodes"/> contains every
+/// node's individual snapshot.
 /// </summary>
-public sealed record HealthReport(IReadOnlyList<HealthSnapshot> Nodes)
+public sealed record HealthReport(HealthSnapshot Root, IReadOnlyList<HealthSnapshot> Nodes)
 {
     /// <summary>
     /// Compares this report (the baseline) with a <paramref name="newer"/> report

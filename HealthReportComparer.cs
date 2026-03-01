@@ -17,6 +17,8 @@ public sealed class HealthReportComparer : IEqualityComparer<HealthReport>
             return true;
         if (x is null || y is null)
             return false;
+        if (x.Root != y.Root)
+            return false;
         if (x.Nodes.Count != y.Nodes.Count)
             return false;
 
@@ -38,6 +40,7 @@ public sealed class HealthReportComparer : IEqualityComparer<HealthReport>
         unchecked
         {
             var hash = 17;
+            hash = hash * 31 + obj.Root.GetHashCode();
             hash = hash * 31 + obj.Nodes.Count;
 
             // XOR is commutative — order-independent.
