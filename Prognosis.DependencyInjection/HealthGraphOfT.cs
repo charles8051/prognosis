@@ -37,14 +37,14 @@ public sealed class HealthGraph<TRoot> where TRoot : class
     /// <inheritdoc cref="HealthGraph.CreateReport"/>
     public HealthReport CreateReport() => _graph.CreateReport();
 
-    /// <inheritdoc cref="HealthGraph.EvaluateAll"/>
-    public IReadOnlyList<HealthSnapshot> EvaluateAll() => _graph.EvaluateAll();
-
     /// <inheritdoc cref="HealthGraph.StatusChanged"/>
     public IObservable<HealthReport> StatusChanged => _graph.StatusChanged;
 
     /// <inheritdoc cref="HealthGraph.Evaluate(string)"/>
     public HealthEvaluation Evaluate(string name) => _graph.Evaluate(name);
+
+    /// <inheritdoc cref="HealthGraph.Evaluate(HealthNode)"/>
+    public HealthEvaluation Evaluate(HealthNode node) => _graph.Evaluate(node);
 
     /// <inheritdoc cref="HealthGraph.Refresh(HealthNode)"/>
     public void Refresh(HealthNode node) => _graph.Refresh(node);
@@ -53,7 +53,7 @@ public sealed class HealthGraph<TRoot> where TRoot : class
     public void Refresh(string name) => _graph.Refresh(name);
 
     /// <inheritdoc cref="HealthGraph.RefreshAll"/>
-    public void RefreshAll() => _graph.RefreshAll();
+    public HealthReport RefreshAll() => _graph.RefreshAll();
 
     /// <summary>
     /// Converts a <see cref="HealthGraph{TRoot}"/> to its underlying
