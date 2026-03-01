@@ -73,55 +73,11 @@ public sealed class HealthGraph
     /// <summary>
     /// Emits a <see cref="HealthReport"/> each time the graph's effective
     /// health state changes. Emissions are driven by
-    /// <see cref="Refresh(HealthNode)"/>, <see cref="HealthNode.DependsOn"/>,
+    /// <see cref="HealthNode.Refresh"/>, <see cref="HealthNode.DependsOn"/>,
     /// <see cref="HealthNode.RemoveDependency"/>, and <see cref="RefreshAll"/>.
     /// Only fires when the report actually differs from the previous one.
     /// </summary>
     public IObservable<HealthReport> StatusChanged { get; }
-
-    /// <summary>
-    /// Re-evaluates <paramref name="node"/> and propagates upward through
-    /// its ancestors, rebuilds the cached report, and emits
-    /// <see cref="StatusChanged"/> if the overall state changed.
-    /// If the node is shared across multiple graphs, all graphs are notified.
-    /// Equivalent to calling <see cref="HealthNode.Refresh"/> on the node directly.
-    /// </summary>
-    public void Refresh(HealthNode node) => node.Refresh();
-
-    /// <summary>
-    /// Re-evaluates the node with the given <paramref name="name"/> and
-    /// propagates upward through its ancestors, rebuilds the cached report,
-    /// and emits <see cref="StatusChanged"/> if the overall state changed.
-    /// </summary>
-    /// <exception cref="KeyNotFoundException">
-    /// No node with the given name exists in the graph.
-    /// </exception>
-    public void Refresh(string name) => Refresh(this[name]);
-
-    /// <summary>
-    /// Re-evaluates a single node's effective health (intrinsic check plus
-    /// cached dependency statuses) and returns the result.
-    /// </summary>
-    /// <param name="name">The <see cref="HealthNode.Name"/> of the node to evaluate.</param>
-    /// <exception cref="KeyNotFoundException">
-    /// No node with the given name exists in the graph.
-    /// </exception>
-    public HealthEvaluation Evaluate(string name)
-    {
-        var node = this[name];
-        node.Refresh();
-        return node._cachedEvaluation;
-    }
-
-    /// <summary>
-    /// Re-evaluates a single node's effective health (intrinsic check plus
-    /// cached dependency statuses) and returns the result.
-    /// </summary>
-    public HealthEvaluation Evaluate(HealthNode node)
-    {
-        node.Refresh();
-        return node._cachedEvaluation;
-    }
 
     /// <summary>
     /// Looks up any node in the graph by its <see cref="HealthNode.Name"/>.
