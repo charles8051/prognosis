@@ -18,15 +18,12 @@ public sealed class HealthNode
     [ThreadStatic]
     private static HashSet<HealthNode>? s_propagating;
 
-    [ThreadStatic]
-    private static HashSet<HealthNode>? s_evaluating;
-
     private readonly Func<HealthEvaluation> _intrinsicCheck;
     private readonly object _dependencyWriteLock = new();
     private readonly object _parentWriteLock = new();
     private volatile IReadOnlyList<HealthNode> _parents = Array.Empty<HealthNode>();
     private volatile IReadOnlyList<HealthDependency> _dependencies = Array.Empty<HealthDependency>();
-    internal volatile HealthEvaluation? _cachedEvaluation;
+    internal volatile HealthEvaluation _cachedEvaluation;
 
     /// <summary>
     /// Multicast delegate for propagating health changes after topology
@@ -45,6 +42,7 @@ public sealed class HealthNode
 
         Name = name;
         _intrinsicCheck = intrinsicCheck;
+        _cachedEvaluation = intrinsicCheck();
     }
 
     private HealthNode(string name)
@@ -76,7 +74,7 @@ public sealed class HealthNode
 
     /// <summary>
     /// Creates a node backed by a health-check delegate. The delegate is
-    /// called on every <see cref="Evaluate"/> to obtain the service's
+    /// called on every <see cref="Refresh"/> to obtain the service's
     /// intrinsic health.
     /// </summary>
     /// <param name="name">Display name for the service.</param>
@@ -105,7 +103,7 @@ public sealed class HealthNode
     /// <inheritdoc/>
     public override string ToString()
     {
-        var eval = _cachedEvaluation ?? Evaluate();
+        var eval = _cachedEvaluation;
         return $"{Name}: {eval}";
     }
 
@@ -128,34 +126,10 @@ public sealed class HealthNode
     /// </summary>
     public IReadOnlyList<HealthDependency> Dependencies => _dependencies;
 
-    /// <summary>
-    /// The effective health of this service, taking its own state and all
-    /// dependency statuses (weighted by importance) into account.
-    /// </summary>
-    internal HealthEvaluation Evaluate()
-    {
-        s_evaluating ??= new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
-
-        if (!s_evaluating.Add(this))
-            return HealthEvaluation.Unhealthy("Circular dependency detected");
-
-        try
-        {
-            // Capture the volatile snapshot once — iteration is safe because
-            // writers always replace the entire list (copy-on-write).
-            var deps = _dependencies;
-            return Aggregate(_intrinsicCheck(), deps);
-        }
-        finally
-        {
-            s_evaluating.Remove(this);
-        }
-    }
-
     internal static HealthTreeSnapshot BuildTreeSnapshot(
         HealthNode node, HashSet<HealthNode> visited)
     {
-        var eval = node.Evaluate();
+        var eval = node._cachedEvaluation;
 
         if (!visited.Add(node))
         {
@@ -217,14 +191,14 @@ public sealed class HealthNode
     internal void NotifyChangedCore()
     {
         var deps = _dependencies;
-        var eval = Aggregate(_intrinsicCheck(), deps, useCachedDependencies: true);
+        var eval = Aggregate(_intrinsicCheck(), deps);
         _cachedEvaluation = eval;
     }
 
     /// <summary>
     /// Registers a dependency on another service. Thread-safe and may be
-    /// called at any time, including after evaluation has started. The new
-    /// edge is visible to the next <see cref="Evaluate"/> call.
+    /// called at any time, including after the graph has been created. The
+    /// new edge is visible to the next <see cref="Refresh"/> call.
     /// Immediately triggers propagation so the new dependency's current
     /// health is reflected in all ancestors without waiting for the next
     /// poll cycle.
@@ -319,14 +293,12 @@ public sealed class HealthNode
     /// <summary>
     /// Computes the worst-case health across the intrinsic evaluation and every
     /// dependency, with the propagation rules driven by <see cref="Importance"/>.
+    /// Always reads dependency health from <see cref="_cachedEvaluation"/>.
     /// </summary>
     internal static HealthEvaluation Aggregate(
         HealthEvaluation intrinsic,
-        IReadOnlyList<HealthDependency> dependencies,
-        bool useCachedDependencies = false)
+        IReadOnlyList<HealthDependency> dependencies)
     {
-        // First pass: evaluate all dependencies and check whether any
-        // Resilient sibling is healthy (needed for the Resilient rule).
         var depCount = dependencies.Count;
         var evals = new (HealthDependency dep, HealthEvaluation eval)[depCount];
         var hasHealthyResilient = false;
@@ -334,9 +306,7 @@ public sealed class HealthNode
         for (var i = 0; i < depCount; i++)
         {
             var dep = dependencies[i];
-            var eval = useCachedDependencies
-                ? (dep.Node._cachedEvaluation ?? dep.Node.Evaluate())
-                : dep.Node.Evaluate();
+            var eval = dep.Node._cachedEvaluation;
             evals[i] = (dep, eval);
 
             if (dep.Importance == Importance.Resilient && eval.Status == HealthStatus.Healthy)
@@ -383,27 +353,9 @@ public sealed class HealthNode
         return new HealthEvaluation(effective, reason);
     }
 
-    internal static void WalkEvaluate(
-        HealthNode node,
-        HashSet<HealthNode> visited,
-        List<HealthSnapshot> results)
-    {
-        if (!visited.Add(node))
-            return;
-
-        foreach (var dep in node.Dependencies)
-        {
-            WalkEvaluate(dep.Node, visited, results);
-        }
-
-        var eval = node._cachedEvaluation ?? node.Evaluate();
-        results.Add(new HealthSnapshot(node.Name, eval.Status, eval.Reason));
-    }
-
     /// <summary>
     /// Re-evaluates the intrinsic health of every node in this node's
-    /// dependency subtree (depth-first, leaves before parents), firing
-    /// <see cref="StatusChanged"/> on any node whose effective health changed.
+    /// dependency subtree (depth-first, leaves before parents).
     /// <para>
     /// Use this for poll-based scenarios where the underlying service state
     /// may have changed without an explicit <see cref="BubbleChange"/> call.

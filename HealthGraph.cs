@@ -43,6 +43,8 @@ public sealed class HealthGraph
         foreach (var node in allNodes)
             node._bubbleStrategy += SerializedBubble;
 
+        _root.RefreshDescendants();
+
         TopologyChanged = new TopologyObservable(this);
         StatusChanged = new StatusObservable(this);
     }
@@ -97,20 +99,29 @@ public sealed class HealthGraph
     public void Refresh(string name) => Refresh(this[name]);
 
     /// <summary>
-    /// Evaluates a single node's effective health (intrinsic check plus
-    /// its dependency subtree).
+    /// Re-evaluates a single node's effective health (intrinsic check plus
+    /// cached dependency statuses) and returns the result.
     /// </summary>
     /// <param name="name">The <see cref="HealthNode.Name"/> of the node to evaluate.</param>
     /// <exception cref="KeyNotFoundException">
     /// No node with the given name exists in the graph.
     /// </exception>
-    public HealthEvaluation Evaluate(string name) => this[name].Evaluate();
+    public HealthEvaluation Evaluate(string name)
+    {
+        var node = this[name];
+        node.Refresh();
+        return node._cachedEvaluation;
+    }
 
     /// <summary>
-    /// Evaluates a single node's effective health (intrinsic check plus
-    /// its dependency subtree).
+    /// Re-evaluates a single node's effective health (intrinsic check plus
+    /// cached dependency statuses) and returns the result.
     /// </summary>
-    public HealthEvaluation Evaluate(HealthNode node) => node.Evaluate();
+    public HealthEvaluation Evaluate(HealthNode node)
+    {
+        node.Refresh();
+        return node._cachedEvaluation;
+    }
 
     /// <summary>
     /// Looks up any node in the graph by its <see cref="HealthNode.Name"/>.
@@ -178,19 +189,6 @@ public sealed class HealthGraph
     }
 
     /// <summary>
-    /// Walks the full dependency graph from the root and returns every
-    /// node's evaluated status. Results are in depth-first post-order
-    /// (leaves before their parents) and each node appears at most once.
-    /// </summary>
-    public IReadOnlyList<HealthSnapshot> EvaluateAll()
-    {
-        var visited = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
-        var results = new List<HealthSnapshot>();
-        HealthNode.WalkEvaluate(_root, visited, results);
-        return results;
-    }
-
-    /// <summary>
     /// Performs a DFS from all discovered nodes and returns every cycle found
     /// as an ordered list of node names (e.g. ["A", "B", "A"]).
     /// Returns an empty list when the graph is acyclic.
@@ -217,18 +215,21 @@ public sealed class HealthGraph
     /// <summary>
     /// Walks the dependency graph depth-first from the root and calls
     /// <see cref="HealthNode.NotifyChangedCore"/> on every node encountered.
-    /// Leaves are refreshed before their parents.
+    /// Leaves are refreshed before their parents. Returns the resulting
+    /// <see cref="HealthReport"/> and emits <see cref="StatusChanged"/> if
+    /// the overall state changed.
     /// </summary>
-    public void RefreshAll()
+    public HealthReport RefreshAll()
     {
         HealthReport? reportToEmit = null;
+        HealthReport report;
 
         lock (_propagationLock)
         {
             _root.RefreshDescendants();
 
             var previous = _cachedReport;
-            var report = RebuildReport();
+            report = RebuildReport();
 
             if (previous is null
                 || !HealthReportComparer.Instance.Equals(previous, report))
@@ -239,6 +240,8 @@ public sealed class HealthGraph
 
         if (reportToEmit is not null)
             EmitStatusChanged(reportToEmit);
+
+        return report;
     }
 
     private static void Collect(HealthNode node, HashSet<HealthNode> visited)
@@ -256,10 +259,12 @@ public sealed class HealthGraph
         var results = new List<HealthSnapshot>(nodes.Length);
         foreach (var node in nodes)
         {
-            var eval = node._cachedEvaluation ?? node.Evaluate();
+            var eval = node._cachedEvaluation;
             results.Add(new HealthSnapshot(node.Name, eval.Status, eval.Reason));
         }
-        var report = new HealthReport(results);
+        var rootEval = _root._cachedEvaluation;
+        var rootSnapshot = new HealthSnapshot(_root.Name, rootEval.Status, rootEval.Reason);
+        var report = new HealthReport(rootSnapshot, results);
         _cachedReport = report;
         return report;
     }
