@@ -173,17 +173,17 @@ Only `Resilient`-marked siblings participate in the resilience check — `Requir
 ```csharp
 var graph = HealthGraph.Create(app);
 
-// Refresh a single service (re-evaluates intrinsic check, propagates upward, emits StatusChanged)
-graph.Refresh(app);
-
-// Evaluate a single service (refreshes and returns the result)
-HealthEvaluation eval = graph.Evaluate(app);
-
 // Re-evaluate all intrinsic checks and return a fresh report
 HealthReport report = graph.RefreshAll();
 
+// The root's aggregated status
+HealthSnapshot root = report.Root;
+
 // Return the cached report (cheap, no re-evaluation)
 HealthReport cached = graph.CreateReport();
+
+// Refresh a single node (re-evaluates intrinsic check, propagates upward, emits StatusChanged)
+app.Refresh();
 
 // Detect circular dependencies
 IReadOnlyList<IReadOnlyList<string>> cycles = graph.DetectCycles();

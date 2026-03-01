@@ -2,7 +2,9 @@
 
 ## Project Context
 
-Always read and reference `context.md` in the repository root before making changes. It contains a condensed summary of the architecture, core types, threading model, propagation flow, and conventions. Use it to ground decisions in the actual design rather than guessing.
+- Always read and reference `context.md` in the repository root before making changes. It contains a condensed summary of the architecture, core types, threading model, propagation flow, and conventions. Use it to ground decisions in the actual design rather than guessing.
+- Always keep documentation up to date.
+- Always keep tests, benchmarks, and examples up to date.
 
 ## Code Style
 

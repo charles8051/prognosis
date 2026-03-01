@@ -54,17 +54,16 @@ After attaching bubble strategies to all nodes, the constructor calls `_root.Ref
 
 The `useCachedDependencies` parameter is removed. The only caller is `NotifyChangedCore()`, which is always invoked from paths with their own cycle detection (`BubbleChange` via `s_propagating`, `NotifyDfs` via `visited` set).
 
-### 5. `HealthGraph.Evaluate(name/node)` becomes `Refresh` + read cache
+### 5. Remove `HealthGraph.Evaluate` and `HealthGraph.Refresh`
 
-```csharp
-public HealthEvaluation Evaluate(HealthNode node)
-{
-    node.Refresh();
-    return node._cachedEvaluation;
-}
-```
+With `HealthNode.Evaluate()` gone, the graph-level `Evaluate(string)` / `Evaluate(HealthNode)` and `Refresh(HealthNode)` / `Refresh(string)` wrappers serve no purpose. Consumers already hold `HealthNode` references (they created the nodes or received them via `IHealthAware`). They call `node.Refresh()` directly when state changes — the graph observes the propagation automatically.
 
-The public API is preserved but the implementation now goes through the standard propagation path — caching and notifying as expected.
+The remaining graph-level query API:
+
+- `graph.CreateReport()` — read the cached report (cheap).
+- `graph.RefreshAll()` — re-evaluate every node bottom-up, rebuild report, emit `StatusChanged`.
+- `graph[name]` / `graph.TryGetNode(name)` — look up a node if needed.
+- `graph.StatusChanged` / `graph.TopologyChanged` — observe changes.
 
 ## Consequences
 
@@ -74,10 +73,10 @@ The public API is preserved but the implementation now goes through the standard
 - **Simpler `Aggregate()`.** Removed the `useCachedDependencies` parameter and the recursive `dep.Node.Evaluate()` fallback.
 - **Non-nullable cache.** `_cachedEvaluation` is always populated. No `?? Evaluate()` fallbacks at read sites.
 - **Less threading machinery.** `s_evaluating` (the evaluation cycle guard) is removed. Cycle detection remains handled by `s_propagating` (bubble) and `visited` sets (DFS).
-- **`HealthGraph.Evaluate()` now propagates.** Calling `graph.Evaluate("X")` refreshes the node and fires observers, which matches the user expectation that evaluation keeps the graph warm.
+- **Smaller `HealthGraph` surface.** `Evaluate` and `Refresh` wrappers removed — consumers call `node.Refresh()` directly, which is where the capability actually lives.
 
 ### Negative
 
 - **Constructor calls the intrinsic check.** If the delegate captures state that isn't ready at construction time, the initial cached value may be inaccurate. However, it is immediately overwritten by the first `DependsOn()` → `Refresh()` or `HealthGraph` constructor → `RefreshDescendants()`, so the window is negligible.
 - **Circular dependencies no longer produce `"Circular dependency detected"` from evaluation.** Cycles are still detected by `HealthGraph.DetectCycles()` and are safely handled (no stack overflow) by propagation guards. The runtime effect of a cycle is that the second visit is skipped during propagation, so cached values from the previous wave are read. This is a behavioral change for the circular dependency test.
-- **`graph.Evaluate()` is no longer read-only.** It now triggers propagation and observer notification. Callers who wanted a pure read should use `graph.CreateReport()` instead.
+- **Consumers must hold node references to refresh.** There is no `graph.Refresh("name")` convenience. In practice this is not a burden — nodes are created by the consumer or looked up via `graph["name"]`.

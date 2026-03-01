@@ -51,12 +51,12 @@ The core package has **no project references** to the extension packages. Extens
 |---|---|---|
 | `HealthNode` | Sealed class | Single node type for the health graph. Owns topology edges (`DependsOn`, `RemoveDependency`), intrinsic check invocation, aggregation logic, and upward propagation (`BubbleChange`). Created via `CreateDelegate` (custom health check) or `CreateComposite` (aggregation-only, always-healthy intrinsic). |
 | `IHealthAware` | Interface | Marker for classes that participate in the graph. Single property: `HealthNode HealthNode { get; }`. |
-| `HealthGraph` | Sealed class | Read-only materialized view of the graph. Entry point for reporting, evaluation, monitoring, and observables. |
+| `HealthGraph` | Sealed class | Read-only materialized view of the graph. Entry point for reporting, monitoring, and observables. |
 | `HealthStatus` | Enum | `Healthy (0)`, `Unknown (1)`, `Degraded (2)`, `Unhealthy (3)`. Ordered worst-is-highest. |
 | `Importance` | Enum | `Required`, `Important`, `Optional`, `Resilient`. Controls propagation rules on each edge. |
 | `HealthEvaluation` | Record | `(HealthStatus Status, string? Reason)` pair. Implicit conversion from bare `HealthStatus`. |
 | `HealthDependency` | Sealed class | Weighted edge: `(HealthNode Node, Importance Importance)`. |
-| `HealthReport` | Record | Flat list of `HealthSnapshot` entries. Wire-friendly DTO with `DiffTo()` for change detection. |
+| `HealthReport` | Record | `Root` snapshot plus flat list of `HealthSnapshot` entries. Wire-friendly DTO with `DiffTo()` for change detection. |
 | `HealthSnapshot` | Record | `(string Name, HealthStatus Status, string? Reason)` for a single node. |
 | `HealthTreeSnapshot` | Record | Tree-shaped snapshot preserving dependency hierarchy. Ideal for nested JSON serialization. |
 | `TopologyChange` | Sealed class | `(Added, Removed)` node lists emitted when the graph's structure changes. |
@@ -184,7 +184,7 @@ Two report shapes serve different consumers:
 
 | Shape | Type | Use Case |
 |---|---|---|
-| **Flat** | `HealthReport` → `List<HealthSnapshot>` | Wire-friendly DTO, diff-based change detection, Rx pipelines |
+| **Flat** | `HealthReport` → `Root` + `List<HealthSnapshot>` | Wire-friendly DTO, diff-based change detection, Rx pipelines |
 | **Tree** | `HealthTreeSnapshot` → nested `HealthTreeDependency` | JSON serialization where hierarchy should be visible |
 
 `HealthReport.DiffTo()` compares two reports by name and produces `StatusChange` records for nodes whose status changed, appeared, or disappeared.

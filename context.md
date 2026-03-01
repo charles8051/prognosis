@@ -15,12 +15,12 @@ Extension packages reference only the core. The core has zero project references
 ## Core Types
 
 - **`HealthNode`** — sealed, private constructors. Created via `CreateDelegate(name, healthCheck)`, `CreateDelegate(name)`, or `CreateComposite(name)`. Owns edges (`DependsOn`/`RemoveDependency`), aggregation, and upward propagation.
-- **`HealthGraph`** — materialized read-only view of the graph. Entry point for `Refresh`, `CreateReport`, `RefreshAll`, and observables (`StatusChanged`, `TopologyChanged`).
+- **`HealthGraph`** — materialized read-only view of the graph. Entry point for `CreateReport`, `RefreshAll`, and observables (`StatusChanged`, `TopologyChanged`).
 - **`HealthStatus`** — enum: `Healthy(0)`, `Unknown(1)`, `Degraded(2)`, `Unhealthy(3)`. Worst-is-highest.
 - **`Importance`** — enum: `Required`, `Important`, `Optional`, `Resilient`. Controls how dependency failures propagate.
 - **`HealthEvaluation`** — `(HealthStatus, string? Reason)` record. Implicit conversion from `HealthStatus`.
 - **`HealthDependency`** — weighted edge: `(HealthNode, Importance)`.
-- **`HealthReport`** / **`HealthSnapshot`** — flat report DTOs with `DiffTo()` for change detection.
+- **`HealthReport`** / **`HealthSnapshot`** — flat report DTOs. `HealthReport.Root` carries the graph root's aggregated status. `DiffTo()` for change detection.
 - **`HealthTreeSnapshot`** — tree-shaped snapshot preserving hierarchy for nested JSON.
 - **`HealthMonitor`** — timer-based poller wrapping `HealthGraph.RefreshAll()`.
 - **`IHealthAware`** — marker interface with a single `HealthNode` property.
@@ -38,7 +38,7 @@ Extension packages reference only the core. The core has zero project references
 
 - **Edge reads** — lock-free volatile snapshots of copy-on-write lists.
 - **Edge writes** — per-node locks (`_dependencyWriteLock` / `_parentWriteLock`).
-- **Cycle detection** — `[ThreadStatic]` hash sets (evaluation and propagation).
+- **Cycle detection** — `[ThreadStatic]` hash sets (propagation).
 - **Propagation** — `HealthGraph._propagationLock` serializes one wave at a time. Observer notifications fire outside the lock.
 - **Lock ordering** — `_propagationLock` → `_topologyLock` → (observer locks independent).
 
