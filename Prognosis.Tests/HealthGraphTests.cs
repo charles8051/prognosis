@@ -690,8 +690,8 @@ public class HealthGraphTests
     }
 }
 
-/// <summary>Minimal IHealthAware stub for generic TryGetService tests.</summary>
-file class StubHealthAware : IHealthAware
+/// <summary>Stub for generic TryGetNode tests.</summary>
+file class StubHealthAware
 {
     public HealthNode HealthNode { get; } = HealthNode.CreateDelegate(typeof(StubHealthAware).Name);
 }

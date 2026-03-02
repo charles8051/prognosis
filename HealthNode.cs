@@ -6,8 +6,8 @@ namespace Prognosis;
 /// (wraps a health-check delegate) and <see cref="CreateComposite"/>
 /// (aggregates dependencies with no backing service of its own).
 /// <para>
-/// Consumers who own a service class should implement <see cref="IHealthAware"/>
-/// and expose a <see cref="HealthNode"/> property — typically via
+/// Service classes that own health state should expose a
+/// <see cref="HealthNode"/> property — typically via
 /// <see cref="CreateDelegate(string, Func{HealthEvaluation})"/> when the
 /// service has its own intrinsic check, or <see cref="CreateComposite"/>
 /// when health is derived entirely from sub-dependencies.
@@ -56,9 +56,9 @@ public sealed class HealthNode
     /// <see cref="HealthGraph.StatusChanged"/> is emitted when the report
     /// changes. If no graph is attached, falls back to a direct upward walk.
     /// <para>
-    /// Call this from an <see cref="IHealthAware"/> service when the
-    /// underlying state changes (e.g., a connection drops) to push the
-    /// change immediately without waiting for the next poll tick.
+    /// Call this from a service when the underlying state changes
+    /// (e.g., a connection drops) to push the change immediately
+    /// without waiting for the next poll tick.
     /// </para>
     /// </summary>
     public void Refresh()

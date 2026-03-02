@@ -43,6 +43,8 @@
     <None Include="Prognosis.DependencyInjection\Prognosis.DependencyInjection.csproj" />
     <None Include="Prognosis.Examples.DependencyInjection\Prognosis.Examples.DependencyInjection.csproj" />
     <None Include="Prognosis.Examples.Reactive\Prognosis.Examples.Reactive.csproj" />
+    <None Include="Prognosis.Generators.Tests\Prognosis.Generators.Tests.csproj" />
+    <None Include="Prognosis.Generators\Prognosis.Generators.csproj" />
     <None Include="Prognosis.Reactive.Tests\Prognosis.Reactive.Tests.csproj" />
     <None Include="Prognosis.Reactive\Prognosis.Reactive.csproj" />
     <None Include="Prognosis.Tests\Prognosis.Tests.csproj" />
@@ -72,6 +74,10 @@
     <None Remove="Prognosis.Examples.DependencyInjection\**" />
     <Compile Remove="Prognosis.Examples.Reactive\**" />
     <None Remove="Prognosis.Examples.Reactive\**" />
+    <Compile Remove="Prognosis.Generators\**" />
+    <None Remove="Prognosis.Generators\**" />
+    <Compile Remove="Prognosis.Generators.Tests\**" />
+    <None Remove="Prognosis.Generators.Tests\**" />
     <Compile Remove="Prognosis.Reactive\**" />
     <None Remove="Prognosis.Reactive\**" />
     <Compile Remove="Prognosis.Reactive.Tests\**" />

@@ -115,7 +115,7 @@ public sealed class HealthGraph : IDisposable
     /// <typeparam name="T">
     /// The type whose <see cref="System.Type.Name"/> is used as the lookup key.
     /// </typeparam>
-    public bool TryGetNode<T>(out HealthNode node) where T : class, IHealthAware =>
+    public bool TryGetNode<T>(out HealthNode node) where T : class =>
         TryGetNode(typeof(T).Name, out node);
 
     /// <summary>
