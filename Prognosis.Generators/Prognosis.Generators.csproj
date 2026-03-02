@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IsRoslynComponent>true</IsRoslynComponent>
+
+    <!-- NuGet package metadata -->
+    <PackageId>Prognosis.Generators</PackageId>
+    <Authors>Charles Lee</Authors>
+    <Description>Source generators and analyzers for Prognosis. Auto-generates HealthNames constants, AddDiscoveredNodes() service wiring, and validates DependsOn edge references at compile time.</Description>
+    <PackageTags>health;health-check;service-health;source-generator;analyzer;roslyn</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/charles8051/prognosis</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/charles8051/prognosis</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+
+    <!-- Analyzer/generator packaging -->
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Prognosis.Generators.Tests" />
+  </ItemGroup>
+
+  <!-- Pack the assembly into the analyzers folder so it loads as a Roslyn component -->
+  <ItemGroup>
+    <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
+  </ItemGroup>
+
+</Project>
