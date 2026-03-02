@@ -4,8 +4,7 @@ using Prognosis;
 var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
 
 // ─────────────────────────────────────────────────────────────────────
-// Pattern 1 — Implement IHealthAware on a class you own.
-//             Embed a HealthNode property.
+// Pattern 1 — Embed HealthNode properties on a class you own.
 //             DatabaseService uses a composite HealthNode backed by
 //             fine-grained sub-nodes (connection, latency, pool).
 // ─────────────────────────────────────────────────────────────────────
@@ -113,8 +112,8 @@ Console.WriteLine();
 
 // The propagation guard prevents a stack overflow — nodes are still usable.
 var cycleReport = cycleGraph.GetReport();
-Console.WriteLine($"  ServiceA status: {cycleReport.Nodes.First(n => n.Name == "ServiceA")}");
-Console.WriteLine($"  ServiceB status: {cycleReport.Nodes.First(n => n.Name == "ServiceB")}");
+Console.WriteLine($"  ServiceA status: {cycleReport.Nodes.First(n => n.Name == HealthNames.ServiceA)}");
+Console.WriteLine($"  ServiceB status: {cycleReport.Nodes.First(n => n.Name == HealthNames.ServiceB)}");
 Console.WriteLine();
 
 // ── Serialization ────────────────────────────────────────────────────
@@ -172,14 +171,14 @@ Console.WriteLine();
 // ─────────────────────────────────────────────────────────────────────
 
 /// <summary>
-/// A service you own — implement <see cref="IHealthAware"/> and expose a
-/// <see cref="HealthNode"/> property. Here the top-level node is created via
+/// A service you own — expose one or more <see cref="HealthNode"/> properties.
+/// Here the top-level node is created via
 /// <see cref="HealthNode.CreateComposite"/> whose health is derived entirely
 /// from three fine-grained sub-nodes created via
 /// <see cref="HealthNode.CreateDelegate(string, Func{HealthEvaluation})"/>:
 /// connection, latency, and connection-pool utilization.
 /// </summary>
-class DatabaseService : IHealthAware
+class DatabaseService
 {
     public HealthNode HealthNode { get; }
 
@@ -219,7 +218,7 @@ class DatabaseService : IHealthAware
 }
 
 /// <summary>Another service you own, same pattern.</summary>
-class CacheService : IHealthAware
+class CacheService
 {
     public HealthNode HealthNode { get; }
 
@@ -235,7 +234,7 @@ class CacheService : IHealthAware
 }
 
 /// <summary>
-/// A third-party class you cannot modify — no <see cref="IHealthAware"/> on it.
+/// A third-party class you cannot modify.
 /// Wrapped via <see cref="HealthNode.CreateDelegate(string, Func{HealthEvaluation})"/> above.
 /// </summary>
 class ThirdPartyEmailClient

@@ -250,7 +250,7 @@ Console.WriteLine();
 // Example service classes (self-contained, same as core example)
 // ─────────────────────────────────────────────────────────────────────
 
-class DatabaseService : IHealthAware
+class DatabaseService
 {
     public HealthNode HealthNode { get; }
 
@@ -265,7 +265,7 @@ class DatabaseService : IHealthAware
     public bool IsConnected { get; set; } = true;
 }
 
-class CacheService : IHealthAware
+class CacheService
 {
     public HealthNode HealthNode { get; }
 
