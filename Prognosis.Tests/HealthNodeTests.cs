@@ -2,7 +2,7 @@ namespace Prognosis.Tests;
 
 public class HealthNodeTests
 {
-    // ── Evaluation (via HealthGraph.CreateReport) ───────────────────────
+    // ── Evaluation (via HealthGraph.GetReport) ─────────────────────────
 
     [Fact]
     public void Evaluate_NoDependencies_ReturnsIntrinsicCheck()
@@ -11,7 +11,7 @@ public class HealthNodeTests
             () => HealthEvaluation.Degraded("slow"));
         var graph = HealthGraph.Create(node);
 
-        var result = graph.CreateReport().Nodes.First(n => n.Name == "Svc");
+        var result = graph.GetReport().Nodes.First(n => n.Name == "Svc");
 
         Assert.Equal(HealthStatus.Degraded, result.Status);
         Assert.Equal("slow", result.Reason);
@@ -26,7 +26,7 @@ public class HealthNodeTests
             .DependsOn(dep, Importance.Required);
         var graph = HealthGraph.Create(node);
 
-        var result = graph.CreateReport().Nodes.First(n => n.Name == "Svc");
+        var result = graph.GetReport().Nodes.First(n => n.Name == "Svc");
 
         Assert.Equal(HealthStatus.Unhealthy, result.Status);
     }
@@ -66,12 +66,12 @@ public class HealthNodeTests
         var graph = HealthGraph.Create(node);
 
         // Check initial state.
-        var before = graph.CreateReport().Nodes.First(n => n.Name == "Svc");
+        var before = graph.GetReport().Nodes.First(n => n.Name == "Svc");
         Assert.Equal(HealthStatus.Healthy, before.Status);
 
         // Adding an edge at runtime now works.
         node.DependsOn(dep, Importance.Required);
-        var after = graph.CreateReport().Nodes.First(n => n.Name == "Svc");
+        var after = graph.GetReport().Nodes.First(n => n.Name == "Svc");
         Assert.Equal(HealthStatus.Unhealthy, after.Status);
     }
 
@@ -84,13 +84,13 @@ public class HealthNodeTests
             .DependsOn(dep, Importance.Required);
         var graph = HealthGraph.Create(node);
 
-        Assert.Equal(HealthStatus.Unhealthy, graph.CreateReport().Nodes.First(n => n.Name == "Svc").Status);
+        Assert.Equal(HealthStatus.Unhealthy, graph.GetReport().Nodes.First(n => n.Name == "Svc").Status);
 
         var removed = node.RemoveDependency(dep);
 
         Assert.True(removed);
         Assert.Empty(node.Dependencies);
-        Assert.Equal(HealthStatus.Healthy, graph.CreateReport().Nodes.First(n => n.Name == "Svc").Status);
+        Assert.Equal(HealthStatus.Healthy, graph.GetReport().Nodes.First(n => n.Name == "Svc").Status);
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public class HealthNodeTests
         var graph = HealthGraph.Create(a);
 
         a.Refresh();
-        var result = graph.CreateReport().Nodes.First(n => n.Name == "A");
+        var result = graph.GetReport().Nodes.First(n => n.Name == "A");
 
         // Cycle is handled by propagation guard — the node evaluates
         // without stack overflow and returns a cached result.
@@ -173,12 +173,12 @@ public class HealthNodeTests
         var graph = HealthGraph.Create(node);
 
         Assert.Equal(HealthStatus.Healthy,
-            graph.CreateReport().Nodes.First(n => n.Name == "Svc").Status);
+            graph.GetReport().Nodes.First(n => n.Name == "Svc").Status);
 
         node.ReplaceCheck(() => HealthEvaluation.Unhealthy("mock down"));
 
         Assert.Equal(HealthStatus.Unhealthy,
-            graph.CreateReport().Nodes.First(n => n.Name == "Svc").Status);
+            graph.GetReport().Nodes.First(n => n.Name == "Svc").Status);
     }
 
     [Fact]
@@ -212,12 +212,12 @@ public class HealthNodeTests
 
         // Svc is unhealthy because of its Required dep.
         Assert.Equal(HealthStatus.Unhealthy,
-            graph.CreateReport().Nodes.First(n => n.Name == "Svc").Status);
+            graph.GetReport().Nodes.First(n => n.Name == "Svc").Status);
 
         // Swap the intrinsic check — edges remain intact.
         node.ReplaceCheck(() => HealthEvaluation.Degraded("slow"));
 
-        var result = graph.CreateReport().Nodes.First(n => n.Name == "Svc");
+        var result = graph.GetReport().Nodes.First(n => n.Name == "Svc");
         Assert.Equal(HealthStatus.Unhealthy, result.Status);
         Assert.Single(node.Dependencies);
     }
@@ -254,7 +254,7 @@ public class HealthNodeTests
 
         node.ReportStatus(HealthEvaluation.Unhealthy("externally reported"));
 
-        var result = graph.CreateReport().Nodes.First(n => n.Name == "Svc");
+        var result = graph.GetReport().Nodes.First(n => n.Name == "Svc");
         Assert.Equal(HealthStatus.Unhealthy, result.Status);
         Assert.Equal("externally reported", result.Reason);
     }
@@ -287,12 +287,12 @@ public class HealthNodeTests
 
         node.ReportStatus(HealthEvaluation.Unhealthy("transient failure"));
         Assert.Equal(HealthStatus.Unhealthy,
-            graph.CreateReport().Nodes.First(n => n.Name == "Svc").Status);
+            graph.GetReport().Nodes.First(n => n.Name == "Svc").Status);
 
         graph.RefreshAll();
 
         Assert.Equal(HealthStatus.Healthy,
-            graph.CreateReport().Nodes.First(n => n.Name == "Svc").Status);
+            graph.GetReport().Nodes.First(n => n.Name == "Svc").Status);
     }
 
     [Fact]
@@ -307,7 +307,7 @@ public class HealthNodeTests
 
         node.ReportStatus(HealthEvaluation.Degraded("slow"));
 
-        var result = graph.CreateReport().Nodes.First(n => n.Name == "Svc");
+        var result = graph.GetReport().Nodes.First(n => n.Name == "Svc");
         Assert.Equal(HealthStatus.Unhealthy, result.Status);
     }
 
@@ -338,7 +338,7 @@ public class HealthNodeTests
 
         internet.ReportStatus(HealthEvaluation.Unhealthy("connectivity lost"));
 
-        var report = graph.CreateReport();
+        var report = graph.GetReport();
         Assert.Equal(HealthStatus.Unhealthy,
             report.Nodes.First(n => n.Name == "API").Status);
         Assert.Equal(HealthStatus.Unhealthy,

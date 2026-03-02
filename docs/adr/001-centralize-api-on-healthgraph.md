@@ -11,13 +11,13 @@
 | Capability | `HealthNode` | `HealthGraph` |
 |---|---|---|
 | Single-node evaluation | `Evaluate()` | — |
-| Flat report (subtree walk) | `CreateReport()` | `CreateReport()` (delegates to root) |
+| Flat report (subtree walk) | `CreateReport()` | `GetReport()` (delegates to root) |
 | Tree snapshot (subtree walk) | `CreateTreeSnapshot()` | `CreateTreeSnapshot()` (delegates to root) |
 | Status observable | `StatusChanged` | — |
 | Subtree refresh | `RefreshDescendants()` | `RefreshAll()` (delegates to root) |
 | Upward propagation | `BubbleChange()` | — |
 
-This creates a "two doors to the same room" problem — `graph.CreateReport()` literally calls `_root.CreateReport()`. Consumers must choose between equivalent paths, and the node-level methods silently scope to a subtree, which is confusing when the intent is to query the full graph.
+This creates a "two doors to the same room" problem — `graph.GetReport()` literally calls `_root.CreateReport()`. Consumers must choose between equivalent paths, and the node-level methods silently scope to a subtree, which is confusing when the intent is to query the full graph.
 
 Additionally, `_topologyCallback` is a single `volatile Action?` slot on each node. If guidance is to "create a `HealthGraph` at any subnode you care about," two graphs rooted at the same node silently overwrite each other's callback.
 
@@ -71,7 +71,7 @@ foreach (var node in allNodes)
 
 - **Rebuilt** after every serialized `BubbleChange()` and after `RefreshAll()`.
 - **Rebuild is cheap** — iterates the flat `NodeSnapshot.Nodes` set reading per-node `_cachedEvaluation` fields. No recursion, no delegate invocations.
-- `CreateReport()` returns `_cachedReport ?? RebuildReport()`.
+- `GetReport()` returns `_cachedReport ?? RebuildReport()`.
 - `StatusChanged` emits the cached report only when it differs from the previous (using `HealthReportComparer`).
 - `CreateTreeSnapshot()` is NOT cached — built on demand from per-node caches.
 

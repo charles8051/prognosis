@@ -63,7 +63,7 @@ public static class HealthRxExtensions
             .Select(_ =>
             {
                 graph.RefreshAll();
-                return graph.CreateReport();
+                return graph.GetReport();
             })
             .DistinctUntilChanged(HealthReportComparer.Instance);
     }

@@ -112,7 +112,7 @@ Console.WriteLine(string.Join(Environment.NewLine, cycles.Select(c => "  Cycle: 
 Console.WriteLine();
 
 // The propagation guard prevents a stack overflow — nodes are still usable.
-var cycleReport = cycleGraph.CreateReport();
+var cycleReport = cycleGraph.GetReport();
 Console.WriteLine($"  ServiceA status: {cycleReport.Nodes.First(n => n.Name == "ServiceA")}");
 Console.WriteLine($"  ServiceB status: {cycleReport.Nodes.First(n => n.Name == "ServiceB")}");
 Console.WriteLine();
@@ -120,7 +120,7 @@ Console.WriteLine();
 // ── Serialization ────────────────────────────────────────────────────
 Console.WriteLine("=== Serialized health report (JSON) ===");
 externalEmailApi.IsConnected = true; // reset for clean report
-var report = graph.CreateReport();
+var report = graph.GetReport();
 Console.WriteLine(JsonSerializer.Serialize(report, jsonOptions));
 Console.WriteLine();
 

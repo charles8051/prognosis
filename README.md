@@ -121,7 +121,7 @@ class DatabaseService : IHealthAware
 }
 ```
 
-The sub-nodes show up automatically in `CreateReport`, `RefreshAll`, and the JSON output. Reason strings chain from the leaf all the way up:
+The sub-nodes show up automatically in `GetReport`, `RefreshAll`, and the JSON output.
 
 ```
 Database.Latency: Degraded — Avg latency 600ms exceeds 500ms threshold
@@ -180,7 +180,7 @@ HealthReport report = graph.RefreshAll();
 HealthSnapshot root = report.Root;
 
 // Return the cached report (cheap, no re-evaluation)
-HealthReport cached = graph.CreateReport();
+HealthReport cached = graph.GetReport();
 
 // Refresh a single node (re-evaluates intrinsic check, propagates upward, emits StatusChanged)
 app.Refresh();
@@ -328,9 +328,9 @@ Inject `HealthGraph` to access the materialized graph at runtime:
 
 ```csharp
 var graph = serviceProvider.GetRequiredService<HealthGraph>();
-var report = graph.CreateReport();
+var report = graph.GetReport();
 
-// Type-safe lookup — uses typeof(AuthService).Name as key.
+// Type-safe lookup
 if (graph.TryGetNode<AuthService>(out var auth))
     Console.WriteLine($"AuthService has {auth.Dependencies.Count} deps");
 
@@ -413,7 +413,7 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 | `PrognosisBuilder.cs` | Fluent builder — `ScanForServices`, `AddDelegate<T>`, `AddComposite`, `MarkAsRoot` |
 | `DependencyConfigurator.cs` | Fluent edge declaration — `DependsOn<T>`, `DependsOn(name)` |
 | `DependsOnAttribute.cs` | `[DependsOn<T>]` attribute for declarative dependency edges |
-| `HealthGraph.cs` | Type forwarder for core `HealthGraph` (`Root`, indexer, `CreateReport()`) |
+| `HealthGraph.cs` | Type forwarder for core `HealthGraph` (`Root`, indexer, `GetReport()`) |
 | `HealthGraphOfT.cs` | `HealthGraph<TRoot>` typed wrapper for multi-root DI resolution |
 | `PrognosisMonitorExtensions.cs` | `UseMonitor` extension + `IHostedService` adapter |
 

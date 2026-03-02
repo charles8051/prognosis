@@ -13,7 +13,7 @@ public class AggregationTests
             () => HealthEvaluation.Degraded("slow"));
         var graph = HealthGraph.Create(check);
 
-        var result = graph.CreateReport().Nodes.First(n => n.Name == "Svc");
+        var result = graph.GetReport().Nodes.First(n => n.Name == "Svc");
 
         Assert.Equal(HealthStatus.Degraded, result.Status);
         Assert.Equal("slow", result.Reason);
@@ -37,7 +37,7 @@ public class AggregationTests
             .DependsOn(dep, importance);
         var graph = HealthGraph.Create(parent);
 
-        Assert.Equal(expected, graph.CreateReport().Nodes.First(n => n.Name == "Parent").Status);
+        Assert.Equal(expected, graph.GetReport().Nodes.First(n => n.Name == "Parent").Status);
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class AggregationTests
             .DependsOn(unhealthy, Importance.Required);
         var graph = HealthGraph.Create(parent);
 
-        var result = graph.CreateReport().Nodes.First(n => n.Name == "Parent");
+        var result = graph.GetReport().Nodes.First(n => n.Name == "Parent");
 
         Assert.Equal(HealthStatus.Unhealthy, result.Status);
         Assert.Contains("C", result.Reason!);
@@ -69,7 +69,7 @@ public class AggregationTests
             .DependsOn(healthy, Importance.Required);
         var graph = HealthGraph.Create(parent);
 
-        var result = graph.CreateReport().Nodes.First(n => n.Name == "Parent");
+        var result = graph.GetReport().Nodes.First(n => n.Name == "Parent");
 
         Assert.Equal(HealthStatus.Unhealthy, result.Status);
         Assert.Equal("self broken", result.Reason);
@@ -109,10 +109,10 @@ public class AggregationTests
         Assert.Single(names, n => n == "Shared");
     }
 
-    // ── CreateReport ─────────────────────────────────────────────────
+    // ── GetReport ────────────────────────────────────────────────────
 
     [Fact]
-    public void CreateReport_IncludesAllNodes()
+    public void GetReport_IncludesAllNodes()
     {
         var healthy = HealthNode.CreateDelegate("A");
         var unhealthy = HealthNode.CreateDelegate("B",
@@ -122,18 +122,18 @@ public class AggregationTests
             .DependsOn(unhealthy, Importance.Required);
         var graph = HealthGraph.Create(root);
 
-        var report = graph.CreateReport();
+        var report = graph.GetReport();
 
         Assert.Equal(3, report.Nodes.Count);
         Assert.Equal(HealthStatus.Unhealthy, report.Nodes.First(n => n.Name == "B").Status);
     }
 
     [Fact]
-    public void CreateReport_SingleHealthyNode_ReturnsSingleNode()
+    public void GetReport_SingleHealthyNode_ReturnsSingleNode()
     {
         var graph = HealthGraph.Create(HealthNode.CreateDelegate("Only"));
 
-        var report = graph.CreateReport();
+        var report = graph.GetReport();
 
         var node = Assert.Single(report.Nodes);
         Assert.Equal(HealthStatus.Healthy, node.Status);

@@ -132,7 +132,7 @@ public sealed class HealthGraph : IDisposable
     /// latest state after the most recent propagation or refresh. If no
     /// propagation has occurred yet, builds the report on first access.
     /// </summary>
-    public HealthReport CreateReport() =>
+    public HealthReport GetReport() =>
         _cachedReport ?? RebuildReport();
 
     /// <summary>

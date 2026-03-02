@@ -59,7 +59,7 @@ var monitor = host.Services.GetRequiredService<HealthMonitor>();
 var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
 
 Console.WriteLine("=== Initial health report ===");
-var report = graph.CreateReport();
+var report = graph.GetReport();
 Console.WriteLine(JsonSerializer.Serialize(report, jsonOptions));
 Console.WriteLine();
 
@@ -96,11 +96,11 @@ Console.WriteLine();
 
 // Show the diff API.
 Console.WriteLine("=== Report diffing ===");
-var before = graph.CreateReport();
+var before = graph.GetReport();
 emailClient.IsConnected = true;
 database.IsConnected = false;
 graph.RefreshAll();
-var after = graph.CreateReport();
+var after = graph.GetReport();
 
 var changes = before.DiffTo(after);
 foreach (var change in changes)

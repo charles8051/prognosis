@@ -228,10 +228,10 @@ public class HealthGraphTests
         Assert.Same(leaf, found);
     }
 
-    // ── CreateReport ─────────────────────────────────────────────────
+    // ── GetReport ───────────────────────────────────────────────────
 
     [Fact]
-    public void CreateReport_ReturnsReportFromRoots()
+    public void GetReport_ReturnsReportFromRoots()
     {
         var child = HealthNode.CreateDelegate("Child",
             () => HealthEvaluation.Unhealthy("down"));
@@ -239,18 +239,18 @@ public class HealthGraphTests
             .DependsOn(child, Importance.Required);
         var graph = HealthGraph.Create(root);
 
-        var report = graph.CreateReport();
+        var report = graph.GetReport();
 
         Assert.True(report.Nodes.Count > 0);
         Assert.Equal(HealthStatus.Unhealthy, report.Nodes.First(n => n.Name == "Child").Status);
     }
 
     [Fact]
-    public void CreateReport_SingleHealthyNode_ReturnsHealthy()
+    public void GetReport_SingleHealthyNode_ReturnsHealthy()
     {
         var graph = HealthGraph.Create(HealthNode.CreateDelegate("Only"));
 
-        var report = graph.CreateReport();
+        var report = graph.GetReport();
 
         var node = Assert.Single(report.Nodes);
         Assert.Equal(HealthStatus.Healthy, node.Status);

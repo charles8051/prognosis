@@ -44,11 +44,11 @@ public class HealthGraphBenchmarks
 
 
     /// <summary>
-    /// Measures <see cref="HealthGraph.CreateReport"/> — returns the
+    /// Measures <see cref="HealthGraph.GetReport"/> — returns the
     /// cached report without re-evaluation.
     /// </summary>
     [Benchmark]
-    public HealthReport CreateReport() => _graph.CreateReport();
+    public HealthReport GetReport() => _graph.GetReport();
 
 
     /// <summary>

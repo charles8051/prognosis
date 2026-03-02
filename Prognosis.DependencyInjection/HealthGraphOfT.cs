@@ -34,8 +34,8 @@ public sealed class HealthGraph<TRoot> where TRoot : class
     /// <inheritdoc cref="HealthGraph.Nodes"/>
     public IEnumerable<HealthNode> Nodes => _graph.Nodes;
 
-    /// <inheritdoc cref="HealthGraph.CreateReport"/>
-    public HealthReport CreateReport() => _graph.CreateReport();
+    /// <inheritdoc cref="HealthGraph.GetReport"/>
+    public HealthReport GetReport() => _graph.GetReport();
 
     /// <inheritdoc cref="HealthGraph.StatusChanged"/>
     public IObservable<HealthReport> StatusChanged => _graph.StatusChanged;

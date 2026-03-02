@@ -15,7 +15,7 @@ After ADR-001 centralized the query API on `HealthGraph`, `HealthNode.Evaluate()
 
 In practice, consumers never need "quiet" evaluation. The three operations that cover all real use cases are:
 
-1. **Read cache** → `HealthGraph.CreateReport()` — cheap, no re-evaluation.
+1. **Read cache** → `HealthGraph.GetReport()` — cheap, no re-evaluation.
 2. **Point change** → `node.Refresh()` / `graph.Refresh(node)` — re-evaluates, propagates, notifies.
 3. **Full poll** → `graph.RefreshAll()` — DFS bottom-up refresh of every node, rebuilds report, notifies.
 
@@ -48,7 +48,7 @@ At construction time there are zero dependencies, so the result is just the dele
 
 ### 3. `HealthGraph` constructor seeds the full tree
 
-After attaching bubble strategies to all nodes, the constructor calls `_root.RefreshDescendants()` to ensure every node's cache reflects the complete dependency topology before the first `CreateReport()`.
+After attaching bubble strategies to all nodes, the constructor calls `_root.RefreshDescendants()` to ensure every node's cache reflects the complete dependency topology before the first `GetReport()`.
 
 ### 4. `Aggregate()` always reads `_cachedEvaluation`
 
@@ -60,7 +60,7 @@ With `HealthNode.Evaluate()` gone, the graph-level `Evaluate(string)` / `Evaluat
 
 The remaining graph-level query API:
 
-- `graph.CreateReport()` — read the cached report (cheap).
+- `graph.GetReport()` — read the cached report (cheap).
 - `graph.RefreshAll()` — re-evaluate every node bottom-up, rebuild report, emit `StatusChanged`.
 - `graph[name]` / `graph.TryGetNode(name)` — look up a node if needed.
 - `graph.StatusChanged` / `graph.TopologyChanged` — observe changes.

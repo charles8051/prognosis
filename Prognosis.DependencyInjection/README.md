@@ -126,7 +126,7 @@ The materialized graph is registered as a singleton (single root) or as keyed si
 var graph = serviceProvider.GetRequiredService<HealthGraph>();
 
 // Create a point-in-time report.
-HealthReport report = graph.CreateReport();
+HealthReport report = graph.GetReport();
 
 // Look up a service by name.
 HealthNode db = graph["Database"];
