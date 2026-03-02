@@ -121,10 +121,10 @@ public static class ServiceCollectionExtensions
             WireEdges(node, def.Edges, byName);
         }
 
-        // Build delegate wrappers.
-        foreach (var def in builder.Delegates)
+        // Build probe wrappers.
+        foreach (var def in builder.Probes)
         {
-            var d = HealthNode.CreateDelegate(def.Name, () => def.HealthCheck(sp));
+            var d = HealthNode.Create(def.Name).WithHealthProbe(() => def.HealthCheck(sp));
             WireEdges(d, def.Edges, byName);
             byName[def.Name] = d;
         }
@@ -132,7 +132,7 @@ public static class ServiceCollectionExtensions
         // Build composites (order matters — later composites can reference earlier ones).
         foreach (var def in builder.Composites)
         {
-            var composite = HealthNode.CreateComposite(def.Name);
+            var composite = HealthNode.Create(def.Name);
             WireEdges(composite, def.Edges, byName);
             byName[def.Name] = composite;
         }

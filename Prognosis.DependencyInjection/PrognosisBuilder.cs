@@ -12,7 +12,7 @@ public sealed class PrognosisBuilder
     internal IServiceCollection Services { get; }
     internal List<ServiceNodeDefinition> ServiceNodes { get; } = [];
     internal List<CompositeDefinition> Composites { get; } = [];
-    internal List<DelegateDefinition> Delegates { get; } = [];
+    internal List<ProbeDefinition> Probes { get; } = [];
     internal List<RootDefinition> Roots { get; } = [];
 
     internal PrognosisBuilder(IServiceCollection services) => Services = services;
@@ -108,13 +108,64 @@ public sealed class PrognosisBuilder
     /// A function that inspects the resolved service and returns its health.
     /// </param>
     /// <param name="dependencies">
+    /// Optional dependency configuration for this probe.
+    /// </param>
+    public PrognosisBuilder AddProbe<TService>(
+        Func<TService, HealthEvaluation> healthCheck,
+        Action<DependencyConfigurator>? dependencies = null)
+        where TService : class
+        => AddProbe(typeof(TService).Name, healthCheck, dependencies);
+
+    /// <summary>
+    /// Wraps a DI-registered service you don't own (or don't want to modify)
+    /// with a health-check delegate.
+    /// </summary>
+    /// <typeparam name="TService">
+    /// The type of the service to resolve from DI and health-check.
+    /// </typeparam>
+    /// <param name="name">Display name for this service in the health graph.</param>
+    /// <param name="healthCheck">
+    /// A function that inspects the resolved service and returns its health.
+    /// </param>
+    /// <param name="dependencies">
+    /// Optional dependency configuration for this probe.
+    /// </param>
+    public PrognosisBuilder AddProbe<TService>(
+        string name,
+        Func<TService, HealthEvaluation> healthCheck,
+        Action<DependencyConfigurator>? dependencies = null)
+        where TService : class
+    {
+        var configurator = new DependencyConfigurator();
+        dependencies?.Invoke(configurator);
+        Probes.Add(new ProbeDefinition(
+            name,
+            typeof(TService),
+            sp => healthCheck((TService)sp.GetRequiredService(typeof(TService))),
+            configurator.Edges));
+        return this;
+    }
+
+    /// <summary>
+    /// Wraps a DI-registered service you don't own (or don't want to modify)
+    /// with a health-check delegate. The service name defaults to
+    /// <c>typeof(TService).Name</c>.
+    /// </summary>
+    /// <typeparam name="TService">
+    /// The type of the service to resolve from DI and health-check.
+    /// </typeparam>
+    /// <param name="healthCheck">
+    /// A function that inspects the resolved service and returns its health.
+    /// </param>
+    /// <param name="dependencies">
     /// Optional dependency configuration for this delegate wrapper.
     /// </param>
+    [Obsolete("Use AddProbe<TService>(healthCheck, dependencies) instead.")]
     public PrognosisBuilder AddDelegate<TService>(
         Func<TService, HealthEvaluation> healthCheck,
         Action<DependencyConfigurator>? dependencies = null)
         where TService : class
-        => AddDelegate(typeof(TService).Name, healthCheck, dependencies);
+        => AddProbe(typeof(TService).Name, healthCheck, dependencies);
 
     /// <summary>
     /// Wraps a DI-registered service you don't own (or don't want to modify)
@@ -130,21 +181,13 @@ public sealed class PrognosisBuilder
     /// <param name="dependencies">
     /// Optional dependency configuration for this delegate wrapper.
     /// </param>
+    [Obsolete("Use AddProbe<TService>(name, healthCheck, dependencies) instead.")]
     public PrognosisBuilder AddDelegate<TService>(
         string name,
         Func<TService, HealthEvaluation> healthCheck,
         Action<DependencyConfigurator>? dependencies = null)
         where TService : class
-    {
-        var configurator = new DependencyConfigurator();
-        dependencies?.Invoke(configurator);
-        Delegates.Add(new DelegateDefinition(
-            name,
-            typeof(TService),
-            sp => healthCheck((TService)sp.GetRequiredService(typeof(TService))),
-            configurator.Edges));
-        return this;
-    }
+        => AddProbe(name, healthCheck, dependencies);
 
     /// <summary>
     /// Defines a pure composite aggregation node whose name is derived from
@@ -194,7 +237,7 @@ internal sealed record CompositeDefinition(
     string Name,
     List<EdgeDefinition> Edges);
 
-internal sealed record DelegateDefinition(
+internal sealed record ProbeDefinition(
     string Name,
     Type ServiceType,
     Func<IServiceProvider, HealthEvaluation> HealthCheck,
