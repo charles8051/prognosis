@@ -88,7 +88,7 @@ public class ServiceCollectionExtensionsTests
 
         services.AddPrognosis(health =>
         {
-            health.AddDelegate<TestExternalClient>("ExternalApi",
+            health.AddProbe<TestExternalClient>("ExternalApi",
                 client => client.IsUp
                     ? HealthStatus.Healthy
                     : HealthEvaluation.Unhealthy("down"));
@@ -110,7 +110,7 @@ public class ServiceCollectionExtensionsTests
 
         services.AddPrognosis(health =>
         {
-            health.AddDelegate<TestExternalClient>("ExternalApi",
+            health.AddProbe<TestExternalClient>("ExternalApi",
                 c => c.IsUp
                     ? HealthStatus.Healthy
                     : HealthEvaluation.Unhealthy("down"));
@@ -134,7 +134,7 @@ public class ServiceCollectionExtensionsTests
 
         services.AddPrognosis(health =>
         {
-            health.AddDelegate<TestExternalClient>(
+            health.AddProbe<TestExternalClient>(
                 client => HealthStatus.Healthy);
         });
 
@@ -179,7 +179,7 @@ public class ServiceCollectionExtensionsTests
 
         services.AddPrognosis(health =>
         {
-            health.AddDelegate<TestExternalClient>("Email",
+            health.AddProbe<TestExternalClient>("Email",
                 c => HealthStatus.Healthy);
 
             health.AddComposite("Notifications", n =>
@@ -229,7 +229,7 @@ public class ServiceCollectionExtensionsTests
         services.AddSingleton(new TestExternalClient { IsUp = true });
         services.AddPrognosis(health =>
         {
-            health.AddDelegate<TestExternalClient>(c => HealthStatus.Healthy);
+            health.AddProbe<TestExternalClient>(c => HealthStatus.Healthy);
         });
 
         var sp = services.BuildServiceProvider();
@@ -494,17 +494,17 @@ public class ServiceCollectionExtensionsTests
 
 public class TestDatabaseService
 {
-    public HealthNode HealthNode { get; } = HealthNode.CreateDelegate("TestDatabase");
+    public HealthNode HealthNode { get; } = HealthNode.Create("TestDatabase");
 }
 
 public class TestCacheService
 {
-    public HealthNode HealthNode { get; } = HealthNode.CreateDelegate("TestCache");
+    public HealthNode HealthNode { get; } = HealthNode.Create("TestCache");
 }
 
 public class TestAuthService
 {
-    public HealthNode HealthNode { get; } = HealthNode.CreateDelegate("TestAuth");
+    public HealthNode HealthNode { get; } = HealthNode.Create("TestAuth");
 }
 
 public class TestExternalClient
