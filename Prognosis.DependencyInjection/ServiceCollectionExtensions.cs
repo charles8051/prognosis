@@ -1,4 +1,3 @@
-using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -13,7 +12,7 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Configures the Prognosis health graph and registers one or more
     /// <see cref="HealthGraph"/> singletons that materialize the full graph
-    /// (scanned services, composites, delegates, attribute-declared edges)
+    /// (service nodes, composites, delegates, dependency edges)
     /// on first resolution.
     /// <para>
     /// Call <see cref="PrognosisBuilder.MarkAsRoot(string)"/> or
@@ -45,24 +44,13 @@ public static class ServiceCollectionExtensions
         var builder = new PrognosisBuilder(services);
         configure(builder);
 
-        // 1. Scan assemblies — register IHealthAware implementations as singletons.
-        foreach (var assembly in builder.ScanAssemblies)
+        // Register service types from AddServiceNode calls as singletons.
+        foreach (var def in builder.ServiceNodes)
         {
-            foreach (var type in assembly.GetTypes())
-            {
-                if (type is { IsAbstract: false, IsInterface: false }
-                    && typeof(IHealthAware).IsAssignableFrom(type))
-                {
-                    services.TryAddSingleton(type);
-                    services.AddSingleton(
-                        typeof(IHealthAware),
-                        sp => (IHealthAware)sp.GetRequiredService(type));
-                }
-            }
+            services.TryAddSingleton(def.ServiceType);
         }
 
-        // 2. Build the shared node pool once (lazily, on first graph resolution).
-        //    Every HealthGraph rooted at a different node shares these nodes.
+        // Build the shared node pool once (lazily, on first graph resolution).
         var poolLock = new object();
         Dictionary<string, HealthNode>? pool = null;
 
@@ -75,12 +63,11 @@ public static class ServiceCollectionExtensions
             }
         }
 
-        // 3. Determine roots to register.
+        // Determine roots to register.
         var roots = builder.Roots;
 
         if (roots.Count == 0)
         {
-            // Auto-detect: register as plain HealthGraph.
             services.AddSingleton(sp =>
             {
                 var p = EnsurePool(sp);
@@ -90,7 +77,6 @@ public static class ServiceCollectionExtensions
         }
         else if (roots.Count == 1)
         {
-            // Single declared root: register as plain HealthGraph.
             var name = roots[0].Name;
             services.AddSingleton(sp =>
             {
@@ -98,13 +84,11 @@ public static class ServiceCollectionExtensions
                 return ResolveRootGraph(p, name);
             });
 
-            // Also register HealthGraph<T> if the generic overload was used.
             roots[0].RegisterTyped?.Invoke(services,
                 sp => sp.GetRequiredService<HealthGraph>());
         }
         else
         {
-            // Multiple roots: register keyed HealthGraph per root.
             foreach (var rootDef in roots)
             {
                 var name = rootDef.Name;
@@ -114,7 +98,6 @@ public static class ServiceCollectionExtensions
                     return ResolveRootGraph(p, name);
                 });
 
-                // Also register HealthGraph<T> if the generic overload was used.
                 rootDef.RegisterTyped?.Invoke(services,
                     sp => sp.GetRequiredKeyedService<HealthGraph>(name));
             }
@@ -128,34 +111,21 @@ public static class ServiceCollectionExtensions
     private static Dictionary<string, HealthNode> BuildNodePool(
         IServiceProvider sp, PrognosisBuilder builder)
     {
-        var byType = new Dictionary<Type, HealthNode>();
         var byName = new Dictionary<string, HealthNode>();
 
-        foreach (var svc in sp.GetServices<IHealthAware>())
+        // Resolve service nodes registered via AddServiceNode<T>.
+        foreach (var def in builder.ServiceNodes)
         {
-            var health = svc.HealthNode;
-            byType[svc.GetType()] = health;
-            byName[health.Name] = health;
-        }
-
-        // Wire attribute-declared [DependsOn<T>] edges.
-        foreach (var kvp in byType)
-        {
-            var attrs = kvp.Key.GetCustomAttributes<DependsOnAttribute>();
-            foreach (var attr in attrs)
-            {
-                if (!byType.TryGetValue(attr.DependencyType, out var dep))
-                    continue;
-
-                kvp.Value.DependsOn(dep, attr.Importance);
-            }
+            var node = def.NodeSelector(sp);
+            byName[node.Name] = node;
+            WireEdges(node, def.Edges, byName);
         }
 
         // Build delegate wrappers.
         foreach (var def in builder.Delegates)
         {
             var d = HealthNode.CreateDelegate(def.Name, () => def.HealthCheck(sp));
-            WireEdges(d, def.Edges, byType, byName);
+            WireEdges(d, def.Edges, byName);
             byName[def.Name] = d;
         }
 
@@ -163,7 +133,7 @@ public static class ServiceCollectionExtensions
         foreach (var def in builder.Composites)
         {
             var composite = HealthNode.CreateComposite(def.Name);
-            WireEdges(composite, def.Edges, byType, byName);
+            WireEdges(composite, def.Edges, byName);
             byName[def.Name] = composite;
         }
 
@@ -212,33 +182,15 @@ public static class ServiceCollectionExtensions
     private static void WireEdges(
         HealthNode target,
         List<EdgeDefinition> edges,
-        Dictionary<Type, HealthNode> byType,
         Dictionary<string, HealthNode> byName)
     {
         foreach (var edge in edges)
         {
-            var dep = ResolveEdge(edge, byType, byName);
+            if (!byName.TryGetValue(edge.ServiceName!, out var dep))
+                throw new InvalidOperationException(
+                    $"Dependency '{edge.ServiceName}' was not found in the health graph.");
+
             target.DependsOn(dep, edge.Importance);
         }
     }
-
-    private static HealthNode ResolveEdge(
-        EdgeDefinition edge,
-        Dictionary<Type, HealthNode> byType,
-        Dictionary<string, HealthNode> byName)
-    {
-        if (edge.ServiceType is not null)
-        {
-            return byType.TryGetValue(edge.ServiceType, out var node)
-                ? node
-                : throw new InvalidOperationException(
-                    $"Dependency type '{edge.ServiceType.Name}' was not found in the health graph.");
-        }
-
-        return byName.TryGetValue(edge.ServiceName!, out var named)
-            ? named
-            : throw new InvalidOperationException(
-                $"Dependency '{edge.ServiceName}' was not found in the health graph.");
-    }
-    }
-
+}

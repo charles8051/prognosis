@@ -1,29 +1,18 @@
 namespace Prognosis.DependencyInjection;
 
 /// <summary>
-/// Non-generic base for <see cref="DependsOnAttribute{TDependency}"/>.
-/// Used for reflection access during assembly scanning.
+/// Declares that the annotated <see cref="HealthNode"/> property depends on
+/// another node in the health graph, referenced by name. Applied to
+/// <see cref="HealthNode"/> properties on service classes; read by the
+/// <c>Prognosis.Generators</c> source generator to emit
+/// <c>AddDiscoveredNodes()</c> wiring code.
 /// </summary>
-[AttributeUsage(AttributeTargets.Class, AllowMultiple = true, Inherited = false)]
-public abstract class DependsOnAttribute(Type dependencyType, Importance importance) : Attribute
+[AttributeUsage(AttributeTargets.Property, AllowMultiple = true, Inherited = false)]
+public sealed class DependsOnAttribute(string dependencyName, Importance importance = Importance.Required) : Attribute
 {
-    /// <summary>The concrete <see cref="IHealthAware"/> type this service depends on.</summary>
-    public Type DependencyType { get; } = dependencyType;
+    /// <summary>The <see cref="HealthNode.Name"/> of the dependency node.</summary>
+    public string DependencyName { get; } = dependencyName;
 
-    /// <summary>How important this dependency is to the declaring service.</summary>
+    /// <summary>How important this dependency is to the declaring node.</summary>
     public Importance Importance { get; } = importance;
 }
-
-/// <summary>
-/// Declares that the annotated <see cref="IHealthAware"/> implementation depends
-/// on another service in the health graph. Read during assembly scanning by
-/// <see cref="PrognosisBuilder.ScanForServices"/>.
-/// </summary>
-/// <typeparam name="TDependency">
-/// The concrete <see cref="IHealthAware"/> type this service depends on.
-/// </typeparam>
-[AttributeUsage(AttributeTargets.Class, AllowMultiple = true, Inherited = false)]
-public sealed class DependsOnAttribute<TDependency>(
-    Importance importance = Importance.Required)
-    : DependsOnAttribute(typeof(TDependency), importance)
-    where TDependency : class, IHealthAware;

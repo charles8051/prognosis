@@ -6,19 +6,24 @@ namespace Prognosis.DependencyInjection.Tests;
 
 public class ServiceCollectionExtensionsTests
 {
-    // ── Assembly scanning ────────────────────────────────────────────
+    // ── AddServiceNode ───────────────────────────────────────────────
 
     [Fact]
-    public void AddPrognosis_ScanForServices_RegistersIHealthAwareAsSingletons()
+    public void AddPrognosis_AddServiceNode_RegistersServiceAsSingleton()
     {
         var services = new ServiceCollection();
         services.AddPrognosis(health =>
         {
-            health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+            health.AddServiceNode<TestDatabaseService>(svc => svc.HealthNode);
+            health.AddServiceNode<TestCacheService>(svc => svc.HealthNode);
+            health.AddServiceNode<TestAuthService>(svc => svc.HealthNode, deps =>
+            {
+                deps.DependsOn("TestDatabase", Importance.Required);
+            });
             health.AddComposite("Root", app =>
             {
-                app.DependsOn<TestAuthService>(Importance.Required);
-                app.DependsOn<TestCacheService>(Importance.Required);
+                app.DependsOn("TestAuth", Importance.Required);
+                app.DependsOn("TestCache", Importance.Required);
             });
             health.MarkAsRoot("Root");
         });
@@ -31,13 +36,13 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddPrognosis_ScanForServices_SameInstancePerResolution()
+    public void AddPrognosis_AddServiceNode_SameInstancePerResolution()
     {
         var services = new ServiceCollection();
         services.AddPrognosis(health =>
         {
-            health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
-            health.MarkAsRoot<TestAuthService>();
+            RegisterTestServices(health);
+            health.MarkAsRoot("TestAuth");
         });
 
         var sp = services.BuildServiceProvider();
@@ -47,19 +52,19 @@ public class ServiceCollectionExtensionsTests
         Assert.Same(a, b);
     }
 
-    // ── [DependsOn<T>] attribute wiring ─────────────────────────────
+    // ── Edge wiring ─────────────────────────────────────────────────
 
     [Fact]
-    public void AddPrognosis_DependsOnAttribute_WiresEdges()
+    public void AddPrognosis_AddServiceNode_WiresEdges()
     {
         var services = new ServiceCollection();
         services.AddPrognosis(health =>
         {
-            health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+            RegisterTestServices(health);
             health.AddComposite("Root", app =>
             {
-                app.DependsOn<TestAuthService>(Importance.Required);
-                app.DependsOn<TestCacheService>(Importance.Required);
+                app.DependsOn("TestAuth", Importance.Required);
+                app.DependsOn("TestCache", Importance.Required);
             });
             health.MarkAsRoot("Root");
         });
@@ -67,7 +72,6 @@ public class ServiceCollectionExtensionsTests
         var sp = services.BuildServiceProvider();
         var graph = sp.GetRequiredService<HealthGraph>();
 
-        // TestAuthService has [DependsOn<TestDatabaseService>(Required)]
         Assert.True(graph.TryGetNode("TestAuth", out var auth));
         Assert.Single(auth.Dependencies);
         Assert.Equal("TestDatabase", auth.Dependencies[0].Node.Name);
@@ -148,12 +152,12 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         services.AddPrognosis(health =>
         {
-            health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+            RegisterTestServices(health);
 
             health.AddComposite("Platform", app =>
             {
-                app.DependsOn<TestDatabaseService>(Importance.Required);
-                app.DependsOn<TestCacheService>(Importance.Important);
+                app.DependsOn("TestDatabase", Importance.Required);
+                app.DependsOn("TestCache", Importance.Important);
             });
 
             health.MarkAsRoot("Platform");
@@ -198,12 +202,12 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         services.AddPrognosis(health =>
         {
-            health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+            RegisterTestServices(health);
 
             health.AddComposite("Resilient", c =>
             {
-                c.DependsOn<TestDatabaseService>(Importance.Resilient);
-                c.DependsOn<TestCacheService>(Importance.Resilient);
+                c.DependsOn("TestDatabase", Importance.Resilient);
+                c.DependsOn("TestCache", Importance.Resilient);
             });
 
             health.MarkAsRoot("Resilient");
@@ -261,7 +265,7 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         services.AddPrognosis(health =>
         {
-            health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+            RegisterTestServices(health);
             health.MarkAsRoot("DoesNotExist");
         });
 
@@ -277,7 +281,7 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         services.AddPrognosis(health =>
         {
-            health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+            RegisterTestServices(health);
         });
 
         var sp = services.BuildServiceProvider();
@@ -293,10 +297,10 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         services.AddPrognosis(health =>
         {
-            // TestDatabaseService is NOT scanned, so it won't be found.
+            // TestDatabaseService is NOT registered, so "TestDatabase" won't be found.
             health.AddComposite("Broken", c =>
             {
-                c.DependsOn<TestDatabaseService>(Importance.Required);
+                c.DependsOn("TestDatabase", Importance.Required);
             });
         });
 
@@ -314,7 +318,7 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         services.AddPrognosis(health =>
         {
-            health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+            RegisterTestServices(health);
             health.MarkAsRoot("TestAuth");
             health.UseMonitor(TimeSpan.FromHours(1));
         });
@@ -334,22 +338,20 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         services.AddPrognosis(health =>
         {
-            health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+            RegisterTestServices(health);
             health.AddComposite(nameof(TestRootMarkerA), app =>
             {
-                app.DependsOn<TestAuthService>(Importance.Required);
-                app.DependsOn<TestCacheService>(Importance.Required);
+                app.DependsOn("TestAuth", Importance.Required);
+                app.DependsOn("TestCache", Importance.Required);
             });
             health.MarkAsRoot<TestRootMarkerA>();
         });
 
         var sp = services.BuildServiceProvider();
 
-        // Plain HealthGraph is available (single root — no forced generic).
         var graph = sp.GetRequiredService<HealthGraph>();
         Assert.Equal(nameof(TestRootMarkerA), graph.Root.Name);
 
-        // HealthGraph<T> is also available.
         var typed = sp.GetRequiredService<HealthGraph<TestRootMarkerA>>();
         Assert.Same(graph, typed.Graph);
     }
@@ -360,17 +362,17 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         services.AddPrognosis(health =>
         {
-            health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+            RegisterTestServices(health);
 
             health.AddComposite("Ops", app =>
             {
-                app.DependsOn<TestDatabaseService>(Importance.Required);
-                app.DependsOn<TestCacheService>(Importance.Required);
+                app.DependsOn("TestDatabase", Importance.Required);
+                app.DependsOn("TestCache", Importance.Required);
             });
 
             health.AddComposite("Customer", app =>
             {
-                app.DependsOn<TestAuthService>(Importance.Required);
+                app.DependsOn("TestAuth", Importance.Required);
             });
 
             health.MarkAsRoot("Ops");
@@ -394,17 +396,17 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         services.AddPrognosis(health =>
         {
-            health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+            RegisterTestServices(health);
 
             health.AddComposite("Ops", app =>
             {
-                app.DependsOn<TestDatabaseService>(Importance.Required);
+                app.DependsOn("TestDatabase", Importance.Required);
             });
 
             health.AddComposite("Customer", app =>
             {
-                app.DependsOn<TestDatabaseService>(Importance.Required);
-                app.DependsOn<TestCacheService>(Importance.Important);
+                app.DependsOn("TestDatabase", Importance.Required);
+                app.DependsOn("TestCache", Importance.Important);
             });
 
             health.MarkAsRoot("Ops");
@@ -416,7 +418,6 @@ public class ServiceCollectionExtensionsTests
         var opsGraph = sp.GetRequiredKeyedService<HealthGraph>("Ops");
         var customerGraph = sp.GetRequiredKeyedService<HealthGraph>("Customer");
 
-        // Both graphs share the same underlying TestDatabase node instance.
         Assert.True(opsGraph.TryGetNode("TestDatabase", out var opsDb));
         Assert.True(customerGraph.TryGetNode("TestDatabase", out var custDb));
         Assert.Same(opsDb, custDb);
@@ -428,16 +429,16 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         services.AddPrognosis(health =>
         {
-            health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+            RegisterTestServices(health);
 
             health.AddComposite(nameof(TestRootMarkerA), app =>
             {
-                app.DependsOn<TestDatabaseService>(Importance.Required);
+                app.DependsOn("TestDatabase", Importance.Required);
             });
 
             health.AddComposite(nameof(TestRootMarkerB), app =>
             {
-                app.DependsOn<TestCacheService>(Importance.Required);
+                app.DependsOn("TestCache", Importance.Required);
             });
 
             health.MarkAsRoot<TestRootMarkerA>();
@@ -452,7 +453,6 @@ public class ServiceCollectionExtensionsTests
         var graphB = sp.GetRequiredService<HealthGraph<TestRootMarkerB>>();
         Assert.Equal(nameof(TestRootMarkerB), graphB.Root.Name);
 
-        // Also available via keyed resolution.
         var keyedA = sp.GetRequiredKeyedService<HealthGraph>(nameof(TestRootMarkerA));
         Assert.Same(graphA.Graph, keyedA);
     }
@@ -463,10 +463,10 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         services.AddPrognosis(health =>
         {
-            health.ScanForServices(typeof(ServiceCollectionExtensionsTests).Assembly);
+            RegisterTestServices(health);
 
-            health.AddComposite("A", app => app.DependsOn<TestDatabaseService>(Importance.Required));
-            health.AddComposite("B", app => app.DependsOn<TestCacheService>(Importance.Required));
+            health.AddComposite("A", app => app.DependsOn("TestDatabase", Importance.Required));
+            health.AddComposite("B", app => app.DependsOn("TestCache", Importance.Required));
 
             health.MarkAsRoot("A");
             health.MarkAsRoot("B");
@@ -474,25 +474,35 @@ public class ServiceCollectionExtensionsTests
 
         var sp = services.BuildServiceProvider();
 
-        // Plain HealthGraph should NOT be registered for multi-root.
         Assert.Null(sp.GetService<HealthGraph>());
+    }
+
+    // ── Helper ───────────────────────────────────────────────────────
+
+    private static void RegisterTestServices(PrognosisBuilder health)
+    {
+        health.AddServiceNode<TestDatabaseService>(svc => svc.HealthNode);
+        health.AddServiceNode<TestCacheService>(svc => svc.HealthNode);
+        health.AddServiceNode<TestAuthService>(svc => svc.HealthNode, deps =>
+        {
+            deps.DependsOn("TestDatabase", Importance.Required);
+        });
     }
 }
 
 // ── Test fixtures ────────────────────────────────────────────────────
 
-public class TestDatabaseService : IHealthAware
+public class TestDatabaseService
 {
     public HealthNode HealthNode { get; } = HealthNode.CreateDelegate("TestDatabase");
 }
 
-public class TestCacheService : IHealthAware
+public class TestCacheService
 {
     public HealthNode HealthNode { get; } = HealthNode.CreateDelegate("TestCache");
 }
 
-[DependsOn<TestDatabaseService>(Importance.Required)]
-public class TestAuthService : IHealthAware
+public class TestAuthService
 {
     public HealthNode HealthNode { get; } = HealthNode.CreateDelegate("TestAuth");
 }

@@ -1,4 +1,3 @@
-using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Prognosis.DependencyInjection;
@@ -11,7 +10,7 @@ namespace Prognosis.DependencyInjection;
 public sealed class PrognosisBuilder
 {
     internal IServiceCollection Services { get; }
-    internal List<Assembly> ScanAssemblies { get; } = [];
+    internal List<ServiceNodeDefinition> ServiceNodes { get; } = [];
     internal List<CompositeDefinition> Composites { get; } = [];
     internal List<DelegateDefinition> Delegates { get; } = [];
     internal List<RootDefinition> Roots { get; } = [];
@@ -34,7 +33,7 @@ public sealed class PrognosisBuilder
     /// <typeparam name="T">
     /// A marker type whose <see cref="System.Type.Name"/> identifies the
     /// root node. Typically a composite or service class registered via
-    /// <see cref="ScanForServices"/>, <see cref="AddComposite"/>, or
+    /// <see cref="AddServiceNode{TService}"/>, <see cref="AddComposite"/>, or
     /// <see cref="AddDelegate{TService}(Func{TService,HealthEvaluation},Action{DependencyConfigurator}?)"/>.
     /// </typeparam>
     public PrognosisBuilder MarkAsRoot<T>() where T : class
@@ -65,13 +64,35 @@ public sealed class PrognosisBuilder
     }
 
     /// <summary>
-    /// Scans the given assemblies for all concrete <see cref="IHealthAware"/>
-    /// implementations and registers them as singletons. Also reads
-    /// <see cref="DependsOnAttribute"/> to auto-wire dependency edges.
+    /// Registers a DI service that exposes one or more <see cref="HealthNode"/>
+    /// properties. The service is registered as a singleton (if not already)
+    /// and the selector extracts the <see cref="HealthNode"/> at graph
+    /// materialization time.
+    /// <para>
+    /// Typically called by generated code from <c>AddDiscoveredNodes()</c>,
+    /// but can also be called manually.
+    /// </para>
     /// </summary>
-    public PrognosisBuilder ScanForServices(params Assembly[] assemblies)
+    /// <typeparam name="TService">
+    /// The concrete service type to resolve from DI.
+    /// </typeparam>
+    /// <param name="nodeSelector">
+    /// A function that extracts the <see cref="HealthNode"/> from the resolved service.
+    /// </param>
+    /// <param name="dependencies">
+    /// Optional dependency configuration for this node.
+    /// </param>
+    public PrognosisBuilder AddServiceNode<TService>(
+        Func<TService, HealthNode> nodeSelector,
+        Action<DependencyConfigurator>? dependencies = null)
+        where TService : class
     {
-        ScanAssemblies.AddRange(assemblies);
+        var configurator = new DependencyConfigurator();
+        dependencies?.Invoke(configurator);
+        ServiceNodes.Add(new ServiceNodeDefinition(
+            typeof(TService),
+            sp => nodeSelector((TService)sp.GetRequiredService(typeof(TService))),
+            configurator.Edges));
         return this;
     }
 
@@ -161,9 +182,13 @@ public sealed class PrognosisBuilder
 // ── Internal definition records ──────────────────────────────────────
 
 internal sealed record EdgeDefinition(
-    Type? ServiceType,
     string? ServiceName,
     Importance Importance);
+
+internal sealed record ServiceNodeDefinition(
+    Type ServiceType,
+    Func<IServiceProvider, HealthNode> NodeSelector,
+    List<EdgeDefinition> Edges);
 
 internal sealed record CompositeDefinition(
     string Name,
