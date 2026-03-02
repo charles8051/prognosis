@@ -56,12 +56,12 @@ Ordered worst-is-highest so comparisons naturally surface the most severe status
 
 ## Usage patterns
 
-### 1. Implement `IHealthAware` on a class you own
+### 1. Expose `HealthNode` properties on a class you own
 
-Expose a `HealthNode` property — no forwarding boilerplate:
+No base class or interface required — just a public `HealthNode` property:
 
 ```csharp
-class CacheService : IHealthAware
+class CacheService
 {
     public HealthNode HealthNode { get; }
 
@@ -80,7 +80,7 @@ class CacheService : IHealthAware
 For services with fine-grained health attributes, use `HealthNode.CreateComposite` backed by sub-nodes:
 
 ```csharp
-class DatabaseService : IHealthAware
+class DatabaseService
 {
     public HealthNode HealthNode { get; }
 
@@ -247,8 +247,9 @@ The `Prognosis.DependencyInjection` package provides a fluent builder for config
 ```csharp
 builder.Services.AddPrognosis(health =>
 {
-    // Discover all IHealthAware implementations and wire [DependsOn<T>] attributes.
-    health.ScanForServices(typeof(Program).Assembly);
+    // Auto-generated — discovers all classes with public HealthNode properties
+    // and wires [DependsOn] attribute-declared edges.
+    health.AddDiscoveredNodes();
 
     // Wrap a third-party service with a health delegate.
     // Name defaults to typeof(T).Name when omitted.
@@ -258,21 +259,21 @@ builder.Services.AddPrognosis(health =>
             : HealthEvaluation.Unhealthy("SMTP refused"));
 
     // Define composite aggregation nodes.
-    health.AddComposite(ServiceNames.NotificationSystem, n =>
+    health.AddComposite("NotificationSystem", n =>
     {
-        n.DependsOn(nameof(MessageQueueService), Importance.Required);
+        n.DependsOn("MessageQueueService", Importance.Required);
         n.DependsOn("EmailProvider", Importance.Optional);
     });
 
-    health.AddComposite(ServiceNames.Application, app =>
+    health.AddComposite("Application", app =>
     {
-        app.DependsOn<AuthService>(Importance.Required);
-        app.DependsOn(ServiceNames.NotificationSystem, Importance.Important);
+        app.DependsOn("AuthService", Importance.Required);
+        app.DependsOn("NotificationSystem", Importance.Important);
     });
 
     // Designate the root of the graph. When only one root is declared,
     // a plain HealthGraph singleton is registered.
-    health.MarkAsRoot(ServiceNames.Application);
+    health.MarkAsRoot("Application");
 
     health.UseMonitor(TimeSpan.FromSeconds(30));
 });
@@ -285,17 +286,17 @@ Call `MarkAsRoot` more than once to materialize several graphs from a single sha
 ```csharp
 builder.Services.AddPrognosis(health =>
 {
-    health.ScanForServices(typeof(Program).Assembly);
+    health.AddDiscoveredNodes();
 
-    health.AddComposite(ServiceNames.OpsDashboard, ops =>
+    health.AddComposite("OpsDashboard", ops =>
     {
-        ops.DependsOn<DatabaseService>(Importance.Required);
-        ops.DependsOn<CacheService>(Importance.Required);
+        ops.DependsOn("Database", Importance.Required);
+        ops.DependsOn("Cache", Importance.Required);
     });
 
-    health.AddComposite(ServiceNames.CustomerView, cust =>
+    health.AddComposite("CustomerView", cust =>
     {
-        cust.DependsOn<AuthService>(Importance.Required);
+        cust.DependsOn("AuthService", Importance.Required);
     });
 
     // Each MarkAsRoot call produces a separate HealthGraph.
@@ -313,13 +314,13 @@ var opsGraph    = sp.GetRequiredService<HealthGraph<OpsDashboard>>().Graph;
 var custGraph   = sp.GetRequiredService<HealthGraph<CustomerView>>().Graph;
 ```
 
-Declare dependency edges on classes you own with attributes:
+Declare dependency edges on `HealthNode` properties with attributes:
 
 ```csharp
-[DependsOn<DatabaseService>(Importance.Required)]
-[DependsOn<CacheService>(Importance.Important)]
-class AuthService : IHealthAware
+class AuthService
 {
+    [DependsOn("Database", Importance.Required)]
+    [DependsOn("Cache", Importance.Important)]
     public HealthNode HealthNode { get; } = HealthNode.CreateDelegate("AuthService");
 }
 ```
@@ -387,7 +388,6 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 | File | Purpose |
 |---|---|
 | `HealthNode.cs` | Sealed class — `Name`, `Dependencies`, `Parents`, `DependsOn()`, `RemoveDependency()`, `Refresh()`, `ReportStatus()`, factory methods (`CreateDelegate`, `CreateComposite`) |
-| `IHealthAware.cs` | Marker interface — implement on your classes with a single `HealthNode` property |
 | `HealthStatus.cs` | `Healthy` → `Unknown` → `Degraded` → `Unhealthy` enum |
 | `HealthEvaluation.cs` | Status + optional reason pair, with implicit conversion from `HealthStatus` |
 | `Importance.cs` | `Required`, `Important`, `Optional`, `Resilient` enum |
@@ -409,13 +409,84 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 
 | File | Purpose |
 |---|---|
-| `ServiceCollectionExtensions.cs` | `AddPrognosis` entry point — assembly scanning and graph materialization |
-| `PrognosisBuilder.cs` | Fluent builder — `ScanForServices`, `AddDelegate<T>`, `AddComposite`, `MarkAsRoot` |
-| `DependencyConfigurator.cs` | Fluent edge declaration — `DependsOn<T>`, `DependsOn(name)` |
-| `DependsOnAttribute.cs` | `[DependsOn<T>]` attribute for declarative dependency edges |
+| `ServiceCollectionExtensions.cs` | `AddPrognosis` entry point — service node registration and graph materialization |
+| `PrognosisBuilder.cs` | Fluent builder — `AddServiceNode<T>`, `AddDelegate<T>`, `AddComposite`, `MarkAsRoot` |
+| `DependencyConfigurator.cs` | Fluent edge declaration — `DependsOn<T>` (by type name), `DependsOn(name)` |
+| `DependsOnAttribute.cs` | `[DependsOn("name", Importance)]` property-level attribute for declarative edges |
 | `HealthGraph.cs` | Type forwarder for core `HealthGraph` (`Root`, indexer, `GetReport()`) |
 | `HealthGraphOfT.cs` | `HealthGraph<TRoot>` typed wrapper for multi-root DI resolution |
 | `PrognosisMonitorExtensions.cs` | `UseMonitor` extension + `IHostedService` adapter |
+
+## Source generators and analyzers
+
+The `Prognosis.Generators` package provides compile-time tooling for health graph development. Add it as an analyzer reference:
+
+```xml
+<ProjectReference Include="path\to\Prognosis.Generators.csproj"
+                  OutputItemType="Analyzer"
+                  ReferenceOutputAssembly="false" />
+```
+
+### Auto-generated `HealthNames` constants
+
+The generator scans every `HealthNode.CreateDelegate("name")` and `HealthNode.CreateComposite("name")` call in your project and emits a `HealthNames` class with `const string` fields:
+
+```csharp
+// You write:
+var db = HealthNode.CreateDelegate("Database.Connection", () => ...);
+var cache = HealthNode.CreateDelegate("Cache", () => ...);
+var app = HealthNode.CreateComposite("Application");
+
+// Generator emits (HealthNames.g.cs):
+public static class HealthNames
+{
+    public const string Application = "Application";
+    public const string Cache = "Cache";
+    public const string Database_Connection = "Database.Connection";
+}
+```
+
+Use the generated constants at reference sites for autocomplete, find-all-references, and rename safety:
+
+```csharp
+// Instead of:
+report.Nodes.First(n => n.Name == "Database.Connection");
+
+// Use:
+report.Nodes.First(n => n.Name == HealthNames.Database_Connection);
+```
+
+### PROGNOSIS001 — unknown node name
+
+The `DependsOnEdgeAnalyzer` validates string arguments in `DependencyConfigurator.DependsOn("name", ...)` calls against the discovered node names. A typo produces a compile-time warning:
+
+```
+warning PROGNOSIS001: Node name 'Databse' does not match any
+HealthNode.CreateDelegate or HealthNode.CreateComposite call in this compilation
+```
+
+### Auto-generated `AddDiscoveredNodes()`
+
+When your project references both `Prognosis.DependencyInjection` and `Prognosis.Generators`, the `ServiceNodeDiscoveryGenerator` scans for classes with public `HealthNode` properties and emits an `AddDiscoveredNodes()` extension method on `PrognosisBuilder`:
+
+```csharp
+// You write:
+class AuthService
+{
+    [DependsOn("Database", Importance.Required)]
+    public HealthNode HealthNode { get; } = HealthNode.CreateDelegate("AuthService");
+}
+
+// Generator emits:
+builder.AddServiceNode<AuthService>(svc => svc.HealthNode, deps =>
+{
+    deps.DependsOn("Database", Importance.Required);
+});
+```
+
+This replaces the previous reflection-based `ScanForServices()` pattern with zero-reflection, compile-time discovery.
+
+> **Scope:** The generators and analyzer operate within a single compilation. Nodes created at runtime by the DI builder (e.g., `AddDelegate`, `AddComposite`) are not visible to the generator. Use hand-written `const` fields for those names.
 
 ## Requirements
 

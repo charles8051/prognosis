@@ -7,8 +7,9 @@ Prognosis is a dependency-aware service health modeling library for .NET. It mod
 | Package | Target | Purpose |
 |---|---|---|
 | `Prognosis` | netstandard2.0; netstandard2.1 | Core — graph modeling, aggregation, reporting, monitoring |
-| `Prognosis.DependencyInjection` | netstandard2.0; netstandard2.1 | M.E.DI integration — assembly scanning, fluent builder, hosted monitoring |
+| `Prognosis.DependencyInjection` | netstandard2.0; netstandard2.1 | M.E.DI integration — fluent builder, service node registration, hosted monitoring |
 | `Prognosis.Reactive` | netstandard2.0; netstandard2.1 | System.Reactive extensions — Rx polling, push-triggered reports, change streams |
+| `Prognosis.Generators` | netstandard2.0 | Source generators + analyzers — auto-generates `HealthNames` constants, validates `DependsOn` edge references at compile time |
 
 Extension packages reference only the core. The core has zero project references outward.
 
@@ -23,7 +24,6 @@ Entry point for `GetReport`, `RefreshAll`, and observables
 - **`HealthReport`** / **`HealthSnapshot`** — flat report DTOs. `HealthReport.Root` carries the graph root's aggregated status. `DiffTo()` for change detection.
 - **`HealthTreeSnapshot`** — tree-shaped snapshot preserving hierarchy for nested JSON.
 - **`HealthMonitor`** — timer-based poller wrapping `HealthGraph.RefreshAll()`.
-- **`IHealthAware`** — marker interface with a single `HealthNode` property.
 
 ## Aggregation Rules
 
@@ -50,7 +50,13 @@ Entry point for `GetReport`, `RefreshAll`, and observables
 
 ## DI Integration
 
-`services.AddPrognosis(...)` — scans assemblies for `IHealthAware`, reads `[DependsOn<T>]` attributes, builds a shared node pool lazily, wires edges, resolves roots. `PrognosisBuilder` provides the fluent API (`ScanForServices`, `AddDelegate<T>`, `AddComposite`, `MarkAsRoot`, `UseMonitor`).
+`services.AddPrognosis(...)` — registers service nodes via `AddServiceNode<T>`, composites, delegates, wires edges, resolves roots. `PrognosisBuilder` provides the fluent API (`AddServiceNode<T>`, `AddDelegate<T>`, `AddComposite`, `MarkAsRoot`, `UseMonitor`). The generator emits `AddDiscoveredNodes()` which calls `AddServiceNode<T>` for every class with a public `HealthNode` property and wires `[DependsOn]` attribute-declared edges.
+
+## Source Generators
+
+- **`HealthNodeNameCollector`** — incremental generator. Scans `HealthNode.CreateDelegate("name")` / `CreateComposite("name")` calls, emits `HealthNames` static class with `const string` fields.
+- **`ServiceNodeDiscoveryGenerator`** — incremental generator. Scans classes with public `HealthNode` properties, reads `[DependsOn]` attributes, emits `AddDiscoveredNodes()` extension on `PrognosisBuilder`. Only emits when `Prognosis.DependencyInjection` is referenced.
+- **`DependsOnEdgeAnalyzer`** — diagnostic analyzer. Validates `DependencyConfigurator.DependsOn("name")` arguments against discovered node names. Reports `PROGNOSIS001` for unknown references.
 
 ## Conventions
 

@@ -118,19 +118,9 @@ Consumers who try `using var monitor = ...` (synchronous) get a compile error â€
 
 ---
 
-## 7. Rx extensions accept `IHealthAware[]`, not `IEnumerable<IHealthAware>`
+## 7. ~~Rx extensions accept `IHealthAware[]`, not `IEnumerable<IHealthAware>`~~
 
-**Severity:** Low
-**File:** `Prognosis.Reactive/HealthRxExtensions.cs` (lines ~18, ~40)
-
-```csharp
-public static IObservable<HealthReport> PollHealthReport(
-    this IHealthAware[] roots, TimeSpan interval)
-```
-
-Consumers holding a `List<IHealthAware>` or `IReadOnlyList<IHealthAware>` must call `.ToArray()`. `HealthMonitor` accepts `IEnumerable<IHealthAware>`, so the inconsistency is surprising.
-
-**Fix:** Change parameter to `IReadOnlyList<IHealthAware>` (or keep the array overload and add an `IEnumerable` overload that calls `.ToArray()` internally).
+**Resolved:** `IHealthAware` has been removed. Rx extensions now operate on `HealthGraph` directly.
 
 ---
 
