@@ -1,16 +1,17 @@
 namespace Prognosis;
 
 /// <summary>
-/// Represents a single node in the health graph. Create instances via the
-/// static factory methods <see cref="CreateDelegate(string, Func{HealthEvaluation})"/>
-/// (wraps a health-check delegate) and <see cref="CreateComposite"/>
-/// (aggregates dependencies with no backing service of its own).
+/// Represents a single node in the health graph. Create instances via
+/// <see cref="Create(string)"/> and optionally attach a health-check
+/// delegate with <see cref="WithHealthProbe"/>. Wire dependencies with
+/// <see cref="DependsOn"/>.
 /// <para>
 /// Service classes that own health state should expose a
 /// <see cref="HealthNode"/> property — typically via
-/// <see cref="CreateDelegate(string, Func{HealthEvaluation})"/> when the
-/// service has its own intrinsic check, or <see cref="CreateComposite"/>
-/// when health is derived entirely from sub-dependencies.
+/// <see cref="Create(string)"/> with a <see cref="WithHealthProbe"/>
+/// call when the service has its own intrinsic check, or plain
+/// <see cref="Create(string)"/> when health is derived entirely from
+/// sub-dependencies.
 /// </para>
 /// </summary>
 public sealed class HealthNode
@@ -39,7 +40,7 @@ public sealed class HealthNode
     private HealthNode(string name, Func<HealthEvaluation> intrinsicCheck)
     {
         if (string.IsNullOrWhiteSpace(name))
-            throw new ArgumentException("A service must have a name.", nameof(name));
+            throw new ArgumentException("A node must have a name.", nameof(name));
 
         Name = name;
         _intrinsicCheck = intrinsicCheck;
@@ -56,7 +57,7 @@ public sealed class HealthNode
     /// <see cref="HealthGraph.StatusChanged"/> is emitted when the report
     /// changes. If no graph is attached, falls back to a direct upward walk.
     /// <para>
-    /// Call this from a service when the underlying state changes
+    /// Call this from a node when the underlying state changes
     /// (e.g., a connection drops) to push the change immediately
     /// without waiting for the next poll tick.
     /// </para>
@@ -74,14 +75,44 @@ public sealed class HealthNode
     public string Name { get; }
 
     /// <summary>
+    /// Creates a new health node whose intrinsic status is
+    /// <see cref="HealthStatus.Healthy"/>. Attach a health-check delegate
+    /// with <see cref="WithHealthProbe"/> and wire dependencies with
+    /// <see cref="DependsOn"/>.
+    /// </summary>
+    /// <param name="name">Display name for the node in the health graph.</param>
+    public static HealthNode Create(string name)
+        => new HealthNode(name);
+
+    /// <summary>
+    /// Attaches an intrinsic health-check delegate to this node and
+    /// immediately re-evaluates. Returns <see langword="this"/> for
+    /// fluent chaining.
+    /// <para>
+    /// The delegate is called on every <see cref="Refresh"/> to obtain
+    /// the node's intrinsic health.
+    /// </para>
+    /// </summary>
+    /// <param name="healthCheck">
+    /// A delegate that returns the node's intrinsic health evaluation.
+    /// </param>
+    public HealthNode WithHealthProbe(Func<HealthEvaluation> healthCheck)
+    {
+        _intrinsicCheck = healthCheck ?? throw new ArgumentNullException(nameof(healthCheck));
+        _cachedEvaluation = healthCheck();
+        return this;
+    }
+
+    /// <summary>
     /// Creates a node backed by a health-check delegate. The delegate is
-    /// called on every <see cref="Refresh"/> to obtain the service's
+    /// called on every <see cref="Refresh"/> to obtain the node's
     /// intrinsic health.
     /// </summary>
-    /// <param name="name">Display name for the service.</param>
+    /// <param name="name">Display name for the node.</param>
     /// <param name="healthCheck">
-    /// A delegate that returns the service's intrinsic health evaluation.
+    /// A delegate that returns the node's intrinsic health evaluation.
     /// </param>
+    [Obsolete("Use HealthNode.Create(name).WithHealthProbe(healthCheck) instead.")]
     public static HealthNode CreateDelegate(string name, Func<HealthEvaluation> healthCheck)
         => new HealthNode(name, healthCheck);
 
@@ -89,15 +120,17 @@ public sealed class HealthNode
     /// Creates a node backed by a health-check delegate whose intrinsic
     /// status is always <see cref="HealthStatus.Healthy"/>.
     /// </summary>
-    /// <param name="name">Display name for the service.</param>
+    /// <param name="name">Display name for the node.</param>
+    [Obsolete("Use HealthNode.Create(name) instead.")]
     public static HealthNode CreateDelegate(string name)
         => new HealthNode(name);
 
     /// <summary>
-    /// Creates an aggregation-only node with no underlying service of its own.
+    /// Creates an aggregation-only node with no underlying node of its own.
     /// Health is derived entirely from its dependencies.
     /// </summary>
     /// <param name="name">Display name for this composite in the health graph.</param>
+    [Obsolete("Use HealthNode.Create(name) instead.")]
     public static HealthNode CreateComposite(string name)
         => new HealthNode(name);
 
@@ -160,7 +193,7 @@ public sealed class HealthNode
     public bool HasParents => _parents.Count > 0;
 
     /// <summary>
-    /// Zero or more services this service depends on, each tagged with an
+    /// Zero or more nodes this node depends on, each tagged with an
     /// importance level.
     /// </summary>
     public IReadOnlyList<HealthDependency> Dependencies => _dependencies;
@@ -246,7 +279,7 @@ public sealed class HealthNode
     }
 
     /// <summary>
-    /// Registers a dependency on another service. Thread-safe and may be
+    /// Registers a dependency on another node. Thread-safe and may be
     /// called at any time, including after the graph has been created. The
     /// new edge is visible to the next <see cref="Refresh"/> call.
     /// Immediately triggers propagation so the new dependency's current
