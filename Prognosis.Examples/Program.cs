@@ -13,30 +13,30 @@ var cache = new CacheService();
 
 // ─────────────────────────────────────────────────────────────────────
 // Pattern 2 — Wrap a service you don't own (or don't want to modify)
-//             with HealthNode.CreateDelegate and a health-check delegate.
+//             with HealthNode.Create and .WithHealthProbe.
 // ─────────────────────────────────────────────────────────────────────
 var externalEmailApi = new ThirdPartyEmailClient();        // some closed class
-var emailHealth = HealthNode.CreateDelegate("EmailProvider",
+var emailHealth = HealthNode.Create("EmailProvider").WithHealthProbe(
     () => externalEmailApi.IsConnected
         ? HealthStatus.Healthy
         : HealthEvaluation.Unhealthy("SMTP connection refused"));
 
-var messageQueue = HealthNode.CreateDelegate("MessageQueue"); // always healthy for demo
+var messageQueue = HealthNode.Create("MessageQueue"); // always healthy for demo
 
 // ─────────────────────────────────────────────────────────────────────
 // Pattern 3 — Pure composite aggregation (no backing service).
 //             The fluent .DependsOn() API reads naturally and avoids
 //             having to wrap every edge in a HealthDependency object.
 // ─────────────────────────────────────────────────────────────────────
-var authService = HealthNode.CreateDelegate("AuthService")
+var authService = HealthNode.Create("AuthService")
     .DependsOn(database.HealthNode, Importance.Required)
     .DependsOn(cache.HealthNode, Importance.Important);
 
-var notificationSystem = HealthNode.CreateComposite("NotificationSystem")
+var notificationSystem = HealthNode.Create("NotificationSystem")
     .DependsOn(messageQueue, Importance.Required)
     .DependsOn(emailHealth, Importance.Optional);
 
-var app = HealthNode.CreateComposite("Application")
+var app = HealthNode.Create("Application")
     .DependsOn(authService, Importance.Required)
     .DependsOn(notificationSystem, Importance.Important);
 
@@ -99,8 +99,8 @@ Console.WriteLine(cycles.Count == 0
 Console.WriteLine();
 
 // Now introduce a deliberate cycle and detect it.
-var nodeA = HealthNode.CreateDelegate("ServiceA");
-var nodeB = HealthNode.CreateDelegate("ServiceB")
+var nodeA = HealthNode.Create("ServiceA");
+var nodeB = HealthNode.Create("ServiceB")
     .DependsOn(nodeA, Importance.Required);
 nodeA.DependsOn(nodeB, Importance.Required); // A → B → A
 
@@ -173,9 +173,10 @@ Console.WriteLine();
 /// <summary>
 /// A service you own — expose one or more <see cref="HealthNode"/> properties.
 /// Here the top-level node is created via
-/// <see cref="HealthNode.CreateComposite"/> whose health is derived entirely
+/// <see cref="HealthNode.Create(string)"/> whose health is derived entirely
 /// from three fine-grained sub-nodes created via
-/// <see cref="HealthNode.CreateDelegate(string, Func{HealthEvaluation})"/>:
+/// <see cref="HealthNode.Create(string)"/> with
+/// <see cref="HealthNode.WithHealthProbe"/>:
 /// connection, latency, and connection-pool utilization.
 /// </summary>
 class DatabaseService
@@ -188,12 +189,12 @@ class DatabaseService
 
     public DatabaseService()
     {
-        var connection = HealthNode.CreateDelegate("Database.Connection",
+        var connection = HealthNode.Create("Database.Connection").WithHealthProbe(
             () => IsConnected
                 ? HealthStatus.Healthy
                 : HealthEvaluation.Unhealthy("Connection lost"));
 
-        var latency = HealthNode.CreateDelegate("Database.Latency",
+        var latency = HealthNode.Create("Database.Latency").WithHealthProbe(
             () => AverageLatencyMs switch
             {
                 > 500 => HealthEvaluation.Degraded(
@@ -201,7 +202,7 @@ class DatabaseService
                 _ => HealthStatus.Healthy,
             });
 
-        var connectionPool = HealthNode.CreateDelegate("Database.ConnectionPool",
+        var connectionPool = HealthNode.Create("Database.ConnectionPool").WithHealthProbe(
             () => PoolUtilization switch
             {
                 >= 1.0 => HealthEvaluation.Unhealthy("Connection pool exhausted"),
@@ -210,7 +211,7 @@ class DatabaseService
                 _ => HealthStatus.Healthy,
             });
 
-        HealthNode = HealthNode.CreateComposite("Database")
+        HealthNode = HealthNode.Create("Database")
             .DependsOn(connection, Importance.Required)
             .DependsOn(latency, Importance.Important)
             .DependsOn(connectionPool, Importance.Required);
@@ -224,7 +225,7 @@ class CacheService
 
     public CacheService()
     {
-        HealthNode = HealthNode.CreateDelegate("Cache",
+        HealthNode = HealthNode.Create("Cache").WithHealthProbe(
             () => IsConnected
                 ? HealthStatus.Healthy
                 : HealthEvaluation.Unhealthy("Redis timeout"));
@@ -235,7 +236,8 @@ class CacheService
 
 /// <summary>
 /// A third-party class you cannot modify.
-/// Wrapped via <see cref="HealthNode.CreateDelegate(string, Func{HealthEvaluation})"/> above.
+/// Wrapped via <see cref="HealthNode.Create(string)"/> with
+/// <see cref="HealthNode.WithHealthProbe"/> above.
 /// </summary>
 class ThirdPartyEmailClient
 {

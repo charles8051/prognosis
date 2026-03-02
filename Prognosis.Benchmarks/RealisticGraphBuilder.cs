@@ -14,8 +14,8 @@ namespace Prognosis.Benchmarks;
 ///
 /// Each layer depends on 2-4 nodes from the layer below, mixing Required,
 /// Important, and Optional importance levels. Infrastructure nodes use
-/// HealthNode.CreateDelegate with synthetic health delegates; higher layers use
-/// HealthNode.CreateComposite composites. Some infrastructure nodes have sub-checks
+/// HealthNode.Create with .WithHealthProbe for synthetic health delegates; higher layers use
+/// HealthNode.Create as composites. Some infrastructure nodes have sub-checks
 /// (connection, latency, pool) to model fine-grained health like
 /// DatabaseService in the examples.
 ///
@@ -41,10 +41,10 @@ internal static class RealisticGraphBuilder
         var infraNodes = new List<HealthNode>();
         foreach (var name in infraNames)
         {
-            var conn = HealthNode.CreateDelegate($"{name}.Connection", RandomCheck(rng));
-            var latency = HealthNode.CreateDelegate($"{name}.Latency", RandomCheck(rng));
-            var pool = HealthNode.CreateDelegate($"{name}.Pool", RandomCheck(rng));
-            var group = HealthNode.CreateComposite(name)
+            var conn = HealthNode.Create($"{name}.Connection").WithHealthProbe(RandomCheck(rng));
+            var latency = HealthNode.Create($"{name}.Latency").WithHealthProbe(RandomCheck(rng));
+            var pool = HealthNode.Create($"{name}.Pool").WithHealthProbe(RandomCheck(rng));
+            var group = HealthNode.Create(name)
                 .DependsOn(conn, Importance.Required)
                 .DependsOn(latency, Importance.Important)
                 .DependsOn(pool, Importance.Required);
@@ -84,7 +84,7 @@ internal static class RealisticGraphBuilder
         }
 
         // ── Layer 4: Platform root ──────────────────────────────────
-        var root = HealthNode.CreateComposite("Platform");
+        var root = HealthNode.Create("Platform");
         foreach (var gw in gatewayNodes)
         {
             root.DependsOn(gw, Importance.Required);
@@ -113,7 +113,7 @@ internal static class RealisticGraphBuilder
         {
             var name = $"{prefix}.{i:D3}";
             var depCount = rng.Next(2, Math.Min(5, dependencyPool.Count + 1));
-            var node = HealthNode.CreateDelegate(name, RandomCheck(rng));
+            var node = HealthNode.Create(name).WithHealthProbe(RandomCheck(rng));
 
             // Pick distinct random dependencies from the pool.
             var picked = new HashSet<int>();

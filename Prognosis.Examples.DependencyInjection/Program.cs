@@ -10,7 +10,7 @@ using Prognosis.DependencyInjection;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-// Register the third-party service we'll wrap with a health delegate.
+// Register the third-party service we'll wrap with a health probe.
 builder.Services.AddSingleton<ThirdPartyEmailClient>();
 
 builder.Services.AddPrognosis(health =>
@@ -19,15 +19,15 @@ builder.Services.AddPrognosis(health =>
     // public HealthNode properties and wires [DependsOn] edges.
     health.AddDiscoveredNodes();
 
-    // Wrap a third-party service you don't own with a health delegate.
+    // Wrap a third-party service you don't own with a health probe.
     // Name defaults to typeof(ThirdPartyEmailClient).Name when omitted.
-    health.AddDelegate<ThirdPartyEmailClient>("EmailProvider",
+    health.AddProbe<ThirdPartyEmailClient>("EmailProvider",
         client => client.IsConnected
             ? HealthStatus.Healthy
             : HealthEvaluation.Unhealthy("SMTP connection refused"));
 
     // Define composite aggregation nodes.
-    // The string literal in AddComposite/AddDelegate is the definition site —
+    // The string literal in AddComposite/AddProbe is the definition site —
     // the generator reads it and emits a HealthNames constant.
     // Reference sites (DependsOn, MarkAsRoot) use the generated constants.
     health.AddComposite("NotificationSystem", n =>
@@ -145,7 +145,7 @@ multiBuilder.Services.AddPrognosis(health =>
 {
     health.AddDiscoveredNodes();
 
-    health.AddDelegate<ThirdPartyEmailClient>("EmailProvider",
+    health.AddProbe<ThirdPartyEmailClient>("EmailProvider",
         client => client.IsConnected
             ? HealthStatus.Healthy
             : HealthEvaluation.Unhealthy("SMTP refused"));
@@ -212,7 +212,7 @@ class DatabaseService
 
     public DatabaseService()
     {
-        HealthNode = HealthNode.CreateDelegate("Database",
+        HealthNode = HealthNode.Create("Database").WithHealthProbe(
             () => IsConnected
                 ? HealthStatus.Healthy
                 : HealthEvaluation.Unhealthy("Connection lost"));
@@ -228,7 +228,7 @@ class CacheService
 
     public CacheService()
     {
-        HealthNode = HealthNode.CreateDelegate("Cache",
+        HealthNode = HealthNode.Create("Cache").WithHealthProbe(
             () => IsConnected
                 ? HealthStatus.Healthy
                 : HealthEvaluation.Unhealthy("Redis timeout"));
@@ -245,18 +245,18 @@ class AuthService
 {
     [DependsOn("Database", Importance.Required)]
     [DependsOn("Cache", Importance.Important)]
-    public HealthNode HealthNode { get; } = HealthNode.CreateDelegate("AuthService");
+    public HealthNode HealthNode { get; } = HealthNode.Create("AuthService");
 }
 
 /// <summary>Always-healthy placeholder for demo purposes.</summary>
 class MessageQueueService
 {
-    public HealthNode HealthNode { get; } = HealthNode.CreateDelegate(nameof(MessageQueueService));
+    public HealthNode HealthNode { get; } = HealthNode.Create(nameof(MessageQueueService));
 }
 
 /// <summary>
 /// A third-party class you cannot modify.
-/// Wrapped via <c>AddDelegate&lt;T&gt;</c> in the builder above.
+/// Wrapped via <c>AddProbe&lt;T&gt;</c> in the builder above.
 /// </summary>
 class ThirdPartyEmailClient
 {

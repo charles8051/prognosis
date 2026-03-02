@@ -18,22 +18,22 @@ var database = new DatabaseService();
 var cache = new CacheService();
 var externalEmailApi = new ThirdPartyEmailClient();
 
-var emailHealth = HealthNode.CreateDelegate("EmailProvider",
+var emailHealth = HealthNode.Create("EmailProvider").WithHealthProbe(
     () => externalEmailApi.IsConnected
         ? HealthStatus.Healthy
         : HealthEvaluation.Unhealthy("SMTP connection refused"));
 
-var messageQueue = HealthNode.CreateDelegate("MessageQueue");
+var messageQueue = HealthNode.Create("MessageQueue");
 
-var authService = HealthNode.CreateDelegate("AuthService")
+var authService = HealthNode.Create("AuthService")
     .DependsOn(database.HealthNode, Importance.Required)
     .DependsOn(cache.HealthNode, Importance.Important);
 
-var notificationSystem = HealthNode.CreateComposite("NotificationSystem")
+var notificationSystem = HealthNode.Create("NotificationSystem")
     .DependsOn(messageQueue, Importance.Required)
     .DependsOn(emailHealth, Importance.Optional);
 
-var app = HealthNode.CreateComposite("Application")
+var app = HealthNode.Create("Application")
     .DependsOn(authService, Importance.Required)
     .DependsOn(notificationSystem, Importance.Important);
 
@@ -256,7 +256,7 @@ class DatabaseService
 
     public DatabaseService()
     {
-        HealthNode = HealthNode.CreateDelegate("Database",
+        HealthNode = HealthNode.Create("Database").WithHealthProbe(
             () => IsConnected
                 ? HealthStatus.Healthy
                 : HealthEvaluation.Unhealthy("Connection lost"));
@@ -271,7 +271,7 @@ class CacheService
 
     public CacheService()
     {
-        HealthNode = HealthNode.CreateDelegate("Cache",
+        HealthNode = HealthNode.Create("Cache").WithHealthProbe(
             () => IsConnected
                 ? HealthStatus.Healthy
                 : HealthEvaluation.Unhealthy("Redis timeout"));
