@@ -121,20 +121,14 @@ public static class ServiceCollectionExtensions
             WireEdges(node, def.Edges, byName);
         }
 
-        // Build probe wrappers.
-        foreach (var def in builder.Probes)
+        // Build user-defined nodes (probes and composites unified).
+        foreach (var def in builder.NodeDefinitions)
         {
-            var d = HealthNode.Create(def.Name).WithHealthProbe(() => def.HealthCheck(sp));
-            WireEdges(d, def.Edges, byName);
-            byName[def.Name] = d;
-        }
-
-        // Build composites (order matters — later composites can reference earlier ones).
-        foreach (var def in builder.Composites)
-        {
-            var composite = HealthNode.Create(def.Name);
-            WireEdges(composite, def.Edges, byName);
-            byName[def.Name] = composite;
+            var node = HealthNode.Create(def.Name);
+            if (def.HealthCheck is not null)
+                node.WithHealthProbe(() => def.HealthCheck(sp));
+            WireEdges(node, def.Edges, byName);
+            byName[def.Name] = node;
         }
 
         return byName;

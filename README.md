@@ -253,8 +253,8 @@ builder.Services.AddPrognosis(health =>
 
     // Wrap a third-party service with a health probe.
     // Name defaults to typeof(T).Name when omitted.
-    health.AddProbe<ThirdPartyEmailClient>("EmailProvider",
-        client => client.IsConnected
+    health.AddNode("EmailProvider")
+        .WithHealthProbe<ThirdPartyEmailClient>(client => client.IsConnected
             ? HealthStatus.Healthy
             : HealthEvaluation.Unhealthy("SMTP refused"));
 
@@ -410,8 +410,8 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 | File | Purpose |
 |---|---|
 | `ServiceCollectionExtensions.cs` | `AddPrognosis` entry point — service node registration and graph materialization |
-| `PrognosisBuilder.cs` | Fluent builder — `AddServiceNode<T>`, `AddProbe<T>`, `AddComposite`, `MarkAsRoot` |
-| `DependencyConfigurator.cs` | Fluent edge declaration — `DependsOn<T>` (by type name), `DependsOn(name)` |
+| `PrognosisBuilder.cs` | Fluent builder — `AddServiceNode<T>`, `AddNode`, `MarkAsRoot` |
+| `NodeConfigurator.cs` | Fluent node definition — `WithHealthProbe<T>`, `DependsOn<T>`, `DependsOn(name)` |
 | `DependsOnAttribute.cs` | `[DependsOn("name", Importance)]` property-level attribute for declarative edges |
 | `HealthGraph.cs` | Type forwarder for core `HealthGraph` (`Root`, indexer, `GetReport()`) |
 | `HealthGraphOfT.cs` | `HealthGraph<TRoot>` typed wrapper for multi-root DI resolution |

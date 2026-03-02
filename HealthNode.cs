@@ -104,37 +104,6 @@ public sealed class HealthNode
     }
 
     /// <summary>
-    /// Creates a node backed by a health-check delegate. The delegate is
-    /// called on every <see cref="Refresh"/> to obtain the node's
-    /// intrinsic health.
-    /// </summary>
-    /// <param name="name">Display name for the node.</param>
-    /// <param name="healthCheck">
-    /// A delegate that returns the node's intrinsic health evaluation.
-    /// </param>
-    [Obsolete("Use HealthNode.Create(name).WithHealthProbe(healthCheck) instead.")]
-    public static HealthNode CreateDelegate(string name, Func<HealthEvaluation> healthCheck)
-        => new HealthNode(name, healthCheck);
-
-    /// <summary>
-    /// Creates a node backed by a health-check delegate whose intrinsic
-    /// status is always <see cref="HealthStatus.Healthy"/>.
-    /// </summary>
-    /// <param name="name">Display name for the node.</param>
-    [Obsolete("Use HealthNode.Create(name) instead.")]
-    public static HealthNode CreateDelegate(string name)
-        => new HealthNode(name);
-
-    /// <summary>
-    /// Creates an aggregation-only node with no underlying node of its own.
-    /// Health is derived entirely from its dependencies.
-    /// </summary>
-    /// <param name="name">Display name for this composite in the health graph.</param>
-    [Obsolete("Use HealthNode.Create(name) instead.")]
-    public static HealthNode CreateComposite(string name)
-        => new HealthNode(name);
-
-    /// <summary>
     /// Overwrites this node's cached health evaluation and immediately
     /// propagates upward through all ancestors. The reported value acts
     /// as the intrinsic evaluation until the next delegate-based refresh

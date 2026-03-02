@@ -10,8 +10,8 @@ namespace Prognosis.Generators.Tests;
 public class DependsOnEdgeAnalyzerTests
 {
     /// <summary>
-    /// Stubs for HealthNode + DependencyConfigurator so the semantic model
-    /// can resolve methods without referencing the real Prognosis assemblies.
+    /// Stubs for HealthNode + DependencyConfigurator + NodeConfigurator so the
+    /// semantic model can resolve methods without referencing the real Prognosis assemblies.
     /// </summary>
     private const string Stubs = """
         namespace Prognosis
@@ -24,15 +24,20 @@ public class DependsOnEdgeAnalyzerTests
             public sealed class HealthNode
             {
                 public static HealthNode Create(string name) => new HealthNode();
-                public static HealthNode CreateDelegate(string name) => new HealthNode();
-                public static HealthNode CreateDelegate(string name, System.Func<HealthEvaluation> check) => new HealthNode();
-                public static HealthNode CreateComposite(string name) => new HealthNode();
             }
 
             public enum Importance { Required, Important, Optional }
         }
         namespace Prognosis.DependencyInjection
         {
+            public sealed class PrognosisBuilder
+            {
+                public NodeConfigurator AddNode(string name) => new NodeConfigurator();
+            }
+            public sealed class NodeConfigurator
+            {
+                public NodeConfigurator DependsOn(string serviceName, Prognosis.Importance importance) => this;
+            }
             public sealed class DependencyConfigurator
             {
                 public DependencyConfigurator DependsOn(string serviceName, Prognosis.Importance importance) => this;

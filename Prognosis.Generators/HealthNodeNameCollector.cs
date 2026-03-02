@@ -9,12 +9,8 @@ namespace Prognosis.Generators;
 
 /// <summary>
 /// Incremental source generator that scans for node-defining invocations:
-/// <c>HealthNode.Create("name")</c>,
-/// <c>HealthNode.CreateDelegate("name", ...)</c>,
-/// <c>HealthNode.CreateComposite("name")</c>,
-/// <c>PrognosisBuilder.AddComposite("name", ...)</c>,
-/// <c>PrognosisBuilder.AddProbe("name", ...)</c>, and
-/// <c>PrognosisBuilder.AddDelegate("name", ...)</c>.
+/// <c>HealthNode.Create("name")</c> and
+/// <c>PrognosisBuilder.AddNode("name")</c>.
 /// Extracts the string literal name argument and emits a <c>HealthNames</c>
 /// class containing <see langword="const"/> <see langword="string"/> fields
 /// for each discovered name.
@@ -50,8 +46,8 @@ public sealed class HealthNodeNameCollector : IIncrementalGenerator
     /// <summary>
     /// Fast syntactic filter — returns <see langword="true"/> for
     /// invocation expressions whose method name is <c>Create</c>,
-    /// <c>CreateDelegate</c>, <c>CreateComposite</c>, <c>AddComposite</c>,
-    /// <c>AddProbe</c>, or <c>AddDelegate</c> with at least one argument.
+    /// <c>CreateDelegate</c>, <c>CreateComposite</c>, or <c>AddNode</c>
+    /// with at least one argument.
     /// </summary>
     private static bool IsHealthNodeFactoryCandidate(SyntaxNode node)
     {
@@ -64,7 +60,7 @@ public sealed class HealthNodeNameCollector : IIncrementalGenerator
             _ => null
         };
 
-        return name is "Create" or "CreateDelegate" or "CreateComposite" or "AddComposite" or "AddProbe" or "AddDelegate"
+        return name is "Create" or "CreateDelegate" or "CreateComposite" or "AddNode"
             && invocation.ArgumentList.Arguments.Count > 0;
     }
 
@@ -93,12 +89,12 @@ public sealed class HealthNodeNameCollector : IIncrementalGenerator
 
             var isBuilder = method.ContainingType is { Name: "PrognosisBuilder" }
                 && method.ContainingType.ContainingNamespace?.ToString() == "Prognosis.DependencyInjection"
-                && method.Name is "AddComposite" or "AddProbe" or "AddDelegate";
+                && method.Name is "AddNode";
 
             if (!isHealthNode && !isBuilder)
                 return null;
         }
-        else if (methodName is not ("AddComposite" or "AddProbe" or "AddDelegate"
+        else if (methodName is not ("AddNode"
                                  or "Create" or "CreateDelegate" or "CreateComposite"))
         {
             return null;
@@ -131,9 +127,8 @@ public sealed class HealthNodeNameCollector : IIncrementalGenerator
         sb.AppendLine();
         sb.AppendLine("/// <summary>");
         sb.AppendLine("/// Auto-generated constants for every health node name discovered in this");
-        sb.AppendLine("/// compilation via <c>HealthNode.Create</c>, <c>CreateDelegate</c>,");
-        sb.AppendLine("/// <c>CreateComposite</c>, <c>PrognosisBuilder.AddComposite</c>,");
-        sb.AppendLine("/// <c>AddProbe</c>, and <c>AddDelegate</c> calls.");
+        sb.AppendLine("/// compilation via <c>HealthNode.Create</c> and");
+        sb.AppendLine("/// <c>PrognosisBuilder.AddNode</c> calls.");
         sb.AppendLine("/// Use these constants in place of string literals for refactoring safety,");
         sb.AppendLine("/// autocomplete, and find-all-references support.");
         sb.AppendLine("/// </summary>");

@@ -32,9 +32,8 @@ public class HealthNodeNameCollectorTests
 
             /// <summary>
             /// Auto-generated constants for every health node name discovered in this
-            /// compilation via <c>HealthNode.Create</c>, <c>CreateDelegate</c>,
-            /// <c>CreateComposite</c>, <c>PrognosisBuilder.AddComposite</c>,
-            /// <c>AddProbe</c>, and <c>AddDelegate</c> calls.
+            /// compilation via <c>HealthNode.Create</c> and
+            /// <c>PrognosisBuilder.AddNode</c> calls.
             /// Use these constants in place of string literals for refactoring safety,
             /// autocomplete, and find-all-references support.
             /// </summary>
@@ -180,7 +179,7 @@ public class HealthNodeNameCollectorTests
             {
                 void Configure(PrognosisBuilder health)
                 {
-                    health.AddComposite("Application", app => { });
+                    health.AddNode("Application");
                 }
             }
             """;
@@ -201,8 +200,9 @@ public class HealthNodeNameCollectorTests
             {
                 void Configure(PrognosisBuilder health)
                 {
-                    health.AddProbe<FakeService>("EmailProvider",
-                        svc => HealthStatus.Healthy);
+                    health.AddNode("EmailProvider")
+                        .WithHealthProbe<FakeService>(
+                            svc => HealthStatus.Healthy);
                 }
             }
             class FakeService { }
@@ -225,9 +225,10 @@ public class HealthNodeNameCollectorTests
                 void Configure(PrognosisBuilder health)
                 {
                     var node = HealthNode.Create("Database");
-                    health.AddComposite("Application", app => { });
-                    health.AddProbe<FakeService>("EmailProvider",
-                        svc => HealthStatus.Healthy);
+                    health.AddNode("Application");
+                    health.AddNode("EmailProvider")
+                        .WithHealthProbe<FakeService>(
+                            svc => HealthStatus.Healthy);
                 }
             }
             class FakeService { }

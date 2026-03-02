@@ -11,8 +11,7 @@ public sealed class PrognosisBuilder
 {
     internal IServiceCollection Services { get; }
     internal List<ServiceNodeDefinition> ServiceNodes { get; } = [];
-    internal List<CompositeDefinition> Composites { get; } = [];
-    internal List<ProbeDefinition> Probes { get; } = [];
+    internal List<NodeConfigurator> NodeDefinitions { get; } = [];
     internal List<RootDefinition> Roots { get; } = [];
 
     internal PrognosisBuilder(IServiceCollection services) => Services = services;
@@ -32,9 +31,9 @@ public sealed class PrognosisBuilder
     /// </summary>
     /// <typeparam name="T">
     /// A marker type whose <see cref="System.Type.Name"/> identifies the
-    /// root node. Typically a composite or service class registered via
-    /// <see cref="AddServiceNode{TService}"/>, <see cref="AddComposite"/>, or
-    /// <see cref="AddDelegate{TService}(Func{TService,HealthEvaluation},Action{DependencyConfigurator}?)"/>.
+    /// root node. Typically a service class registered via
+    /// <see cref="AddServiceNode{TService}"/> or a node defined via
+    /// <see cref="AddNode(string)"/>.
     /// </typeparam>
     public PrognosisBuilder MarkAsRoot<T>() where T : class
     {
@@ -97,128 +96,25 @@ public sealed class PrognosisBuilder
     }
 
     /// <summary>
-    /// Wraps a DI-registered service you don't own (or don't want to modify)
-    /// with a health-check delegate. The service name defaults to
-    /// <c>typeof(TService).Name</c>.
+    /// Defines a new node in the health graph. Optionally attach a
+    /// health-check probe via <see cref="NodeConfigurator.WithHealthProbe{TService}"/>
+    /// and declare dependencies via <see cref="NodeConfigurator.DependsOn(string, Importance)"/>.
+    /// <para>
+    /// Mirrors the core <see cref="HealthNode.Create(string)"/> fluent
+    /// pattern:
+    /// <c>builder.AddNode("name").WithHealthProbe&lt;T&gt;(...).DependsOn(...)</c>.
+    /// </para>
     /// </summary>
-    /// <typeparam name="TService">
-    /// The type of the service to resolve from DI and health-check.
-    /// </typeparam>
-    /// <param name="healthCheck">
-    /// A function that inspects the resolved service and returns its health.
+    /// <param name="name">
+    /// Display name for this node in the health graph. Used as the key for
+    /// <see cref="HealthGraph.TryGetNode(string, out HealthNode)"/> and
+    /// reported in <see cref="HealthSnapshot.Name"/>.
     /// </param>
-    /// <param name="dependencies">
-    /// Optional dependency configuration for this probe.
-    /// </param>
-    public PrognosisBuilder AddProbe<TService>(
-        Func<TService, HealthEvaluation> healthCheck,
-        Action<DependencyConfigurator>? dependencies = null)
-        where TService : class
-        => AddProbe(typeof(TService).Name, healthCheck, dependencies);
-
-    /// <summary>
-    /// Wraps a DI-registered service you don't own (or don't want to modify)
-    /// with a health-check delegate.
-    /// </summary>
-    /// <typeparam name="TService">
-    /// The type of the service to resolve from DI and health-check.
-    /// </typeparam>
-    /// <param name="name">Display name for this service in the health graph.</param>
-    /// <param name="healthCheck">
-    /// A function that inspects the resolved service and returns its health.
-    /// </param>
-    /// <param name="dependencies">
-    /// Optional dependency configuration for this probe.
-    /// </param>
-    public PrognosisBuilder AddProbe<TService>(
-        string name,
-        Func<TService, HealthEvaluation> healthCheck,
-        Action<DependencyConfigurator>? dependencies = null)
-        where TService : class
+    public NodeConfigurator AddNode(string name)
     {
-        var configurator = new DependencyConfigurator();
-        dependencies?.Invoke(configurator);
-        Probes.Add(new ProbeDefinition(
-            name,
-            typeof(TService),
-            sp => healthCheck((TService)sp.GetRequiredService(typeof(TService))),
-            configurator.Edges));
-        return this;
-    }
-
-    /// <summary>
-    /// Wraps a DI-registered service you don't own (or don't want to modify)
-    /// with a health-check delegate. The service name defaults to
-    /// <c>typeof(TService).Name</c>.
-    /// </summary>
-    /// <typeparam name="TService">
-    /// The type of the service to resolve from DI and health-check.
-    /// </typeparam>
-    /// <param name="healthCheck">
-    /// A function that inspects the resolved service and returns its health.
-    /// </param>
-    /// <param name="dependencies">
-    /// Optional dependency configuration for this delegate wrapper.
-    /// </param>
-    [Obsolete("Use AddProbe<TService>(healthCheck, dependencies) instead.")]
-    public PrognosisBuilder AddDelegate<TService>(
-        Func<TService, HealthEvaluation> healthCheck,
-        Action<DependencyConfigurator>? dependencies = null)
-        where TService : class
-        => AddProbe(typeof(TService).Name, healthCheck, dependencies);
-
-    /// <summary>
-    /// Wraps a DI-registered service you don't own (or don't want to modify)
-    /// with a health-check delegate.
-    /// </summary>
-    /// <typeparam name="TService">
-    /// The type of the service to resolve from DI and health-check.
-    /// </typeparam>
-    /// <param name="name">Display name for this service in the health graph.</param>
-    /// <param name="healthCheck">
-    /// A function that inspects the resolved service and returns its health.
-    /// </param>
-    /// <param name="dependencies">
-    /// Optional dependency configuration for this delegate wrapper.
-    /// </param>
-    [Obsolete("Use AddProbe<TService>(name, healthCheck, dependencies) instead.")]
-    public PrognosisBuilder AddDelegate<TService>(
-        string name,
-        Func<TService, HealthEvaluation> healthCheck,
-        Action<DependencyConfigurator>? dependencies = null)
-        where TService : class
-        => AddProbe(name, healthCheck, dependencies);
-
-    /// <summary>
-    /// Defines a pure composite aggregation node whose name is derived from
-    /// <typeparamref name="TToken"/> (<c>typeof(TToken).Name</c>).
-    /// The type is used only for naming — it is not resolved from DI.
-    /// </summary>
-    /// <typeparam name="TToken">
-    /// A type whose name identifies this composite in the health graph.
-    /// Typically a marker class, the service class it represents, or any
-    /// meaningful type in the domain.
-    /// </typeparam>
-    public PrognosisBuilder AddComposite<TToken>(
-        Action<DependencyConfigurator> configure)
-        => AddComposite(typeof(TToken).Name, configure);
-
-    /// <summary>
-    /// Defines a pure composite aggregation node with no backing service.
-    /// Its health is derived entirely from its dependencies.
-    /// </summary>
-    /// <param name="name">Display name for this composite in the health graph.</param>
-    /// <param name="configure">
-    /// A callback to declare dependencies via <see cref="DependencyConfigurator"/>.
-    /// </param>
-    public PrognosisBuilder AddComposite(
-        string name,
-        Action<DependencyConfigurator> configure)
-    {
-        var configurator = new DependencyConfigurator();
-        configure(configurator);
-        Composites.Add(new CompositeDefinition(name, configurator.Edges));
-        return this;
+        var configurator = new NodeConfigurator(name);
+        NodeDefinitions.Add(configurator);
+        return configurator;
     }
 }
 
@@ -231,16 +127,6 @@ internal sealed record EdgeDefinition(
 internal sealed record ServiceNodeDefinition(
     Type ServiceType,
     Func<IServiceProvider, HealthNode> NodeSelector,
-    List<EdgeDefinition> Edges);
-
-internal sealed record CompositeDefinition(
-    string Name,
-    List<EdgeDefinition> Edges);
-
-internal sealed record ProbeDefinition(
-    string Name,
-    Type ServiceType,
-    Func<IServiceProvider, HealthEvaluation> HealthCheck,
     List<EdgeDefinition> Edges);
 
 internal sealed record RootDefinition(

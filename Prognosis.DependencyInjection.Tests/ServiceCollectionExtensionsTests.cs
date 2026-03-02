@@ -20,11 +20,9 @@ public class ServiceCollectionExtensionsTests
             {
                 deps.DependsOn("TestDatabase", Importance.Required);
             });
-            health.AddComposite("Root", app =>
-            {
-                app.DependsOn("TestAuth", Importance.Required);
-                app.DependsOn("TestCache", Importance.Required);
-            });
+            health.AddNode("Root")
+                .DependsOn("TestAuth", Importance.Required)
+                .DependsOn("TestCache", Importance.Required);
             health.MarkAsRoot("Root");
         });
 
@@ -61,11 +59,9 @@ public class ServiceCollectionExtensionsTests
         services.AddPrognosis(health =>
         {
             RegisterTestServices(health);
-            health.AddComposite("Root", app =>
-            {
-                app.DependsOn("TestAuth", Importance.Required);
-                app.DependsOn("TestCache", Importance.Required);
-            });
+            health.AddNode("Root")
+                .DependsOn("TestAuth", Importance.Required)
+                .DependsOn("TestCache", Importance.Required);
             health.MarkAsRoot("Root");
         });
 
@@ -88,8 +84,8 @@ public class ServiceCollectionExtensionsTests
 
         services.AddPrognosis(health =>
         {
-            health.AddProbe<TestExternalClient>("ExternalApi",
-                client => client.IsUp
+            health.AddNode("ExternalApi")
+                .WithHealthProbe<TestExternalClient>(client => client.IsUp
                     ? HealthStatus.Healthy
                     : HealthEvaluation.Unhealthy("down"));
         });
@@ -110,8 +106,8 @@ public class ServiceCollectionExtensionsTests
 
         services.AddPrognosis(health =>
         {
-            health.AddProbe<TestExternalClient>("ExternalApi",
-                c => c.IsUp
+            health.AddNode("ExternalApi")
+                .WithHealthProbe<TestExternalClient>(c => c.IsUp
                     ? HealthStatus.Healthy
                     : HealthEvaluation.Unhealthy("down"));
         });
@@ -134,8 +130,9 @@ public class ServiceCollectionExtensionsTests
 
         services.AddPrognosis(health =>
         {
-            health.AddProbe<TestExternalClient>(
-                client => HealthStatus.Healthy);
+            health.AddNode(nameof(TestExternalClient))
+                .WithHealthProbe<TestExternalClient>(
+                    client => HealthStatus.Healthy);
         });
 
         var sp = services.BuildServiceProvider();
@@ -154,11 +151,9 @@ public class ServiceCollectionExtensionsTests
         {
             RegisterTestServices(health);
 
-            health.AddComposite("Platform", app =>
-            {
-                app.DependsOn("TestDatabase", Importance.Required);
-                app.DependsOn("TestCache", Importance.Important);
-            });
+            health.AddNode("Platform")
+                .DependsOn("TestDatabase", Importance.Required)
+                .DependsOn("TestCache", Importance.Important);
 
             health.MarkAsRoot("Platform");
         });
@@ -179,13 +174,12 @@ public class ServiceCollectionExtensionsTests
 
         services.AddPrognosis(health =>
         {
-            health.AddProbe<TestExternalClient>("Email",
-                c => HealthStatus.Healthy);
+            health.AddNode("Email")
+                .WithHealthProbe<TestExternalClient>(
+                    c => HealthStatus.Healthy);
 
-            health.AddComposite("Notifications", n =>
-            {
-                n.DependsOn("Email", Importance.Optional);
-            });
+            health.AddNode("Notifications")
+                .DependsOn("Email", Importance.Optional);
         });
 
         var sp = services.BuildServiceProvider();
@@ -204,11 +198,9 @@ public class ServiceCollectionExtensionsTests
         {
             RegisterTestServices(health);
 
-            health.AddComposite("Resilient", c =>
-            {
-                c.DependsOn("TestDatabase", Importance.Resilient);
-                c.DependsOn("TestCache", Importance.Resilient);
-            });
+            health.AddNode("Resilient")
+                .DependsOn("TestDatabase", Importance.Resilient)
+                .DependsOn("TestCache", Importance.Resilient);
 
             health.MarkAsRoot("Resilient");
         });
@@ -229,7 +221,8 @@ public class ServiceCollectionExtensionsTests
         services.AddSingleton(new TestExternalClient { IsUp = true });
         services.AddPrognosis(health =>
         {
-            health.AddProbe<TestExternalClient>(c => HealthStatus.Healthy);
+            health.AddNode(nameof(TestExternalClient))
+                .WithHealthProbe<TestExternalClient>(c => HealthStatus.Healthy);
         });
 
         var sp = services.BuildServiceProvider();
@@ -247,10 +240,8 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         services.AddPrognosis(health =>
         {
-            health.AddComposite("Broken", c =>
-            {
-                c.DependsOn("NonExistent", Importance.Required);
-            });
+            health.AddNode("Broken")
+                .DependsOn("NonExistent", Importance.Required);
         });
 
         var sp = services.BuildServiceProvider();
@@ -298,10 +289,8 @@ public class ServiceCollectionExtensionsTests
         services.AddPrognosis(health =>
         {
             // TestDatabaseService is NOT registered, so "TestDatabase" won't be found.
-            health.AddComposite("Broken", c =>
-            {
-                c.DependsOn("TestDatabase", Importance.Required);
-            });
+            health.AddNode("Broken")
+                .DependsOn("TestDatabase", Importance.Required);
         });
 
         var sp = services.BuildServiceProvider();
@@ -339,11 +328,9 @@ public class ServiceCollectionExtensionsTests
         services.AddPrognosis(health =>
         {
             RegisterTestServices(health);
-            health.AddComposite(nameof(TestRootMarkerA), app =>
-            {
-                app.DependsOn("TestAuth", Importance.Required);
-                app.DependsOn("TestCache", Importance.Required);
-            });
+            health.AddNode(nameof(TestRootMarkerA))
+                .DependsOn("TestAuth", Importance.Required)
+                .DependsOn("TestCache", Importance.Required);
             health.MarkAsRoot<TestRootMarkerA>();
         });
 
@@ -364,16 +351,12 @@ public class ServiceCollectionExtensionsTests
         {
             RegisterTestServices(health);
 
-            health.AddComposite("Ops", app =>
-            {
-                app.DependsOn("TestDatabase", Importance.Required);
-                app.DependsOn("TestCache", Importance.Required);
-            });
+            health.AddNode("Ops")
+                .DependsOn("TestDatabase", Importance.Required)
+                .DependsOn("TestCache", Importance.Required);
 
-            health.AddComposite("Customer", app =>
-            {
-                app.DependsOn("TestAuth", Importance.Required);
-            });
+            health.AddNode("Customer")
+                .DependsOn("TestAuth", Importance.Required);
 
             health.MarkAsRoot("Ops");
             health.MarkAsRoot("Customer");
@@ -398,16 +381,12 @@ public class ServiceCollectionExtensionsTests
         {
             RegisterTestServices(health);
 
-            health.AddComposite("Ops", app =>
-            {
-                app.DependsOn("TestDatabase", Importance.Required);
-            });
+            health.AddNode("Ops")
+                .DependsOn("TestDatabase", Importance.Required);
 
-            health.AddComposite("Customer", app =>
-            {
-                app.DependsOn("TestDatabase", Importance.Required);
-                app.DependsOn("TestCache", Importance.Important);
-            });
+            health.AddNode("Customer")
+                .DependsOn("TestDatabase", Importance.Required)
+                .DependsOn("TestCache", Importance.Important);
 
             health.MarkAsRoot("Ops");
             health.MarkAsRoot("Customer");
@@ -431,15 +410,11 @@ public class ServiceCollectionExtensionsTests
         {
             RegisterTestServices(health);
 
-            health.AddComposite(nameof(TestRootMarkerA), app =>
-            {
-                app.DependsOn("TestDatabase", Importance.Required);
-            });
+            health.AddNode(nameof(TestRootMarkerA))
+                .DependsOn("TestDatabase", Importance.Required);
 
-            health.AddComposite(nameof(TestRootMarkerB), app =>
-            {
-                app.DependsOn("TestCache", Importance.Required);
-            });
+            health.AddNode(nameof(TestRootMarkerB))
+                .DependsOn("TestCache", Importance.Required);
 
             health.MarkAsRoot<TestRootMarkerA>();
             health.MarkAsRoot<TestRootMarkerB>();
@@ -465,8 +440,8 @@ public class ServiceCollectionExtensionsTests
         {
             RegisterTestServices(health);
 
-            health.AddComposite("A", app => app.DependsOn("TestDatabase", Importance.Required));
-            health.AddComposite("B", app => app.DependsOn("TestCache", Importance.Required));
+            health.AddNode("A").DependsOn("TestDatabase", Importance.Required);
+            health.AddNode("B").DependsOn("TestCache", Importance.Required);
 
             health.MarkAsRoot("A");
             health.MarkAsRoot("B");

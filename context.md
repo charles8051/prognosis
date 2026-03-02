@@ -50,7 +50,7 @@ Entry point for `GetReport`, `RefreshAll`, and observables
 
 ## DI Integration
 
-`services.AddPrognosis(...)` — registers service nodes via `AddServiceNode<T>`, composites, probes, wires edges, resolves roots. `PrognosisBuilder` provides the fluent API (`AddServiceNode<T>`, `AddProbe<T>`, `AddComposite`, `MarkAsRoot`, `UseMonitor`). The generator emits `AddDiscoveredNodes()` which calls `AddServiceNode<T>` for every class with a public `HealthNode` property and wires `[DependsOn]` attribute-declared edges.
+`services.AddPrognosis(...)` — registers service nodes via `AddServiceNode<T>`, defines new nodes via `AddNode`, wires edges, resolves roots. `PrognosisBuilder` provides the fluent API (`AddServiceNode<T>`, `AddNode`, `MarkAsRoot`, `UseMonitor`). The `NodeConfigurator` returned by `AddNode` provides `.WithHealthProbe<T>(...)` and `.DependsOn(...)`. The generator emits `AddDiscoveredNodes()` which calls `AddServiceNode<T>` for every class with a public `HealthNode` property and wires `[DependsOn]` attribute-declared edges.
 
 ## Source Generators
 

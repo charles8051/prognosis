@@ -126,7 +126,7 @@ public class HealthNodeTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void CreateDelegate_NullOrEmptyName_ThrowsArgumentException(string? name)
+    public void Create_NullOrEmptyName_ThrowsArgumentException(string? name)
     {
         Assert.Throws<ArgumentException>(() => HealthNode.Create(name!));
     }
@@ -139,15 +139,6 @@ public class HealthNodeTests
     {
         Assert.Throws<ArgumentException>(
             () => HealthNode.Create(name!).WithHealthProbe(() => HealthStatus.Healthy));
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void CreateComposite_NullOrEmptyName_ThrowsArgumentException(string? name)
-    {
-        Assert.Throws<ArgumentException>(() => HealthNode.Create(name!));
     }
 
     // ── Duplicate edge guard ─────────────────────────────────────────

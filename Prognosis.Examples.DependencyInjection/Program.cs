@@ -21,26 +21,22 @@ builder.Services.AddPrognosis(health =>
 
     // Wrap a third-party service you don't own with a health probe.
     // Name defaults to typeof(ThirdPartyEmailClient).Name when omitted.
-    health.AddProbe<ThirdPartyEmailClient>("EmailProvider",
-        client => client.IsConnected
+    health.AddNode("EmailProvider")
+        .WithHealthProbe<ThirdPartyEmailClient>(client => client.IsConnected
             ? HealthStatus.Healthy
             : HealthEvaluation.Unhealthy("SMTP connection refused"));
 
-    // Define composite aggregation nodes.
-    // The string literal in AddComposite/AddProbe is the definition site —
+    // Define aggregation nodes.
+    // The string literal in AddNode is the definition site —
     // the generator reads it and emits a HealthNames constant.
     // Reference sites (DependsOn, MarkAsRoot) use the generated constants.
-    health.AddComposite("NotificationSystem", n =>
-    {
-        n.DependsOn(HealthNames.MessageQueueService, Importance.Required);
-        n.DependsOn(HealthNames.EmailProvider, Importance.Optional);
-    });
+    health.AddNode("NotificationSystem")
+        .DependsOn(HealthNames.MessageQueueService, Importance.Required)
+        .DependsOn(HealthNames.EmailProvider, Importance.Optional);
 
-    health.AddComposite("Application", app =>
-    {
-        app.DependsOn<AuthService>(Importance.Required);
-        app.DependsOn(HealthNames.NotificationSystem, Importance.Important);
-    });
+    health.AddNode("Application")
+        .DependsOn<AuthService>(Importance.Required)
+        .DependsOn(HealthNames.NotificationSystem, Importance.Important);
 
     // Designate the root — required when multiple top-level nodes exist.
     health.MarkAsRoot(HealthNames.Application);
@@ -145,29 +141,23 @@ multiBuilder.Services.AddPrognosis(health =>
 {
     health.AddDiscoveredNodes();
 
-    health.AddProbe<ThirdPartyEmailClient>("EmailProvider",
-        client => client.IsConnected
+    health.AddNode("EmailProvider")
+        .WithHealthProbe<ThirdPartyEmailClient>(client => client.IsConnected
             ? HealthStatus.Healthy
             : HealthEvaluation.Unhealthy("SMTP refused"));
 
-    health.AddComposite("NotificationSystem", n =>
-    {
-        n.DependsOn(HealthNames.MessageQueueService, Importance.Required);
-        n.DependsOn(HealthNames.EmailProvider, Importance.Optional);
-    });
+    health.AddNode("NotificationSystem")
+        .DependsOn(HealthNames.MessageQueueService, Importance.Required)
+        .DependsOn(HealthNames.EmailProvider, Importance.Optional);
 
     // Two different views of the same service pool.
-    health.AddComposite(nameof(OpsView), ops =>
-    {
-        ops.DependsOn<DatabaseService>(Importance.Required);
-        ops.DependsOn<CacheService>(Importance.Required);
-        ops.DependsOn(HealthNames.NotificationSystem, Importance.Important);
-    });
+    health.AddNode(nameof(OpsView))
+        .DependsOn<DatabaseService>(Importance.Required)
+        .DependsOn<CacheService>(Importance.Required)
+        .DependsOn(HealthNames.NotificationSystem, Importance.Important);
 
-    health.AddComposite(nameof(CustomerView), cust =>
-    {
-        cust.DependsOn<AuthService>(Importance.Required);
-    });
+    health.AddNode(nameof(CustomerView))
+        .DependsOn<AuthService>(Importance.Required);
 
     // Each call produces a separate HealthGraph. Because MarkAsRoot<T>()
     // is used, both keyed and generic resolutions are available.

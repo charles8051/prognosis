@@ -10,12 +10,8 @@ namespace Prognosis.Generators;
 /// <summary>
 /// Diagnostic analyzer that validates string-based node name references
 /// against the set of names discovered from
-/// <c>HealthNode.Create("name")</c>,
-/// <c>HealthNode.CreateDelegate("name")</c>,
-/// <c>HealthNode.CreateComposite("name")</c>,
-/// <c>PrognosisBuilder.AddComposite("name", ...)</c>,
-/// <c>PrognosisBuilder.AddProbe("name", ...)</c>, and
-/// <c>PrognosisBuilder.AddDelegate("name", ...)</c>
+/// <c>HealthNode.Create("name")</c> and
+/// <c>PrognosisBuilder.AddNode("name")</c>
 /// calls in the same compilation.
 /// Reports <c>PROGNOSIS001</c> when a referenced name doesn't match any
 /// known node.
@@ -29,13 +25,13 @@ public sealed class DependsOnEdgeAnalyzer : DiagnosticAnalyzer
     private static readonly DiagnosticDescriptor s_unknownNodeRule = new(
         id: DiagnosticId,
         title: "Unknown health node name",
-        messageFormat: "Node name '{0}' does not match any HealthNode.Create, HealthNode.CreateDelegate, or HealthNode.CreateComposite call in this compilation",
+        messageFormat: "Node name '{0}' does not match any HealthNode.Create or PrognosisBuilder.AddNode call in this compilation",
         category: "Prognosis",
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description:
             "The referenced node name was not found among names passed to " +
-            "HealthNode.Create, HealthNode.CreateDelegate, or HealthNode.CreateComposite in the " +
+            "HealthNode.Create or PrognosisBuilder.AddNode in the " +
             "current compilation. This may cause a runtime KeyNotFoundException " +
             "when the graph is materialized.",
         customTags: WellKnownDiagnosticTags.CompilationEnd);
@@ -87,7 +83,7 @@ public sealed class DependsOnEdgeAnalyzer : DiagnosticAnalyzer
             return;
 
         var methodName = memberAccess.Name.Identifier.Text;
-        if (methodName is not ("Create" or "CreateDelegate" or "CreateComposite" or "AddComposite" or "AddProbe" or "AddDelegate"))
+        if (methodName is not ("Create" or "CreateDelegate" or "CreateComposite" or "AddNode"))
             return;
 
         if (invocation.ArgumentList.Arguments.Count == 0)
@@ -103,7 +99,7 @@ public sealed class DependsOnEdgeAnalyzer : DiagnosticAnalyzer
 
         var isBuilder = method.ContainingType is { Name: "PrognosisBuilder" }
             && method.ContainingType.ContainingNamespace?.ToString() == "Prognosis.DependencyInjection"
-            && method.Name is "AddComposite" or "AddProbe" or "AddDelegate";
+            && method.Name is "AddNode";
 
         if (!isHealthNode && !isBuilder)
             return;
@@ -150,7 +146,8 @@ public sealed class DependsOnEdgeAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    /// Matches <c>Prognosis.DependencyInjection.DependencyConfigurator.DependsOn(string, Importance)</c>.
+    /// Matches <c>Prognosis.DependencyInjection.DependencyConfigurator.DependsOn(string, Importance)</c>
+    /// or <c>Prognosis.DependencyInjection.NodeConfigurator.DependsOn(string, Importance)</c>.
     /// </summary>
     private static bool IsDependencyConfiguratorDependsOn(IMethodSymbol method)
     {
@@ -161,7 +158,7 @@ public sealed class DependsOnEdgeAnalyzer : DiagnosticAnalyzer
         if (containingType is null)
             return false;
 
-        if (containingType.Name == "DependencyConfigurator"
+        if (containingType.Name is "DependencyConfigurator" or "NodeConfigurator"
             && containingType.ContainingNamespace?.ToString() == "Prognosis.DependencyInjection")
         {
             return method.Parameters.Length >= 1
