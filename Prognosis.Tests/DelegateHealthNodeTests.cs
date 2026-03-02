@@ -5,7 +5,7 @@ public class DelegateHealthNodeTests
     [Fact]
     public void Constructor_SetsName()
     {
-        var svc = HealthNode.CreateDelegate("MyService");
+        var svc = HealthNode.Create("MyService");
 
         Assert.Equal("MyService", svc.Name);
     }
@@ -13,7 +13,7 @@ public class DelegateHealthNodeTests
     [Fact]
     public void Constructor_NameOnly_EvaluatesHealthy()
     {
-        var svc = HealthNode.CreateDelegate("MyService");
+        var svc = HealthNode.Create("MyService");
         var graph = HealthGraph.Create(svc);
 
         Assert.Equal(HealthStatus.Healthy, graph.GetReport().Nodes.First(n => n.Name == "MyService").Status);
@@ -22,7 +22,7 @@ public class DelegateHealthNodeTests
     [Fact]
     public void Constructor_WithHealthAdapter_DelegatesEvaluation()
     {
-        var svc = HealthNode.CreateDelegate("Svc",
+        var svc = HealthNode.Create("Svc").WithHealthProbe(
             () => HealthEvaluation.Degraded("slow"));
         var graph = HealthGraph.Create(svc);
 
@@ -35,8 +35,8 @@ public class DelegateHealthNodeTests
     [Fact]
     public void DependsOn_ReturnsSelf_ForFluentChaining()
     {
-        var dep = HealthNode.CreateDelegate("Dep");
-        var svc = HealthNode.CreateDelegate("Svc");
+        var dep = HealthNode.Create("Dep");
+        var svc = HealthNode.Create("Svc");
 
         var returned = svc.DependsOn(dep, Importance.Required);
 
@@ -46,9 +46,9 @@ public class DelegateHealthNodeTests
     [Fact]
     public void DependsOn_WiresEdge_AffectsEvaluation()
     {
-        var dep = HealthNode.CreateDelegate("Dep",
+        var dep = HealthNode.Create("Dep").WithHealthProbe(
             () => HealthEvaluation.Unhealthy("down"));
-        var svc = HealthNode.CreateDelegate("Svc")
+        var svc = HealthNode.Create("Svc")
             .DependsOn(dep, Importance.Required);
         var graph = HealthGraph.Create(svc);
 
@@ -58,9 +58,9 @@ public class DelegateHealthNodeTests
     [Fact]
     public void DependsOn_ImportantCapsUnhealthyAtDegraded()
     {
-        var dep = HealthNode.CreateDelegate("Dep",
+        var dep = HealthNode.Create("Dep").WithHealthProbe(
             () => HealthStatus.Unhealthy);
-        var svc = HealthNode.CreateDelegate("Svc")
+        var svc = HealthNode.Create("Svc")
             .DependsOn(dep, Importance.Important);
         var graph = HealthGraph.Create(svc);
 
@@ -70,9 +70,9 @@ public class DelegateHealthNodeTests
     [Fact]
     public void DependsOn_Optional_DoesNotAffectParent()
     {
-        var dep = HealthNode.CreateDelegate("Dep",
+        var dep = HealthNode.Create("Dep").WithHealthProbe(
             () => HealthStatus.Unhealthy);
-        var svc = HealthNode.CreateDelegate("Svc")
+        var svc = HealthNode.Create("Svc")
             .DependsOn(dep, Importance.Optional);
         var graph = HealthGraph.Create(svc);
 
@@ -82,7 +82,7 @@ public class DelegateHealthNodeTests
     [Fact]
     public void ToString_IncludesNameAndStatus()
     {
-        var svc = HealthNode.CreateDelegate("DB");
+        var svc = HealthNode.Create("DB");
         var str = svc.ToString();
 
         Assert.Contains("DB", str);
@@ -94,8 +94,8 @@ public class DelegateHealthNodeTests
     [Fact]
     public void DependsOn_SetsParentOnChild()
     {
-        var child = HealthNode.CreateDelegate("Child");
-        var parent = HealthNode.CreateDelegate("Parent")
+        var child = HealthNode.Create("Child");
+        var parent = HealthNode.Create("Parent")
             .DependsOn(child, Importance.Required);
 
         Assert.True(child.HasParents);
@@ -106,9 +106,9 @@ public class DelegateHealthNodeTests
     [Fact]
     public void DependsOn_MultipleParents_TracksAll()
     {
-        var child = HealthNode.CreateDelegate("Child");
-        var p1 = HealthNode.CreateDelegate("P1").DependsOn(child, Importance.Required);
-        var p2 = HealthNode.CreateDelegate("P2").DependsOn(child, Importance.Important);
+        var child = HealthNode.Create("Child");
+        var p1 = HealthNode.Create("P1").DependsOn(child, Importance.Required);
+        var p2 = HealthNode.Create("P2").DependsOn(child, Importance.Important);
 
         Assert.Equal(2, child.Parents.Count);
     }
@@ -116,7 +116,7 @@ public class DelegateHealthNodeTests
     [Fact]
     public void HasParents_FalseForOrphanedNode()
     {
-        var orphan = HealthNode.CreateDelegate("Orphan");
+        var orphan = HealthNode.Create("Orphan");
 
         Assert.False(orphan.HasParents);
         Assert.Empty(orphan.Parents);
@@ -127,9 +127,9 @@ public class DelegateHealthNodeTests
     [Fact]
     public void RemoveDependency_RemovesEdge()
     {
-        var child = HealthNode.CreateDelegate("Child",
+        var child = HealthNode.Create("Child").WithHealthProbe(
             () => HealthEvaluation.Unhealthy("down"));
-        var parent = HealthNode.CreateDelegate("Parent")
+        var parent = HealthNode.Create("Parent")
             .DependsOn(child, Importance.Required);
         var graph = HealthGraph.Create(parent);
 
@@ -145,8 +145,8 @@ public class DelegateHealthNodeTests
     [Fact]
     public void RemoveDependency_ClearsParentOnChild()
     {
-        var child = HealthNode.CreateDelegate("Child");
-        var parent = HealthNode.CreateDelegate("Parent")
+        var child = HealthNode.Create("Child");
+        var parent = HealthNode.Create("Parent")
             .DependsOn(child, Importance.Required);
 
         Assert.True(child.HasParents);
@@ -160,8 +160,8 @@ public class DelegateHealthNodeTests
     [Fact]
     public void RemoveDependency_UnknownNode_ReturnsFalse()
     {
-        var parent = HealthNode.CreateDelegate("Parent");
-        var unknown = HealthNode.CreateDelegate("Unknown");
+        var parent = HealthNode.Create("Parent");
+        var unknown = HealthNode.Create("Unknown");
 
         Assert.False(parent.RemoveDependency(unknown));
     }

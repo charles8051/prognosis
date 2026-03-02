@@ -7,8 +7,8 @@ public class HealthGraphTests
     [Fact]
     public void Create_SingleRoot_IndexesAllReachableNodes()
     {
-        var leaf = HealthNode.CreateDelegate("Leaf");
-        var root = HealthNode.CreateDelegate("Root")
+        var leaf = HealthNode.Create("Leaf");
+        var root = HealthNode.Create("Root")
             .DependsOn(leaf, Importance.Required);
 
         var graph = HealthGraph.Create(root);
@@ -21,9 +21,9 @@ public class HealthGraphTests
     [Fact]
     public void Create_MultipleChildren_IndexesAll()
     {
-        var a = HealthNode.CreateDelegate("A");
-        var b = HealthNode.CreateDelegate("B");
-        var root = HealthNode.CreateComposite("Root")
+        var a = HealthNode.Create("A");
+        var b = HealthNode.Create("B");
+        var root = HealthNode.Create("Root")
             .DependsOn(a, Importance.Required)
             .DependsOn(b, Importance.Required);
 
@@ -35,10 +35,10 @@ public class HealthGraphTests
     [Fact]
     public void Create_SharedDependency_IndexedOnce()
     {
-        var shared = HealthNode.CreateDelegate("Shared");
-        var a = HealthNode.CreateDelegate("A").DependsOn(shared, Importance.Required);
-        var b = HealthNode.CreateDelegate("B").DependsOn(shared, Importance.Required);
-        var root = HealthNode.CreateComposite("Root")
+        var shared = HealthNode.Create("Shared");
+        var a = HealthNode.Create("A").DependsOn(shared, Importance.Required);
+        var b = HealthNode.Create("B").DependsOn(shared, Importance.Required);
+        var root = HealthNode.Create("Root")
             .DependsOn(a, Importance.Required)
             .DependsOn(b, Importance.Required);
 
@@ -51,9 +51,9 @@ public class HealthGraphTests
     [Fact]
     public void Create_DeepGraph_IndexesAllLevels()
     {
-        var c = HealthNode.CreateDelegate("C");
-        var b = HealthNode.CreateDelegate("B").DependsOn(c, Importance.Required);
-        var a = HealthNode.CreateDelegate("A").DependsOn(b, Importance.Required);
+        var c = HealthNode.Create("C");
+        var b = HealthNode.Create("B").DependsOn(c, Importance.Required);
+        var a = HealthNode.Create("A").DependsOn(b, Importance.Required);
 
         var graph = HealthGraph.Create(a);
 
@@ -66,8 +66,8 @@ public class HealthGraphTests
     [Fact]
     public void Root_ReturnsExactNodePassed()
     {
-        var leaf = HealthNode.CreateDelegate("Leaf");
-        var root = HealthNode.CreateDelegate("Root")
+        var leaf = HealthNode.Create("Leaf");
+        var root = HealthNode.Create("Root")
             .DependsOn(leaf, Importance.Required);
 
         var graph = HealthGraph.Create(root);
@@ -78,10 +78,10 @@ public class HealthGraphTests
     [Fact]
     public void Root_WithMultipleChildren_ReturnsRoot()
     {
-        var shared = HealthNode.CreateDelegate("Shared");
-        var a = HealthNode.CreateDelegate("A").DependsOn(shared, Importance.Required);
-        var b = HealthNode.CreateDelegate("B").DependsOn(shared, Importance.Required);
-        var root = HealthNode.CreateComposite("Root")
+        var shared = HealthNode.Create("Shared");
+        var a = HealthNode.Create("A").DependsOn(shared, Importance.Required);
+        var b = HealthNode.Create("B").DependsOn(shared, Importance.Required);
+        var root = HealthNode.Create("Root")
             .DependsOn(a, Importance.Required)
             .DependsOn(b, Importance.Required);
 
@@ -96,7 +96,7 @@ public class HealthGraphTests
     [Fact]
     public void Indexer_ReturnsNodeByName()
     {
-        var node = HealthNode.CreateDelegate("MyNode");
+        var node = HealthNode.Create("MyNode");
         var graph = HealthGraph.Create(node);
 
         Assert.Same(node, graph["MyNode"]);
@@ -105,7 +105,7 @@ public class HealthGraphTests
     [Fact]
     public void Indexer_UnknownName_ThrowsKeyNotFound()
     {
-        var graph = HealthGraph.Create(HealthNode.CreateDelegate("A"));
+        var graph = HealthGraph.Create(HealthNode.Create("A"));
 
         Assert.Throws<KeyNotFoundException>(() => graph["Missing"]);
     }
@@ -115,7 +115,7 @@ public class HealthGraphTests
     [Fact]
     public void TryGetService_Found_ReturnsTrue()
     {
-        var node = HealthNode.CreateDelegate("DB");
+        var node = HealthNode.Create("DB");
         var graph = HealthGraph.Create(node);
 
         Assert.True(graph.TryGetNode("DB", out var found));
@@ -125,7 +125,7 @@ public class HealthGraphTests
     [Fact]
     public void TryGetService_NotFound_ReturnsFalse()
     {
-        var graph = HealthGraph.Create(HealthNode.CreateDelegate("A"));
+        var graph = HealthGraph.Create(HealthNode.Create("A"));
 
         Assert.False(graph.TryGetNode("Missing", out _));
     }
@@ -134,7 +134,7 @@ public class HealthGraphTests
     public void TryGetServiceGeneric_Found_ReturnsTrue()
     {
         // The generic overload uses typeof(T).Name as the key.
-        var node = HealthNode.CreateDelegate(typeof(StubHealthAware).Name);
+        var node = HealthNode.Create(typeof(StubHealthAware).Name);
         var graph = HealthGraph.Create(node);
 
         Assert.True(graph.TryGetNode<StubHealthAware>(out var found));
@@ -144,7 +144,7 @@ public class HealthGraphTests
     [Fact]
     public void TryGetServiceGeneric_NotFound_ReturnsFalse()
     {
-        var graph = HealthGraph.Create(HealthNode.CreateDelegate("Unrelated"));
+        var graph = HealthGraph.Create(HealthNode.Create("Unrelated"));
 
         Assert.False(graph.TryGetNode<StubHealthAware>(out _));
     }
@@ -154,9 +154,9 @@ public class HealthGraphTests
     [Fact]
     public void Services_ReturnsAllIndexedNodes()
     {
-        var a = HealthNode.CreateDelegate("A");
-        var b = HealthNode.CreateDelegate("B");
-        var root = HealthNode.CreateComposite("Root")
+        var a = HealthNode.Create("A");
+        var b = HealthNode.Create("B");
+        var root = HealthNode.Create("Root")
             .DependsOn(a, Importance.Required)
             .DependsOn(b, Importance.Required);
         var graph = HealthGraph.Create(root);
@@ -170,12 +170,12 @@ public class HealthGraphTests
     [Fact]
     public void TryGetNode_AfterDependsOn_FindsNewNode()
     {
-        var root = HealthNode.CreateDelegate("Root");
+        var root = HealthNode.Create("Root");
         var graph = HealthGraph.Create(root);
 
         Assert.False(graph.TryGetNode("NewChild", out _));
 
-        var child = HealthNode.CreateDelegate("NewChild");
+        var child = HealthNode.Create("NewChild");
         root.DependsOn(child, Importance.Required);
 
         Assert.True(graph.TryGetNode("NewChild", out var found));
@@ -185,12 +185,12 @@ public class HealthGraphTests
     [Fact]
     public void Nodes_AfterDependsOn_IncludesNewNode()
     {
-        var root = HealthNode.CreateDelegate("Root");
+        var root = HealthNode.Create("Root");
         var graph = HealthGraph.Create(root);
 
         Assert.Single(graph.Nodes);
 
-        root.DependsOn(HealthNode.CreateDelegate("Added"), Importance.Required);
+        root.DependsOn(HealthNode.Create("Added"), Importance.Required);
 
         Assert.Equal(2, graph.Nodes.Count());
     }
@@ -198,8 +198,8 @@ public class HealthGraphTests
     [Fact]
     public void Nodes_AfterRemoveDependency_ExcludesOrphanedNode()
     {
-        var child = HealthNode.CreateDelegate("Child");
-        var root = HealthNode.CreateDelegate("Root")
+        var child = HealthNode.Create("Child");
+        var root = HealthNode.Create("Root")
             .DependsOn(child, Importance.Required);
         var graph = HealthGraph.Create(root);
 
@@ -214,14 +214,14 @@ public class HealthGraphTests
     [Fact]
     public void TryGetNode_AfterDeepDependsOn_FindsTransitiveNode()
     {
-        var root = HealthNode.CreateDelegate("Root");
-        var mid = HealthNode.CreateDelegate("Mid");
+        var root = HealthNode.Create("Root");
+        var mid = HealthNode.Create("Mid");
         var graph = HealthGraph.Create(root);
 
         root.DependsOn(mid, Importance.Required);
         Assert.True(graph.TryGetNode("Mid", out _));
 
-        var leaf = HealthNode.CreateDelegate("Leaf");
+        var leaf = HealthNode.Create("Leaf");
         mid.DependsOn(leaf, Importance.Required);
 
         Assert.True(graph.TryGetNode("Leaf", out var found));
@@ -233,9 +233,9 @@ public class HealthGraphTests
     [Fact]
     public void GetReport_ReturnsReportFromRoots()
     {
-        var child = HealthNode.CreateDelegate("Child",
+        var child = HealthNode.Create("Child").WithHealthProbe(
             () => HealthEvaluation.Unhealthy("down"));
-        var root = HealthNode.CreateDelegate("Root")
+        var root = HealthNode.Create("Root")
             .DependsOn(child, Importance.Required);
         var graph = HealthGraph.Create(root);
 
@@ -248,7 +248,7 @@ public class HealthGraphTests
     [Fact]
     public void GetReport_SingleHealthyNode_ReturnsHealthy()
     {
-        var graph = HealthGraph.Create(HealthNode.CreateDelegate("Only"));
+        var graph = HealthGraph.Create(HealthNode.Create("Only"));
 
         var report = graph.GetReport();
 
@@ -261,7 +261,7 @@ public class HealthGraphTests
     [Fact]
     public void CreateTreeSnapshot_SingleNode_ReturnsLeafWithNoDependencies()
     {
-        var graph = HealthGraph.Create(HealthNode.CreateDelegate("Only"));
+        var graph = HealthGraph.Create(HealthNode.Create("Only"));
 
         var tree = graph.CreateTreeSnapshot();
 
@@ -273,9 +273,9 @@ public class HealthGraphTests
     [Fact]
     public void CreateTreeSnapshot_PreservesHierarchyAndImportance()
     {
-        var db = HealthNode.CreateDelegate("Database");
-        var cache = HealthNode.CreateDelegate("Cache");
-        var auth = HealthNode.CreateDelegate("Auth")
+        var db = HealthNode.Create("Database");
+        var cache = HealthNode.Create("Cache");
+        var auth = HealthNode.Create("Auth")
             .DependsOn(db, Importance.Required)
             .DependsOn(cache, Importance.Important);
         var graph = HealthGraph.Create(auth);
@@ -293,9 +293,9 @@ public class HealthGraphTests
     [Fact]
     public void CreateTreeSnapshot_PropagatesUnhealthyStatus()
     {
-        var child = HealthNode.CreateDelegate("Child",
+        var child = HealthNode.Create("Child").WithHealthProbe(
             () => HealthEvaluation.Unhealthy("down"));
-        var root = HealthNode.CreateDelegate("Root")
+        var root = HealthNode.Create("Root")
             .DependsOn(child, Importance.Required);
         var graph = HealthGraph.Create(root);
 
@@ -309,10 +309,10 @@ public class HealthGraphTests
     [Fact]
     public void CreateTreeSnapshot_DiamondDependency_SecondOccurrenceIsLeaf()
     {
-        var shared = HealthNode.CreateDelegate("Shared");
-        var a = HealthNode.CreateDelegate("A").DependsOn(shared, Importance.Required);
-        var b = HealthNode.CreateDelegate("B").DependsOn(shared, Importance.Required);
-        var root = HealthNode.CreateComposite("Root")
+        var shared = HealthNode.Create("Shared");
+        var a = HealthNode.Create("A").DependsOn(shared, Importance.Required);
+        var b = HealthNode.Create("B").DependsOn(shared, Importance.Required);
+        var root = HealthNode.Create("Root")
             .DependsOn(a, Importance.Required)
             .DependsOn(b, Importance.Required);
         var graph = HealthGraph.Create(root);
@@ -334,13 +334,13 @@ public class HealthGraphTests
     [Fact]
     public void TopologyChanged_DependsOn_EmitsAddedNode()
     {
-        var root = HealthNode.CreateDelegate("Root");
+        var root = HealthNode.Create("Root");
         var graph = HealthGraph.Create(root);
 
         var emitted = new List<TopologyChange>();
         graph.TopologyChanged.Subscribe(new TestObserver<TopologyChange>(emitted.Add));
 
-        var child = HealthNode.CreateDelegate("Child");
+        var child = HealthNode.Create("Child");
         root.DependsOn(child, Importance.Required);
 
         Assert.Single(emitted);
@@ -352,8 +352,8 @@ public class HealthGraphTests
     [Fact]
     public void TopologyChanged_RemoveDependency_EmitsRemovedNode()
     {
-        var child = HealthNode.CreateDelegate("Child");
-        var root = HealthNode.CreateDelegate("Root")
+        var child = HealthNode.Create("Child");
+        var root = HealthNode.Create("Root")
             .DependsOn(child, Importance.Required);
         var graph = HealthGraph.Create(root);
 
@@ -371,9 +371,9 @@ public class HealthGraphTests
     [Fact]
     public void TopologyChanged_NoStructuralChange_DoesNotEmit()
     {
-        var child = HealthNode.CreateDelegate("Child",
+        var child = HealthNode.Create("Child").WithHealthProbe(
             () => HealthEvaluation.Unhealthy("down"));
-        var root = HealthNode.CreateDelegate("Root")
+        var root = HealthNode.Create("Root")
             .DependsOn(child, Importance.Required);
         var graph = HealthGraph.Create(root);
 
@@ -389,14 +389,14 @@ public class HealthGraphTests
     [Fact]
     public void TopologyChanged_TransitiveDependsOn_EmitsAllNewNodes()
     {
-        var root = HealthNode.CreateDelegate("Root");
+        var root = HealthNode.Create("Root");
         var graph = HealthGraph.Create(root);
 
         var emitted = new List<TopologyChange>();
         graph.TopologyChanged.Subscribe(new TestObserver<TopologyChange>(emitted.Add));
 
-        var leaf = HealthNode.CreateDelegate("Leaf");
-        var mid = HealthNode.CreateDelegate("Mid")
+        var leaf = HealthNode.Create("Leaf");
+        var mid = HealthNode.Create("Mid")
             .DependsOn(leaf, Importance.Required);
         root.DependsOn(mid, Importance.Required);
 
@@ -409,7 +409,7 @@ public class HealthGraphTests
     [Fact]
     public void TopologyChanged_Unsubscribe_StopsNotifications()
     {
-        var root = HealthNode.CreateDelegate("Root");
+        var root = HealthNode.Create("Root");
         var graph = HealthGraph.Create(root);
 
         var emitted = new List<TopologyChange>();
@@ -418,7 +418,7 @@ public class HealthGraphTests
 
         subscription.Dispose();
 
-        root.DependsOn(HealthNode.CreateDelegate("Child"), Importance.Required);
+        root.DependsOn(HealthNode.Create("Child"), Importance.Required);
 
         Assert.Empty(emitted);
     }
@@ -428,12 +428,12 @@ public class HealthGraphTests
     public void SharedNode_TwoGraphs_BothReceiveStatusChanged()
     {
         var isHealthy = true;
-        var shared = HealthNode.CreateDelegate("Shared",
+        var shared = HealthNode.Create("Shared").WithHealthProbe(
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
 
-        var root1 = HealthNode.CreateDelegate("Root1")
+        var root1 = HealthNode.Create("Root1")
             .DependsOn(shared, Importance.Required);
-        var root2 = HealthNode.CreateDelegate("Root2")
+        var root2 = HealthNode.Create("Root2")
             .DependsOn(shared, Importance.Required);
 
         var graph1 = HealthGraph.Create(root1);
@@ -458,10 +458,10 @@ public class HealthGraphTests
     [Fact]
     public void SharedNode_DependsOn_BothGraphsNotified()
     {
-        var shared = HealthNode.CreateDelegate("Shared");
-        var root1 = HealthNode.CreateDelegate("Root1")
+        var shared = HealthNode.Create("Shared");
+        var root1 = HealthNode.Create("Root1")
             .DependsOn(shared, Importance.Required);
-        var root2 = HealthNode.CreateDelegate("Root2")
+        var root2 = HealthNode.Create("Root2")
             .DependsOn(shared, Importance.Required);
 
         var graph1 = HealthGraph.Create(root1);
@@ -474,7 +474,7 @@ public class HealthGraphTests
 
         // Add a new child to the shared node — both graphs should detect
         // the topology change.
-        var child = HealthNode.CreateDelegate("Child",
+        var child = HealthNode.Create("Child").WithHealthProbe(
             () => HealthEvaluation.Unhealthy("down"));
         shared.DependsOn(child, Importance.Required);
 
@@ -488,12 +488,12 @@ public class HealthGraphTests
     public void SharedNode_RemovedFromOneGraph_OtherGraphStillWorks()
     {
         var isHealthy = true;
-        var shared = HealthNode.CreateDelegate("Shared",
+        var shared = HealthNode.Create("Shared").WithHealthProbe(
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
 
-        var root1 = HealthNode.CreateDelegate("Root1")
+        var root1 = HealthNode.Create("Root1")
             .DependsOn(shared, Importance.Required);
-        var root2 = HealthNode.CreateDelegate("Root2")
+        var root2 = HealthNode.Create("Root2")
             .DependsOn(shared, Importance.Required);
 
         var graph1 = HealthGraph.Create(root1);
@@ -519,7 +519,7 @@ public class HealthGraphTests
     [Fact]
     public void RefreshAll_EmitsStatusChanged_OnFirstCall()
     {
-        var node = HealthNode.CreateDelegate("Svc",
+        var node = HealthNode.Create("Svc").WithHealthProbe(
             () => HealthEvaluation.Unhealthy("down"));
         var graph = HealthGraph.Create(node);
 
@@ -536,7 +536,7 @@ public class HealthGraphTests
     [Fact]
     public void RefreshAll_NoChange_DoesNotEmitDuplicate()
     {
-        var node = HealthNode.CreateDelegate("Svc");
+        var node = HealthNode.Create("Svc");
         var graph = HealthGraph.Create(node);
 
         var emitted = new List<HealthReport>();
@@ -552,7 +552,7 @@ public class HealthGraphTests
     public void RefreshAll_StateChange_EmitsNewReport()
     {
         var isHealthy = true;
-        var node = HealthNode.CreateDelegate("Svc",
+        var node = HealthNode.Create("Svc").WithHealthProbe(
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
         var graph = HealthGraph.Create(node);
 
@@ -574,7 +574,7 @@ public class HealthGraphTests
     [Fact]
     public void StatusChanged_Unsubscribe_StopsNotifications()
     {
-        var node = HealthNode.CreateDelegate("Svc",
+        var node = HealthNode.Create("Svc").WithHealthProbe(
             () => HealthEvaluation.Unhealthy("down"));
         var graph = HealthGraph.Create(node);
 
@@ -594,9 +594,9 @@ public class HealthGraphTests
     [Fact]
     public void Create_DuplicateNodeNames_ThrowsArgumentException()
     {
-        var a = HealthNode.CreateDelegate("Dup");
-        var b = HealthNode.CreateDelegate("Dup");
-        var root = HealthNode.CreateComposite("Root")
+        var a = HealthNode.Create("Dup");
+        var b = HealthNode.Create("Dup");
+        var root = HealthNode.Create("Root")
             .DependsOn(a, Importance.Required)
             .DependsOn(b, Importance.Required);
 
@@ -609,7 +609,7 @@ public class HealthGraphTests
     public void Dispose_StopsStatusChangedNotifications()
     {
         var isHealthy = true;
-        var node = HealthNode.CreateDelegate("Svc",
+        var node = HealthNode.Create("Svc").WithHealthProbe(
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
         var graph = HealthGraph.Create(node);
 
@@ -627,7 +627,7 @@ public class HealthGraphTests
     [Fact]
     public void Dispose_CompletesObservers()
     {
-        var node = HealthNode.CreateDelegate("Svc");
+        var node = HealthNode.Create("Svc");
         var graph = HealthGraph.Create(node);
 
         var completed = false;
@@ -642,7 +642,7 @@ public class HealthGraphTests
     [Fact]
     public void Dispose_TopologyChanged_CompletesObservers()
     {
-        var node = HealthNode.CreateDelegate("Svc");
+        var node = HealthNode.Create("Svc");
         var graph = HealthGraph.Create(node);
 
         var completed = false;
@@ -658,12 +658,12 @@ public class HealthGraphTests
     public void Dispose_SharedNode_OtherGraphStillWorks()
     {
         var isHealthy = true;
-        var shared = HealthNode.CreateDelegate("Shared",
+        var shared = HealthNode.Create("Shared").WithHealthProbe(
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
 
-        var root1 = HealthNode.CreateDelegate("Root1")
+        var root1 = HealthNode.Create("Root1")
             .DependsOn(shared, Importance.Required);
-        var root2 = HealthNode.CreateDelegate("Root2")
+        var root2 = HealthNode.Create("Root2")
             .DependsOn(shared, Importance.Required);
 
         var graph1 = HealthGraph.Create(root1);
@@ -683,7 +683,7 @@ public class HealthGraphTests
     [Fact]
     public void Dispose_CalledMultipleTimes_IsIdempotent()
     {
-        var graph = HealthGraph.Create(HealthNode.CreateDelegate("Svc"));
+        var graph = HealthGraph.Create(HealthNode.Create("Svc"));
 
         graph.Dispose();
         graph.Dispose();
@@ -693,7 +693,7 @@ public class HealthGraphTests
 /// <summary>Stub for generic TryGetNode tests.</summary>
 file class StubHealthAware
 {
-    public HealthNode HealthNode { get; } = HealthNode.CreateDelegate(typeof(StubHealthAware).Name);
+    public HealthNode HealthNode { get; } = HealthNode.Create(typeof(StubHealthAware).Name);
 }
 
 file class TestObserver<T> : IObserver<T>

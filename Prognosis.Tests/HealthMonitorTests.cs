@@ -13,7 +13,7 @@ public class HealthMonitorTests : IAsyncDisposable
     [Fact]
     public void Poll_EmitsInitialReport()
     {
-        var svc = HealthNode.CreateDelegate("Svc");
+        var svc = HealthNode.Create("Svc");
         _monitor = new HealthMonitor(svc, TimeSpan.FromHours(1));
 
         var reports = new List<HealthReport>();
@@ -29,7 +29,7 @@ public class HealthMonitorTests : IAsyncDisposable
     public void Poll_StateChanges_EmitsNewReport()
     {
         var isHealthy = true;
-        var svc = HealthNode.CreateDelegate("Svc",
+        var svc = HealthNode.Create("Svc").WithHealthProbe(
             () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
         _monitor = new HealthMonitor(svc, TimeSpan.FromHours(1));
 
@@ -48,7 +48,7 @@ public class HealthMonitorTests : IAsyncDisposable
     [Fact]
     public void ReportChanged_MultipleSubscribers_AllReceive()
     {
-        var svc = HealthNode.CreateDelegate("Svc");
+        var svc = HealthNode.Create("Svc");
         _monitor = new HealthMonitor(svc, TimeSpan.FromHours(1));
 
         var reports1 = new List<HealthReport>();
@@ -65,7 +65,7 @@ public class HealthMonitorTests : IAsyncDisposable
     [Fact]
     public async Task DisposeAsync_StopsPolling()
     {
-        var svc = HealthNode.CreateDelegate("Svc");
+        var svc = HealthNode.Create("Svc");
         _monitor = new HealthMonitor(svc, TimeSpan.FromMilliseconds(50));
         _monitor.Start();
 
@@ -78,8 +78,8 @@ public class HealthMonitorTests : IAsyncDisposable
     [Fact]
     public void Constructor_WithHealthGraph_Polls()
     {
-        var child = HealthNode.CreateDelegate("Child");
-        var root = HealthNode.CreateDelegate("Root")
+        var child = HealthNode.Create("Child");
+        var root = HealthNode.Create("Root")
             .DependsOn(child, Importance.Required);
         var graph = HealthGraph.Create(root);
 
@@ -97,8 +97,8 @@ public class HealthMonitorTests : IAsyncDisposable
     [Fact]
     public void Constructor_WithHealthGraph_ReflectsDynamicDependencyChanges()
     {
-        var a = HealthNode.CreateDelegate("A");
-        var b = HealthNode.CreateDelegate("B",
+        var a = HealthNode.Create("A");
+        var b = HealthNode.Create("B").WithHealthProbe(
             () => HealthEvaluation.Unhealthy("down"));
         var graph = HealthGraph.Create(a);
 
@@ -123,7 +123,7 @@ public class HealthMonitorTests : IAsyncDisposable
     [Fact]
     public void Dispose_Synchronous_StopsPolling()
     {
-        var svc = HealthNode.CreateDelegate("Svc");
+        var svc = HealthNode.Create("Svc");
         _monitor = new HealthMonitor(svc, TimeSpan.FromMilliseconds(50));
         _monitor.Start();
 
@@ -136,7 +136,7 @@ public class HealthMonitorTests : IAsyncDisposable
     [Fact]
     public void Start_CalledMultipleTimes_IsIdempotent()
     {
-        var svc = HealthNode.CreateDelegate("Svc");
+        var svc = HealthNode.Create("Svc");
         _monitor = new HealthMonitor(svc, TimeSpan.FromHours(1));
 
         // Should not throw or create multiple polling tasks.
@@ -148,7 +148,7 @@ public class HealthMonitorTests : IAsyncDisposable
     [Fact]
     public void Graph_WithHealthGraph_ReturnsSameInstance()
     {
-        var root = HealthNode.CreateDelegate("Root");
+        var root = HealthNode.Create("Root");
         var graph = HealthGraph.Create(root);
         _monitor = new HealthMonitor(graph, TimeSpan.FromHours(1));
 
@@ -158,7 +158,7 @@ public class HealthMonitorTests : IAsyncDisposable
     [Fact]
     public void Graph_WithHealthNode_ReturnsCreatedGraph()
     {
-        var root = HealthNode.CreateDelegate("Root");
+        var root = HealthNode.Create("Root");
         _monitor = new HealthMonitor(root, TimeSpan.FromHours(1));
 
         Assert.NotNull(_monitor.Graph);

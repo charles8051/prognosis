@@ -5,8 +5,8 @@ public class CompositeHealthNodeTests
     [Fact]
     public void Evaluate_AllHealthy_ReturnsHealthy()
     {
-        var dep = HealthNode.CreateDelegate("Dep");
-        var composite = HealthNode.CreateComposite("Comp")
+        var dep = HealthNode.Create("Dep");
+        var composite = HealthNode.Create("Comp")
             .DependsOn(dep, Importance.Required);
         var graph = HealthGraph.Create(composite);
 
@@ -16,9 +16,9 @@ public class CompositeHealthNodeTests
     [Fact]
     public void Evaluate_UnhealthyRequired_ReturnsUnhealthy()
     {
-        var dep = HealthNode.CreateDelegate("Dep",
+        var dep = HealthNode.Create("Dep").WithHealthProbe(
             () => HealthEvaluation.Unhealthy("down"));
-        var composite = HealthNode.CreateComposite("Comp")
+        var composite = HealthNode.Create("Comp")
             .DependsOn(dep, Importance.Required);
         var graph = HealthGraph.Create(composite);
 
@@ -28,13 +28,13 @@ public class CompositeHealthNodeTests
     [Fact]
     public void Evaluate_MixedImportance_PropagatesCorrectly()
     {
-        var required = HealthNode.CreateDelegate("Req");
-        var important = HealthNode.CreateDelegate("Imp",
+        var required = HealthNode.Create("Req");
+        var important = HealthNode.Create("Imp").WithHealthProbe(
             () => HealthStatus.Unhealthy);
-        var optional = HealthNode.CreateDelegate("Opt",
+        var optional = HealthNode.Create("Opt").WithHealthProbe(
             () => HealthStatus.Unhealthy);
 
-        var composite = HealthNode.CreateComposite("Comp")
+        var composite = HealthNode.Create("Comp")
             .DependsOn(required, Importance.Required)
             .DependsOn(important, Importance.Important)
             .DependsOn(optional, Importance.Optional);
@@ -48,7 +48,7 @@ public class CompositeHealthNodeTests
     [Fact]
     public void Name_ReturnsConstructorValue()
     {
-        var composite = HealthNode.CreateComposite("MyComposite");
+        var composite = HealthNode.Create("MyComposite");
 
         Assert.Equal("MyComposite", composite.Name);
     }
@@ -56,9 +56,9 @@ public class CompositeHealthNodeTests
     [Fact]
     public void Dependencies_ReflectsDependsOnCalls()
     {
-        var a = HealthNode.CreateDelegate("A");
-        var b = HealthNode.CreateDelegate("B");
-        var composite = HealthNode.CreateComposite("Comp")
+        var a = HealthNode.Create("A");
+        var b = HealthNode.Create("B");
+        var composite = HealthNode.Create("Comp")
             .DependsOn(a, Importance.Required)
             .DependsOn(b, Importance.Optional);
 

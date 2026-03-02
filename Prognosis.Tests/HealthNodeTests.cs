@@ -7,7 +7,7 @@ public class HealthNodeTests
     [Fact]
     public void Evaluate_NoDependencies_ReturnsIntrinsicCheck()
     {
-        var node = HealthNode.CreateDelegate("Svc",
+        var node = HealthNode.Create("Svc").WithHealthProbe(
             () => HealthEvaluation.Degraded("slow"));
         var graph = HealthGraph.Create(node);
 
@@ -20,9 +20,9 @@ public class HealthNodeTests
     [Fact]
     public void Evaluate_WithDependency_AggregatesCorrectly()
     {
-        var dep = HealthNode.CreateDelegate("Dep",
+        var dep = HealthNode.Create("Dep").WithHealthProbe(
             () => HealthEvaluation.Unhealthy("down"));
-        var node = HealthNode.CreateDelegate("Svc")
+        var node = HealthNode.Create("Svc")
             .DependsOn(dep, Importance.Required);
         var graph = HealthGraph.Create(node);
 
@@ -36,8 +36,8 @@ public class HealthNodeTests
     [Fact]
     public void DependsOn_AddsDependency()
     {
-        var node = HealthNode.CreateDelegate("Svc");
-        var dep = HealthNode.CreateDelegate("Dep");
+        var node = HealthNode.Create("Svc");
+        var dep = HealthNode.Create("Dep");
 
         node.DependsOn(dep, Importance.Important);
 
@@ -49,8 +49,8 @@ public class HealthNodeTests
     [Fact]
     public void DependsOn_ReturnsSelf_ForChaining()
     {
-        var node = HealthNode.CreateDelegate("Svc");
-        var dep = HealthNode.CreateDelegate("Dep");
+        var node = HealthNode.Create("Svc");
+        var dep = HealthNode.Create("Dep");
 
         var returned = node.DependsOn(dep, Importance.Required);
 
@@ -60,9 +60,9 @@ public class HealthNodeTests
     [Fact]
     public void DependsOn_AfterGraphCreation_IsAllowed()
     {
-        var dep = HealthNode.CreateDelegate("Dep",
+        var dep = HealthNode.Create("Dep").WithHealthProbe(
             () => HealthEvaluation.Unhealthy("down"));
-        var node = HealthNode.CreateDelegate("Svc");
+        var node = HealthNode.Create("Svc");
         var graph = HealthGraph.Create(node);
 
         // Check initial state.
@@ -78,9 +78,9 @@ public class HealthNodeTests
     [Fact]
     public void RemoveDependency_DetachesEdge()
     {
-        var dep = HealthNode.CreateDelegate("Dep",
+        var dep = HealthNode.Create("Dep").WithHealthProbe(
             () => HealthEvaluation.Unhealthy("down"));
-        var node = HealthNode.CreateDelegate("Svc")
+        var node = HealthNode.Create("Svc")
             .DependsOn(dep, Importance.Required);
         var graph = HealthGraph.Create(node);
 
@@ -96,8 +96,8 @@ public class HealthNodeTests
     [Fact]
     public void RemoveDependency_UnknownService_ReturnsFalse()
     {
-        var node = HealthNode.CreateDelegate("Svc");
-        var unknown = HealthNode.CreateDelegate("Unknown");
+        var node = HealthNode.Create("Svc");
+        var unknown = HealthNode.Create("Unknown");
 
         Assert.False(node.RemoveDependency(unknown));
     }
@@ -107,8 +107,8 @@ public class HealthNodeTests
     [Fact]
     public void Evaluate_CircularDependency_DoesNotStackOverflow()
     {
-        var a = HealthNode.CreateDelegate("A");
-        var b = HealthNode.CreateDelegate("B").DependsOn(a, Importance.Required);
+        var a = HealthNode.Create("A");
+        var b = HealthNode.Create("B").DependsOn(a, Importance.Required);
         a.DependsOn(b, Importance.Required);
         var graph = HealthGraph.Create(a);
 
@@ -128,17 +128,17 @@ public class HealthNodeTests
     [InlineData("   ")]
     public void CreateDelegate_NullOrEmptyName_ThrowsArgumentException(string? name)
     {
-        Assert.Throws<ArgumentException>(() => HealthNode.CreateDelegate(name!));
+        Assert.Throws<ArgumentException>(() => HealthNode.Create(name!));
     }
 
     [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void CreateDelegate_WithCheck_NullOrEmptyName_ThrowsArgumentException(string? name)
+    public void Create_WithCheck_NullOrEmptyName_ThrowsArgumentException(string? name)
     {
         Assert.Throws<ArgumentException>(
-            () => HealthNode.CreateDelegate(name!, () => HealthStatus.Healthy));
+            () => HealthNode.Create(name!).WithHealthProbe(() => HealthStatus.Healthy));
     }
 
     [Theory]
@@ -147,7 +147,7 @@ public class HealthNodeTests
     [InlineData("   ")]
     public void CreateComposite_NullOrEmptyName_ThrowsArgumentException(string? name)
     {
-        Assert.Throws<ArgumentException>(() => HealthNode.CreateComposite(name!));
+        Assert.Throws<ArgumentException>(() => HealthNode.Create(name!));
     }
 
     // ── Duplicate edge guard ─────────────────────────────────────────
@@ -155,8 +155,8 @@ public class HealthNodeTests
     [Fact]
     public void DependsOn_SameNodeTwice_ThrowsInvalidOperationException()
     {
-        var dep = HealthNode.CreateDelegate("Dep");
-        var node = HealthNode.CreateDelegate("Svc")
+        var dep = HealthNode.Create("Dep");
+        var node = HealthNode.Create("Svc")
             .DependsOn(dep, Importance.Required);
 
         Assert.Throws<InvalidOperationException>(
@@ -168,7 +168,7 @@ public class HealthNodeTests
     [Fact]
     public void ReplaceCheck_SwapsIntrinsicCheck()
     {
-        var node = HealthNode.CreateDelegate("Svc",
+        var node = HealthNode.Create("Svc").WithHealthProbe(
             () => HealthStatus.Healthy);
         var graph = HealthGraph.Create(node);
 
@@ -184,9 +184,9 @@ public class HealthNodeTests
     [Fact]
     public void ReplaceCheck_PropagatesUpThroughParent()
     {
-        var child = HealthNode.CreateDelegate("Child",
+        var child = HealthNode.Create("Child").WithHealthProbe(
             () => HealthStatus.Healthy);
-        var parent = HealthNode.CreateDelegate("Parent")
+        var parent = HealthNode.Create("Parent")
             .DependsOn(child, Importance.Required);
         var graph = HealthGraph.Create(parent);
 
@@ -203,9 +203,9 @@ public class HealthNodeTests
     [Fact]
     public void ReplaceCheck_PreservesEdges()
     {
-        var dep = HealthNode.CreateDelegate("Dep",
+        var dep = HealthNode.Create("Dep").WithHealthProbe(
             () => HealthEvaluation.Unhealthy("down"));
-        var node = HealthNode.CreateDelegate("Svc",
+        var node = HealthNode.Create("Svc").WithHealthProbe(
             () => HealthStatus.Healthy)
             .DependsOn(dep, Importance.Required);
         var graph = HealthGraph.Create(node);
@@ -225,7 +225,7 @@ public class HealthNodeTests
     [Fact]
     public void ReplaceCheck_NullDelegate_ThrowsArgumentNullException()
     {
-        var node = HealthNode.CreateDelegate("Svc");
+        var node = HealthNode.Create("Svc");
 
         Assert.Throws<ArgumentNullException>(
             () => node.ReplaceCheck(null!));
@@ -234,9 +234,9 @@ public class HealthNodeTests
     [Fact]
     public void DependsOn_DifferentNodes_Allowed()
     {
-        var a = HealthNode.CreateDelegate("A");
-        var b = HealthNode.CreateDelegate("B");
-        var node = HealthNode.CreateDelegate("Svc")
+        var a = HealthNode.Create("A");
+        var b = HealthNode.Create("B");
+        var node = HealthNode.Create("Svc")
             .DependsOn(a, Importance.Required)
             .DependsOn(b, Importance.Required);
 
@@ -248,7 +248,7 @@ public class HealthNodeTests
     [Fact]
     public void ReportStatus_OverridesCachedEvaluation()
     {
-        var node = HealthNode.CreateDelegate("Svc",
+        var node = HealthNode.Create("Svc").WithHealthProbe(
             () => HealthStatus.Healthy);
         var graph = HealthGraph.Create(node);
 
@@ -262,9 +262,9 @@ public class HealthNodeTests
     [Fact]
     public void ReportStatus_PropagatesToParent()
     {
-        var child = HealthNode.CreateDelegate("Child",
+        var child = HealthNode.Create("Child").WithHealthProbe(
             () => HealthStatus.Healthy);
-        var parent = HealthNode.CreateDelegate("Parent")
+        var parent = HealthNode.Create("Parent")
             .DependsOn(child, Importance.Required);
         var graph = HealthGraph.Create(parent);
 
@@ -281,7 +281,7 @@ public class HealthNodeTests
     [Fact]
     public void ReportStatus_ExpiredByNextRefresh()
     {
-        var node = HealthNode.CreateDelegate("Svc",
+        var node = HealthNode.Create("Svc").WithHealthProbe(
             () => HealthStatus.Healthy);
         var graph = HealthGraph.Create(node);
 
@@ -298,9 +298,9 @@ public class HealthNodeTests
     [Fact]
     public void ReportStatus_AggregatesWithDependencies()
     {
-        var dep = HealthNode.CreateDelegate("Dep",
+        var dep = HealthNode.Create("Dep").WithHealthProbe(
             () => HealthEvaluation.Unhealthy("dep down"));
-        var node = HealthNode.CreateDelegate("Svc",
+        var node = HealthNode.Create("Svc").WithHealthProbe(
             () => HealthStatus.Healthy)
             .DependsOn(dep, Importance.Required);
         var graph = HealthGraph.Create(node);
@@ -314,7 +314,7 @@ public class HealthNodeTests
     [Fact]
     public void ReportStatus_NullEvaluation_ThrowsArgumentNullException()
     {
-        var node = HealthNode.CreateDelegate("Svc");
+        var node = HealthNode.Create("Svc");
 
         Assert.Throws<ArgumentNullException>(
             () => node.ReportStatus(null!));
@@ -323,15 +323,15 @@ public class HealthNodeTests
     [Fact]
     public void ReportStatus_CrossNodeAttribution_PropagatesCorrectly()
     {
-        var internet = HealthNode.CreateDelegate("Internet",
+        var internet = HealthNode.Create("Internet").WithHealthProbe(
             () => HealthStatus.Healthy);
-        var api = HealthNode.CreateDelegate("API",
+        var api = HealthNode.Create("API").WithHealthProbe(
             () => HealthStatus.Healthy)
             .DependsOn(internet, Importance.Required);
-        var cache = HealthNode.CreateDelegate("Cache",
+        var cache = HealthNode.Create("Cache").WithHealthProbe(
             () => HealthStatus.Healthy)
             .DependsOn(internet, Importance.Required);
-        var app = HealthNode.CreateComposite("App")
+        var app = HealthNode.Create("App")
             .DependsOn(api, Importance.Required)
             .DependsOn(cache, Importance.Required);
         var graph = HealthGraph.Create(app);

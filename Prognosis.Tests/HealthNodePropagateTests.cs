@@ -7,7 +7,7 @@ public class HealthNodePropagateTests
     [Fact]
     public void Refresh_EmitsReportOnStatusChange()
     {
-        var node = HealthNode.CreateDelegate("Node",
+        var node = HealthNode.Create("Node").WithHealthProbe(
             () => HealthEvaluation.Unhealthy("down"));
         var graph = HealthGraph.Create(node);
 
@@ -24,9 +24,9 @@ public class HealthNodePropagateTests
     public void Refresh_PropagatesFromChildToParent()
     {
         var isUnhealthy = false;
-        var leaf = HealthNode.CreateDelegate("Leaf",
+        var leaf = HealthNode.Create("Leaf").WithHealthProbe(
             () => isUnhealthy ? HealthStatus.Unhealthy : HealthStatus.Healthy);
-        var parent = HealthNode.CreateDelegate("Parent")
+        var parent = HealthNode.Create("Parent")
             .DependsOn(leaf, Importance.Required);
         var graph = HealthGraph.Create(parent);
 
@@ -46,11 +46,11 @@ public class HealthNodePropagateTests
     public void Refresh_PropagatesThroughChain()
     {
         var isUnhealthy = false;
-        var leaf = HealthNode.CreateDelegate("Leaf",
+        var leaf = HealthNode.Create("Leaf").WithHealthProbe(
             () => isUnhealthy ? HealthStatus.Unhealthy : HealthStatus.Healthy);
-        var middle = HealthNode.CreateDelegate("Middle")
+        var middle = HealthNode.Create("Middle")
             .DependsOn(leaf, Importance.Required);
-        var root = HealthNode.CreateDelegate("Root")
+        var root = HealthNode.Create("Root")
             .DependsOn(middle, Importance.Required);
         var graph = HealthGraph.Create(root);
 
@@ -70,13 +70,13 @@ public class HealthNodePropagateTests
     {
         // leaf → A and leaf → B, both → root (diamond shape)
         var isUnhealthy = false;
-        var leaf = HealthNode.CreateDelegate("Leaf",
+        var leaf = HealthNode.Create("Leaf").WithHealthProbe(
             () => isUnhealthy ? HealthStatus.Unhealthy : HealthStatus.Healthy);
-        var a = HealthNode.CreateDelegate("A")
+        var a = HealthNode.Create("A")
             .DependsOn(leaf, Importance.Required);
-        var b = HealthNode.CreateDelegate("B")
+        var b = HealthNode.Create("B")
             .DependsOn(leaf, Importance.Required);
-        var root = HealthNode.CreateComposite("Root")
+        var root = HealthNode.Create("Root")
             .DependsOn(a, Importance.Required)
             .DependsOn(b, Importance.Required);
         var graph = HealthGraph.Create(root);
@@ -96,8 +96,8 @@ public class HealthNodePropagateTests
     [Fact]
     public void Refresh_Cycle_DoesNotStackOverflow()
     {
-        var a = HealthNode.CreateDelegate("A");
-        var b = HealthNode.CreateDelegate("B")
+        var a = HealthNode.Create("A");
+        var b = HealthNode.Create("B")
             .DependsOn(a, Importance.Required);
         a.DependsOn(b, Importance.Required);
         var graph = HealthGraph.Create(a);
@@ -110,7 +110,7 @@ public class HealthNodePropagateTests
     [Fact]
     public void Refresh_NoParents_EmitsReport()
     {
-        var node = HealthNode.CreateDelegate("Lone",
+        var node = HealthNode.Create("Lone").WithHealthProbe(
             () => HealthEvaluation.Degraded("slow"));
         var graph = HealthGraph.Create(node);
 
@@ -128,9 +128,9 @@ public class HealthNodePropagateTests
     [Fact]
     public void DependsOn_ImmediatelyEmitsReport()
     {
-        var child = HealthNode.CreateDelegate("Child",
+        var child = HealthNode.Create("Child").WithHealthProbe(
             () => HealthEvaluation.Unhealthy("down"));
-        var parent = HealthNode.CreateDelegate("Parent");
+        var parent = HealthNode.Create("Parent");
         var graph = HealthGraph.Create(parent);
 
         var emitted = new List<HealthReport>();
@@ -149,10 +149,10 @@ public class HealthNodePropagateTests
     [Fact]
     public void DependsOn_PropagatesUpThroughGrandparent()
     {
-        var child = HealthNode.CreateDelegate("Child",
+        var child = HealthNode.Create("Child").WithHealthProbe(
             () => HealthEvaluation.Unhealthy("down"));
-        var parent = HealthNode.CreateDelegate("Parent");
-        var grandparent = HealthNode.CreateDelegate("Grandparent")
+        var parent = HealthNode.Create("Parent");
+        var grandparent = HealthNode.Create("Grandparent")
             .DependsOn(parent, Importance.Required);
         var graph = HealthGraph.Create(grandparent);
 
@@ -171,9 +171,9 @@ public class HealthNodePropagateTests
     [Fact]
     public void RemoveDependency_ImmediatelyEmitsReport()
     {
-        var child = HealthNode.CreateDelegate("Child",
+        var child = HealthNode.Create("Child").WithHealthProbe(
             () => HealthEvaluation.Unhealthy("down"));
-        var parent = HealthNode.CreateDelegate("Parent")
+        var parent = HealthNode.Create("Parent")
             .DependsOn(child, Importance.Required);
         var graph = HealthGraph.Create(parent);
 
