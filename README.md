@@ -192,6 +192,32 @@ IReadOnlyList<IReadOnlyList<string>> cycles = graph.DetectCycles();
 IReadOnlyList<StatusChange> changes = before.DiffTo(after);
 ```
 
+## Cross-node health reporting
+
+When a node detects a failure that actually belongs to a different node (root-cause attribution), use `ReportStatus` to push the failure to the correct origin. This ensures all dependents of the origin node are notified via normal propagation — not just the node that detected the problem.
+
+```csharp
+var internet = HealthNode.CreateDelegate("Internet");
+var api = HealthNode.CreateDelegate("API")
+    .DependsOn(internet, Importance.Required);
+var cache = HealthNode.CreateDelegate("Cache")
+    .DependsOn(internet, Importance.Required);
+```
+
+When the API service detects a connectivity failure, it reports the failure on the Internet node:
+
+```csharp
+// In the API service's operational code (not the health delegate):
+catch (HttpRequestException ex) when (IsConnectivityError(ex))
+{
+    internet.ReportStatus(HealthEvaluation.Unhealthy("Connectivity lost"));
+    // → Internet becomes Unhealthy
+    // → API and Cache both become Unhealthy via propagation
+}
+```
+
+The reported status acts as the intrinsic evaluation until the next delegate-based refresh (poll tick or explicit `Refresh`) naturally replaces it — no manual expiration needed.
+
 ## Observable health monitoring
 
 `HealthGraph` exposes push-based observables for health state changes and topology mutations:
@@ -360,7 +386,7 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 
 | File | Purpose |
 |---|---|
-| `HealthNode.cs` | Sealed class — `Name`, `Dependencies`, `Parents`, `DependsOn()`, `RemoveDependency()`, `Refresh()`, factory methods (`CreateDelegate`, `CreateComposite`) |
+| `HealthNode.cs` | Sealed class — `Name`, `Dependencies`, `Parents`, `DependsOn()`, `RemoveDependency()`, `Refresh()`, `ReportStatus()`, factory methods (`CreateDelegate`, `CreateComposite`) |
 | `IHealthAware.cs` | Marker interface — implement on your classes with a single `HealthNode` property |
 | `HealthStatus.cs` | `Healthy` → `Unknown` → `Degraded` → `Unhealthy` enum |
 | `HealthEvaluation.cs` | Status + optional reason pair, with implicit conversion from `HealthStatus` |

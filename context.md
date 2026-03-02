@@ -14,7 +14,7 @@ Extension packages reference only the core. The core has zero project references
 
 ## Core Types
 
-- **`HealthNode`** — sealed, private constructors. Created via `CreateDelegate(name, healthCheck)`, `CreateDelegate(name)`, or `CreateComposite(name)`. Owns edges (`DependsOn`/`RemoveDependency`), aggregation, and upward propagation.
+- **`HealthNode`** — sealed, private constructors. Created via `CreateDelegate(name, healthCheck)`, `CreateDelegate(name)`, or `CreateComposite(name)`. Owns edges (`DependsOn`/`RemoveDependency`), aggregation, upward propagation, and external status reporting (`ReportStatus`).
 - **`HealthGraph`** — materialized read-only view of the graph. Entry point for `CreateReport`, `RefreshAll`, and observables (`StatusChanged`, `TopologyChanged`). Implements `IDisposable` to detach from nodes.
 - **`HealthStatus`** — enum: `Healthy(0)`, `Unknown(1)`, `Degraded(2)`, `Unhealthy(3)`. Worst-is-highest.
 - **`Importance`** — enum: `Required`, `Important`, `Optional`, `Resilient`. Controls how dependency failures propagate.
@@ -46,6 +46,7 @@ Extension packages reference only the core. The core has zero project references
 
 - **Push path:** `node.Refresh()` → `_bubbleStrategy` → `SerializedBubble` (under lock) → `BubbleChange` → `NotifyChangedCore` → `RefreshTopology` → `RebuildReport` → `EmitStatusChanged`.
 - **Poll path:** `HealthMonitor` tick → `graph.RefreshAll()` → DFS `NotifyChangedCore` on every node → `RebuildReport` → `EmitStatusChanged`.
+- **Report path:** `node.ReportStatus(eval)` → writes `_cachedEvaluation` directly, sets skip flag → `Refresh()` → `NotifyChangedCore` uses cached value as intrinsic (skips delegate) → propagates upward → next poll/refresh clears the override naturally.
 
 ## DI Integration
 

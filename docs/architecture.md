@@ -49,7 +49,7 @@ The core package has **no project references** to the extension packages. Extens
 
 | Type | Kind | Responsibility |
 |---|---|---|
-| `HealthNode` | Sealed class | Single node type for the health graph. Owns topology edges (`DependsOn`, `RemoveDependency`), intrinsic check invocation, aggregation logic, and upward propagation (`BubbleChange`). Created via `CreateDelegate` (custom health check) or `CreateComposite` (aggregation-only, always-healthy intrinsic). |
+| `HealthNode` | Sealed class | Single node type for the health graph. Owns topology edges (`DependsOn`, `RemoveDependency`), intrinsic check invocation, aggregation logic, upward propagation (`BubbleChange`), and external status reporting (`ReportStatus`). Created via `CreateDelegate` (custom health check) or `CreateComposite` (aggregation-only, always-healthy intrinsic). |
 | `IHealthAware` | Interface | Marker for classes that participate in the graph. Single property: `HealthNode HealthNode { get; }`. |
 | `HealthGraph` | Sealed class | Read-only materialized view of the graph. Entry point for reporting, monitoring, and observables. |
 | `HealthStatus` | Enum | `Healthy (0)`, `Unknown (1)`, `Degraded (2)`, `Unhealthy (3)`. Ordered worst-is-highest. |
@@ -334,6 +334,37 @@ RebuildReport()
         ▼  (release _propagationLock)
 EmitStatusChanged() if report changed
 ```
+
+### Report Path (external status → propagation without delegate re-evaluation)
+
+```
+External observer detects failure belonging to another node
+        │
+        ▼
+node.ReportStatus(evaluation)
+        │
+        ├─ _cachedEvaluation = evaluation (direct cache write)
+        ├─ _skipNextIntrinsicEvaluation = true
+        └─ Refresh()
+              │
+              ▼
+        NotifyChangedCore()
+              │
+              ├─ _skipNextIntrinsicEvaluation? yes → use cached value as intrinsic, clear flag
+              ├─ Aggregate(cached, deps) → effective status
+              └─ walk up parents (normal propagation)
+              │
+              ▼  (release _propagationLock)
+        EmitStatusChanged() if report changed
+
+        ⏱️  ... next poll tick / explicit Refresh() ...
+
+        NotifyChangedCore()
+              ├─ _skipNextIntrinsicEvaluation? no → _intrinsicCheck() (delegate runs normally)
+              └─ reported value naturally expires
+```
+
+`ReportStatus` enables **cross-node health attribution**: a node that detects a failure belonging to a shared dependency (e.g., internet connectivity) reports the failure on the correct origin node. All dependents of that origin are notified via normal propagation. The reported value is transient — it persists only until the next delegate-based evaluation, which naturally replaces it. Thread safety is maintained because propagation is serialized through `_propagationLock` when a graph is attached.
 
 ---
 

@@ -18,12 +18,13 @@ public sealed class HealthNode
     [ThreadStatic]
     private static HashSet<HealthNode>? s_propagating;
 
-    private readonly Func<HealthEvaluation> _intrinsicCheck;
+    private volatile Func<HealthEvaluation> _intrinsicCheck;
     private readonly object _dependencyWriteLock = new();
     private readonly object _parentWriteLock = new();
     private volatile IReadOnlyList<HealthNode> _parents = Array.Empty<HealthNode>();
     private volatile IReadOnlyList<HealthDependency> _dependencies = Array.Empty<HealthDependency>();
     internal volatile HealthEvaluation _cachedEvaluation;
+    private volatile bool _skipNextIntrinsicEvaluation;
 
     /// <summary>
     /// Multicast delegate for propagating health changes after topology
@@ -99,6 +100,44 @@ public sealed class HealthNode
     /// <param name="name">Display name for this composite in the health graph.</param>
     public static HealthNode CreateComposite(string name)
         => new HealthNode(name);
+
+    /// <summary>
+    /// Overwrites this node's cached health evaluation and immediately
+    /// propagates upward through all ancestors. The reported value acts
+    /// as the intrinsic evaluation until the next delegate-based refresh
+    /// (poll tick or explicit <see cref="Refresh"/>) naturally replaces it.
+    /// <para>
+    /// Use this when an external observer detects a failure that belongs
+    /// to this node rather than to itself — e.g., an API call that fails
+    /// due to connectivity reports the failure on the shared Internet
+    /// node so that all dependents are notified.
+    /// </para>
+    /// </summary>
+    /// <param name="evaluation">The health evaluation to report.</param>
+    public void ReportStatus(HealthEvaluation evaluation)
+    {
+        _cachedEvaluation = evaluation ?? throw new ArgumentNullException(nameof(evaluation));
+        _skipNextIntrinsicEvaluation = true;
+        Refresh();
+    }
+
+    /// <summary>
+    /// Replaces the intrinsic health-check delegate and immediately
+    /// re-evaluates and propagates. The node's identity — name, edges,
+    /// parents, and graph membership — is preserved.
+    /// <para>
+    /// Use this to swap between real and mock implementations at runtime
+    /// without rebuilding the graph topology.
+    /// </para>
+    /// </summary>
+    /// <param name="healthCheck">
+    /// The new delegate that returns this node's intrinsic health evaluation.
+    /// </param>
+    public void ReplaceCheck(Func<HealthEvaluation> healthCheck)
+    {
+        _intrinsicCheck = healthCheck ?? throw new ArgumentNullException(nameof(healthCheck));
+        Refresh();
+    }
 
     /// <inheritdoc/>
     public override string ToString()
@@ -191,8 +230,19 @@ public sealed class HealthNode
     internal void NotifyChangedCore()
     {
         var deps = _dependencies;
-        var eval = Aggregate(_intrinsicCheck(), deps);
-        _cachedEvaluation = eval;
+
+        HealthEvaluation intrinsic;
+        if (_skipNextIntrinsicEvaluation)
+        {
+            _skipNextIntrinsicEvaluation = false;
+            intrinsic = _cachedEvaluation;
+        }
+        else
+        {
+            intrinsic = _intrinsicCheck();
+        }
+
+        _cachedEvaluation = Aggregate(intrinsic, deps);
     }
 
     /// <summary>

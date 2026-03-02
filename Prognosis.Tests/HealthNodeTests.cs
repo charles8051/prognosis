@@ -163,6 +163,74 @@ public class HealthNodeTests
             () => node.DependsOn(dep, Importance.Optional));
     }
 
+    // ── ReplaceCheck ─────────────────────────────────────────────────
+
+    [Fact]
+    public void ReplaceCheck_SwapsIntrinsicCheck()
+    {
+        var node = HealthNode.CreateDelegate("Svc",
+            () => HealthStatus.Healthy);
+        var graph = HealthGraph.Create(node);
+
+        Assert.Equal(HealthStatus.Healthy,
+            graph.CreateReport().Nodes.First(n => n.Name == "Svc").Status);
+
+        node.ReplaceCheck(() => HealthEvaluation.Unhealthy("mock down"));
+
+        Assert.Equal(HealthStatus.Unhealthy,
+            graph.CreateReport().Nodes.First(n => n.Name == "Svc").Status);
+    }
+
+    [Fact]
+    public void ReplaceCheck_PropagatesUpThroughParent()
+    {
+        var child = HealthNode.CreateDelegate("Child",
+            () => HealthStatus.Healthy);
+        var parent = HealthNode.CreateDelegate("Parent")
+            .DependsOn(child, Importance.Required);
+        var graph = HealthGraph.Create(parent);
+
+        var emitted = new List<HealthReport>();
+        graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
+
+        child.ReplaceCheck(() => HealthEvaluation.Unhealthy("swapped"));
+
+        Assert.Single(emitted);
+        Assert.Equal(HealthStatus.Unhealthy,
+            emitted[0].Nodes.First(n => n.Name == "Parent").Status);
+    }
+
+    [Fact]
+    public void ReplaceCheck_PreservesEdges()
+    {
+        var dep = HealthNode.CreateDelegate("Dep",
+            () => HealthEvaluation.Unhealthy("down"));
+        var node = HealthNode.CreateDelegate("Svc",
+            () => HealthStatus.Healthy)
+            .DependsOn(dep, Importance.Required);
+        var graph = HealthGraph.Create(node);
+
+        // Svc is unhealthy because of its Required dep.
+        Assert.Equal(HealthStatus.Unhealthy,
+            graph.CreateReport().Nodes.First(n => n.Name == "Svc").Status);
+
+        // Swap the intrinsic check — edges remain intact.
+        node.ReplaceCheck(() => HealthEvaluation.Degraded("slow"));
+
+        var result = graph.CreateReport().Nodes.First(n => n.Name == "Svc");
+        Assert.Equal(HealthStatus.Unhealthy, result.Status);
+        Assert.Single(node.Dependencies);
+    }
+
+    [Fact]
+    public void ReplaceCheck_NullDelegate_ThrowsArgumentNullException()
+    {
+        var node = HealthNode.CreateDelegate("Svc");
+
+        Assert.Throws<ArgumentNullException>(
+            () => node.ReplaceCheck(null!));
+    }
+
     [Fact]
     public void DependsOn_DifferentNodes_Allowed()
     {
@@ -174,4 +242,115 @@ public class HealthNodeTests
 
         Assert.Equal(2, node.Dependencies.Count);
     }
+
+    // ── ReportStatus ─────────────────────────────────────────────────
+
+    [Fact]
+    public void ReportStatus_OverridesCachedEvaluation()
+    {
+        var node = HealthNode.CreateDelegate("Svc",
+            () => HealthStatus.Healthy);
+        var graph = HealthGraph.Create(node);
+
+        node.ReportStatus(HealthEvaluation.Unhealthy("externally reported"));
+
+        var result = graph.CreateReport().Nodes.First(n => n.Name == "Svc");
+        Assert.Equal(HealthStatus.Unhealthy, result.Status);
+        Assert.Equal("externally reported", result.Reason);
+    }
+
+    [Fact]
+    public void ReportStatus_PropagatesToParent()
+    {
+        var child = HealthNode.CreateDelegate("Child",
+            () => HealthStatus.Healthy);
+        var parent = HealthNode.CreateDelegate("Parent")
+            .DependsOn(child, Importance.Required);
+        var graph = HealthGraph.Create(parent);
+
+        var emitted = new List<HealthReport>();
+        graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
+
+        child.ReportStatus(HealthEvaluation.Unhealthy("connectivity lost"));
+
+        Assert.Single(emitted);
+        Assert.Equal(HealthStatus.Unhealthy,
+            emitted[0].Nodes.First(n => n.Name == "Parent").Status);
+    }
+
+    [Fact]
+    public void ReportStatus_ExpiredByNextRefresh()
+    {
+        var node = HealthNode.CreateDelegate("Svc",
+            () => HealthStatus.Healthy);
+        var graph = HealthGraph.Create(node);
+
+        node.ReportStatus(HealthEvaluation.Unhealthy("transient failure"));
+        Assert.Equal(HealthStatus.Unhealthy,
+            graph.CreateReport().Nodes.First(n => n.Name == "Svc").Status);
+
+        graph.RefreshAll();
+
+        Assert.Equal(HealthStatus.Healthy,
+            graph.CreateReport().Nodes.First(n => n.Name == "Svc").Status);
+    }
+
+    [Fact]
+    public void ReportStatus_AggregatesWithDependencies()
+    {
+        var dep = HealthNode.CreateDelegate("Dep",
+            () => HealthEvaluation.Unhealthy("dep down"));
+        var node = HealthNode.CreateDelegate("Svc",
+            () => HealthStatus.Healthy)
+            .DependsOn(dep, Importance.Required);
+        var graph = HealthGraph.Create(node);
+
+        node.ReportStatus(HealthEvaluation.Degraded("slow"));
+
+        var result = graph.CreateReport().Nodes.First(n => n.Name == "Svc");
+        Assert.Equal(HealthStatus.Unhealthy, result.Status);
+    }
+
+    [Fact]
+    public void ReportStatus_NullEvaluation_ThrowsArgumentNullException()
+    {
+        var node = HealthNode.CreateDelegate("Svc");
+
+        Assert.Throws<ArgumentNullException>(
+            () => node.ReportStatus(null!));
+    }
+
+    [Fact]
+    public void ReportStatus_CrossNodeAttribution_PropagatesCorrectly()
+    {
+        var internet = HealthNode.CreateDelegate("Internet",
+            () => HealthStatus.Healthy);
+        var api = HealthNode.CreateDelegate("API",
+            () => HealthStatus.Healthy)
+            .DependsOn(internet, Importance.Required);
+        var cache = HealthNode.CreateDelegate("Cache",
+            () => HealthStatus.Healthy)
+            .DependsOn(internet, Importance.Required);
+        var app = HealthNode.CreateComposite("App")
+            .DependsOn(api, Importance.Required)
+            .DependsOn(cache, Importance.Required);
+        var graph = HealthGraph.Create(app);
+
+        internet.ReportStatus(HealthEvaluation.Unhealthy("connectivity lost"));
+
+        var report = graph.CreateReport();
+        Assert.Equal(HealthStatus.Unhealthy,
+            report.Nodes.First(n => n.Name == "API").Status);
+        Assert.Equal(HealthStatus.Unhealthy,
+            report.Nodes.First(n => n.Name == "Cache").Status);
+        Assert.Equal(HealthStatus.Unhealthy,
+            report.Nodes.First(n => n.Name == "App").Status);
+    }
+}
+
+file class TestObserver<T>(Action<T> onNext) : IObserver<T>
+{
+    public void OnNext(T value) => onNext(value);
+    public void OnError(Exception error) { }
+    public void OnCompleted() { }
 }
