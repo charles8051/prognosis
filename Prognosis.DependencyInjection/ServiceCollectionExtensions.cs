@@ -155,7 +155,7 @@ public static class ServiceCollectionExtensions
     private static string AutoDetectSingleRoot(Dictionary<string, HealthNode> pool)
     {
         var allNodes = pool.Values.ToArray();
-        var children = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+        var children = new HashSet<HealthNode>(Polyfills.ReferenceEqualityComparer.Instance);
         foreach (var node in allNodes)
         {
             foreach (var dep in node.Dependencies)
