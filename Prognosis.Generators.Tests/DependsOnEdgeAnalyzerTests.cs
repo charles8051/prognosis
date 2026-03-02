@@ -23,6 +23,7 @@ public class DependsOnEdgeAnalyzerTests
             }
             public sealed class HealthNode
             {
+                public static HealthNode Create(string name) => new HealthNode();
                 public static HealthNode CreateDelegate(string name) => new HealthNode();
                 public static HealthNode CreateDelegate(string name, System.Func<HealthEvaluation> check) => new HealthNode();
                 public static HealthNode CreateComposite(string name) => new HealthNode();
@@ -48,7 +49,7 @@ public class DependsOnEdgeAnalyzerTests
             {
                 void Configure()
                 {
-                    var node = Prognosis.HealthNode.CreateDelegate("Database");
+                    var node = Prognosis.HealthNode.Create("Database");
                     var configurator = new Prognosis.DependencyInjection.DependencyConfigurator();
                     configurator.DependsOn("Database", Prognosis.Importance.Required);
                 }
@@ -67,7 +68,7 @@ public class DependsOnEdgeAnalyzerTests
             {
                 void Configure()
                 {
-                    var node = Prognosis.HealthNode.CreateDelegate("Database");
+                    var node = Prognosis.HealthNode.Create("Database");
                     var configurator = new Prognosis.DependencyInjection.DependencyConfigurator();
                     configurator.DependsOn({|#0:"Databse"|}, Prognosis.Importance.Required);
                 }
@@ -89,8 +90,8 @@ public class DependsOnEdgeAnalyzerTests
             {
                 void Configure()
                 {
-                    Prognosis.HealthNode.CreateDelegate("Database");
-                    Prognosis.HealthNode.CreateDelegate("Cache");
+                    Prognosis.HealthNode.Create("Database");
+                    Prognosis.HealthNode.Create("Cache");
                     var c = new Prognosis.DependencyInjection.DependencyConfigurator();
                     c.DependsOn("Database", Prognosis.Importance.Required);
                     c.DependsOn("Cache", Prognosis.Importance.Important);
@@ -114,7 +115,7 @@ public class DependsOnEdgeAnalyzerTests
             {
                 void Configure()
                 {
-                    Prognosis.HealthNode.CreateDelegate("Database");
+                    Prognosis.HealthNode.Create("Database");
                 }
             }
             """;
@@ -132,7 +133,7 @@ public class DependsOnEdgeAnalyzerTests
                 const string DbName = "Database";
                 void Configure()
                 {
-                    Prognosis.HealthNode.CreateDelegate(DbName);
+                    Prognosis.HealthNode.Create(DbName);
                     var c = new Prognosis.DependencyInjection.DependencyConfigurator();
                     c.DependsOn(DbName, Prognosis.Importance.Required);
                 }
@@ -152,7 +153,7 @@ public class DependsOnEdgeAnalyzerTests
                 const string BadName = "Databse";
                 void Configure()
                 {
-                    Prognosis.HealthNode.CreateDelegate("Database");
+                    Prognosis.HealthNode.Create("Database");
                     var c = new Prognosis.DependencyInjection.DependencyConfigurator();
                     c.DependsOn({|#0:BadName|}, Prognosis.Importance.Required);
                 }

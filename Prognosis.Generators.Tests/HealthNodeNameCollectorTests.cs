@@ -10,7 +10,7 @@ namespace Prognosis.Generators.Tests;
 public class HealthNodeNameCollectorTests
 {
     [Fact]
-    public async Task CreateDelegate_SingleNode_GeneratesHealthNames()
+    public async Task Create_SingleNode_GeneratesHealthNames()
     {
         var source = """
             using Prognosis;
@@ -19,7 +19,7 @@ public class HealthNodeNameCollectorTests
             {
                 void Configure()
                 {
-                    var node = HealthNode.CreateDelegate("Database");
+                    var node = HealthNode.Create("Database");
                 }
             }
             """;
@@ -32,8 +32,9 @@ public class HealthNodeNameCollectorTests
 
             /// <summary>
             /// Auto-generated constants for every health node name discovered in this
-            /// compilation via <c>HealthNode.CreateDelegate</c>, <c>CreateComposite</c>,
-            /// <c>PrognosisBuilder.AddComposite</c>, and <c>AddDelegate</c> calls.
+            /// compilation via <c>HealthNode.Create</c>, <c>CreateDelegate</c>,
+            /// <c>CreateComposite</c>, <c>PrognosisBuilder.AddComposite</c>,
+            /// <c>AddProbe</c>, and <c>AddDelegate</c> calls.
             /// Use these constants in place of string literals for refactoring safety,
             /// autocomplete, and find-all-references support.
             /// </summary>
@@ -49,7 +50,7 @@ public class HealthNodeNameCollectorTests
     }
 
     [Fact]
-    public async Task CreateDelegate_And_CreateComposite_CollectsBoth()
+    public async Task Create_And_CreateComposite_CollectsBoth()
     {
         var source = """
             using Prognosis;
@@ -58,8 +59,8 @@ public class HealthNodeNameCollectorTests
             {
                 void Configure()
                 {
-                    var a = HealthNode.CreateDelegate("Cache");
-                    var b = HealthNode.CreateComposite("Application");
+                    var a = HealthNode.Create("Cache");
+                    var b = HealthNode.Create("Application");
                 }
             }
             """;
@@ -80,8 +81,8 @@ public class HealthNodeNameCollectorTests
             {
                 void Configure()
                 {
-                    var a = HealthNode.CreateDelegate("Database.Connection");
-                    var b = HealthNode.CreateDelegate("Database.Latency");
+                    var a = HealthNode.Create("Database.Connection");
+                    var b = HealthNode.Create("Database.Latency");
                 }
             }
             """;
@@ -102,8 +103,8 @@ public class HealthNodeNameCollectorTests
             {
                 void Configure()
                 {
-                    var a = HealthNode.CreateDelegate("Cache");
-                    var b = HealthNode.CreateDelegate("Cache");
+                    var a = HealthNode.Create("Cache");
+                    var b = HealthNode.Create("Cache");
                 }
             }
             """;
@@ -125,7 +126,7 @@ public class HealthNodeNameCollectorTests
                 const string Name = "MyService";
                 void Configure()
                 {
-                    var node = HealthNode.CreateDelegate(Name);
+                    var node = HealthNode.Create(Name);
                 }
             }
             """;
@@ -190,7 +191,7 @@ public class HealthNodeNameCollectorTests
     }
 
     [Fact]
-    public async Task AddDelegate_StringArg_CollectedIntoHealthNames()
+    public async Task AddProbe_StringArg_CollectedIntoHealthNames()
     {
         var source = """
             using Prognosis;
@@ -200,7 +201,7 @@ public class HealthNodeNameCollectorTests
             {
                 void Configure(PrognosisBuilder health)
                 {
-                    health.AddDelegate<FakeService>("EmailProvider",
+                    health.AddProbe<FakeService>("EmailProvider",
                         svc => HealthStatus.Healthy);
                 }
             }
@@ -223,9 +224,9 @@ public class HealthNodeNameCollectorTests
             {
                 void Configure(PrognosisBuilder health)
                 {
-                    var node = HealthNode.CreateDelegate("Database");
+                    var node = HealthNode.Create("Database");
                     health.AddComposite("Application", app => { });
-                    health.AddDelegate<FakeService>("EmailProvider",
+                    health.AddProbe<FakeService>("EmailProvider",
                         svc => HealthStatus.Healthy);
                 }
             }
