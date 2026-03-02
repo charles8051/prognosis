@@ -67,7 +67,7 @@ class CacheService
 
     public CacheService()
     {
-        HealthNode = HealthNode.CreateDelegate("Cache",
+        HealthNode = HealthNode.Create("Cache").WithHealthProbe(
             () => IsConnected
                 ? HealthStatus.Healthy
                 : HealthEvaluation.Unhealthy("Redis timeout"));
@@ -77,7 +77,7 @@ class CacheService
 }
 ```
 
-For services with fine-grained health attributes, use `HealthNode.CreateComposite` backed by sub-nodes:
+For services with fine-grained health attributes, use `HealthNode.Create` backed by sub-nodes:
 
 ```csharp
 class DatabaseService
@@ -90,12 +90,12 @@ class DatabaseService
 
     public DatabaseService()
     {
-        var connection = HealthNode.CreateDelegate("Database.Connection",
+        var connection = HealthNode.Create("Database.Connection").WithHealthProbe(
             () => IsConnected
                 ? HealthStatus.Healthy
                 : HealthEvaluation.Unhealthy("Connection lost"));
 
-        var latency = HealthNode.CreateDelegate("Database.Latency",
+        var latency = HealthNode.Create("Database.Latency").WithHealthProbe(
             () => AverageLatencyMs switch
             {
                 > 500 => HealthEvaluation.Degraded(
@@ -103,7 +103,7 @@ class DatabaseService
                 _ => HealthStatus.Healthy,
             });
 
-        var connectionPool = HealthNode.CreateDelegate("Database.ConnectionPool",
+        var connectionPool = HealthNode.Create("Database.ConnectionPool").WithHealthProbe(
             () => PoolUtilization switch
             {
                 >= 1.0 => HealthEvaluation.Unhealthy(
@@ -113,7 +113,7 @@ class DatabaseService
                 _ => HealthStatus.Healthy,
             });
 
-        HealthNode = HealthNode.CreateComposite("Database")
+        HealthNode = HealthNode.Create("Database")
             .DependsOn(connection, Importance.Required)
             .DependsOn(latency, Importance.Important)
             .DependsOn(connectionPool, Importance.Required);
@@ -131,10 +131,10 @@ AuthService: Degraded — Database: Database.Latency: ...
 
 ### 2. Wrap a service you can't modify
 
-Use `HealthNode.CreateDelegate` with a health-check delegate:
+Use `HealthNode.Create` with `.WithHealthProbe`:
 
 ```csharp
-var emailHealth = HealthNode.CreateDelegate("EmailProvider",
+var emailHealth = HealthNode.Create("EmailProvider").WithHealthProbe(
     () => client.IsConnected
         ? HealthStatus.Healthy
         : HealthEvaluation.Unhealthy("SMTP connection refused"));
@@ -145,11 +145,11 @@ var emailHealth = HealthNode.CreateDelegate("EmailProvider",
 Wire services together with `DependsOn`:
 
 ```csharp
-var authService = HealthNode.CreateDelegate("AuthService")
+var authService = HealthNode.Create("AuthService")
     .DependsOn(database.HealthNode, Importance.Required)
     .DependsOn(cache.HealthNode, Importance.Important);
 
-var app = HealthNode.CreateComposite("Application")
+var app = HealthNode.Create("Application")
     .DependsOn(authService, Importance.Required)
     .DependsOn(notifications, Importance.Important);
 ```
@@ -161,7 +161,7 @@ Use `Importance.Resilient` when a parent has multiple paths to the same capabili
 ```csharp
 // If one goes down but the other is healthy, the parent is degraded (not unhealthy).
 // If both go down, the parent becomes unhealthy.
-var app = HealthNode.CreateComposite("Application")
+var app = HealthNode.Create("Application")
     .DependsOn(primaryDb, Importance.Resilient)
     .DependsOn(replicaDb, Importance.Resilient);
 ```
@@ -197,10 +197,10 @@ IReadOnlyList<StatusChange> changes = before.DiffTo(after);
 When a node detects a failure that actually belongs to a different node (root-cause attribution), use `ReportStatus` to push the failure to the correct origin. This ensures all dependents of the origin node are notified via normal propagation — not just the node that detected the problem.
 
 ```csharp
-var internet = HealthNode.CreateDelegate("Internet");
-var api = HealthNode.CreateDelegate("API")
+var internet = HealthNode.Create("Internet");
+var api = HealthNode.Create("API")
     .DependsOn(internet, Importance.Required);
-var cache = HealthNode.CreateDelegate("Cache")
+var cache = HealthNode.Create("Cache")
     .DependsOn(internet, Importance.Required);
 ```
 
@@ -251,9 +251,9 @@ builder.Services.AddPrognosis(health =>
     // and wires [DependsOn] attribute-declared edges.
     health.AddDiscoveredNodes();
 
-    // Wrap a third-party service with a health delegate.
+    // Wrap a third-party service with a health probe.
     // Name defaults to typeof(T).Name when omitted.
-    health.AddDelegate<ThirdPartyEmailClient>("EmailProvider",
+    health.AddProbe<ThirdPartyEmailClient>("EmailProvider",
         client => client.IsConnected
             ? HealthStatus.Healthy
             : HealthEvaluation.Unhealthy("SMTP refused"));
@@ -321,7 +321,7 @@ class AuthService
 {
     [DependsOn("Database", Importance.Required)]
     [DependsOn("Cache", Importance.Important)]
-    public HealthNode HealthNode { get; } = HealthNode.CreateDelegate("AuthService");
+    public HealthNode HealthNode { get; } = HealthNode.Create("AuthService");
 }
 ```
 
@@ -387,7 +387,7 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 
 | File | Purpose |
 |---|---|
-| `HealthNode.cs` | Sealed class — `Name`, `Dependencies`, `Parents`, `DependsOn()`, `RemoveDependency()`, `Refresh()`, `ReportStatus()`, factory methods (`CreateDelegate`, `CreateComposite`) |
+| `HealthNode.cs` | Sealed class — `Name`, `Dependencies`, `Parents`, `DependsOn()`, `RemoveDependency()`, `Refresh()`, `ReportStatus()`, factory methods (`Create`, `WithHealthProbe`) |
 | `HealthStatus.cs` | `Healthy` → `Unknown` → `Degraded` → `Unhealthy` enum |
 | `HealthEvaluation.cs` | Status + optional reason pair, with implicit conversion from `HealthStatus` |
 | `Importance.cs` | `Required`, `Important`, `Optional`, `Resilient` enum |
@@ -410,7 +410,7 @@ Both enums use `[JsonStringEnumConverter]` so they serialize as `"Healthy"` / `"
 | File | Purpose |
 |---|---|
 | `ServiceCollectionExtensions.cs` | `AddPrognosis` entry point — service node registration and graph materialization |
-| `PrognosisBuilder.cs` | Fluent builder — `AddServiceNode<T>`, `AddDelegate<T>`, `AddComposite`, `MarkAsRoot` |
+| `PrognosisBuilder.cs` | Fluent builder — `AddServiceNode<T>`, `AddProbe<T>`, `AddComposite`, `MarkAsRoot` |
 | `DependencyConfigurator.cs` | Fluent edge declaration — `DependsOn<T>` (by type name), `DependsOn(name)` |
 | `DependsOnAttribute.cs` | `[DependsOn("name", Importance)]` property-level attribute for declarative edges |
 | `HealthGraph.cs` | Type forwarder for core `HealthGraph` (`Root`, indexer, `GetReport()`) |
@@ -429,13 +429,13 @@ The `Prognosis.Generators` package provides compile-time tooling for health grap
 
 ### Auto-generated `HealthNames` constants
 
-The generator scans every `HealthNode.CreateDelegate("name")` and `HealthNode.CreateComposite("name")` call in your project and emits a `HealthNames` class with `const string` fields:
+The generator scans every `HealthNode.Create("name")`, `HealthNode.CreateDelegate("name")`, and `HealthNode.CreateComposite("name")` call in your project and emits a `HealthNames` class with `const string` fields:
 
 ```csharp
 // You write:
-var db = HealthNode.CreateDelegate("Database.Connection", () => ...);
-var cache = HealthNode.CreateDelegate("Cache", () => ...);
-var app = HealthNode.CreateComposite("Application");
+var db = HealthNode.Create("Database.Connection").WithHealthProbe(() => ...);
+var cache = HealthNode.Create("Cache").WithHealthProbe(() => ...);
+var app = HealthNode.Create("Application");
 
 // Generator emits (HealthNames.g.cs):
 public static class HealthNames
@@ -462,7 +462,7 @@ The `DependsOnEdgeAnalyzer` validates string arguments in `DependencyConfigurato
 
 ```
 warning PROGNOSIS001: Node name 'Databse' does not match any
-HealthNode.CreateDelegate or HealthNode.CreateComposite call in this compilation
+HealthNode.Create, HealthNode.CreateDelegate, or HealthNode.CreateComposite call in this compilation
 ```
 
 ### Auto-generated `AddDiscoveredNodes()`
@@ -474,7 +474,7 @@ When your project references both `Prognosis.DependencyInjection` and `Prognosis
 class AuthService
 {
     [DependsOn("Database", Importance.Required)]
-    public HealthNode HealthNode { get; } = HealthNode.CreateDelegate("AuthService");
+    public HealthNode HealthNode { get; } = HealthNode.Create("AuthService");
 }
 
 // Generator emits:

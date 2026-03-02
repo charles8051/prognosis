@@ -9,7 +9,7 @@
 ## Code Style
 
 - Target .NET Standard 2.0 and 2.1. Use C# latest language features but ensure compatibility via polyfills in `Polyfills/`.
-- Prefer sealed classes and records. `HealthNode` is sealed with private constructors — create instances via `CreateDelegate` or `CreateComposite` factory methods.
+- Prefer sealed classes and records. `HealthNode` is sealed with private constructors — create instances via `Create` factory method with optional `.WithHealthProbe()` for intrinsic checks.
 - Use copy-on-write for concurrent collections (volatile `IReadOnlyList<T>` references, replace under lock, readers never lock).
 - Do not add comments unless they match existing style or explain non-obvious concurrency/threading behavior.
 - Follow existing naming: `_camelCase` for fields, `PascalCase` for methods/properties, `s_camelCase` for statics.
@@ -24,5 +24,5 @@
 ## Testing
 
 - Tests use xUnit. Test projects target net10.0.
-- Create nodes via `HealthNode.CreateDelegate(...)` / `HealthNode.CreateComposite(...)` — never call constructors directly.
+- Create nodes via `HealthNode.Create(...)` with optional `.WithHealthProbe(...)` — never call constructors directly.
 - Reactive tests may use `Microsoft.Reactive.Testing`.

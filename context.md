@@ -15,7 +15,7 @@ Extension packages reference only the core. The core has zero project references
 
 ## Core Types
 
-- **`HealthNode`** — sealed, private constructors. Created via `CreateDelegate(name, healthCheck)`, `CreateDelegate(name)`, or `CreateComposite(name)`. Owns edges (`DependsOn`/`RemoveDependency`), aggregation, upward propagation, and external status reporting (`ReportStatus`).
+- **`HealthNode`** — sealed, private constructors. Created via `Create(name)` with optional `.WithHealthProbe(healthCheck)`. Legacy `CreateDelegate` and `CreateComposite` factory methods are deprecated. Owns edges (`DependsOn`/`RemoveDependency`), aggregation, upward propagation, and external status reporting (`ReportStatus`).
 Entry point for `GetReport`, `RefreshAll`, and observables
 - **`HealthStatus`** — enum: `Healthy(0)`, `Unknown(1)`, `Degraded(2)`, `Unhealthy(3)`. Worst-is-highest.
 - **`Importance`** — enum: `Required`, `Important`, `Optional`, `Resilient`. Controls how dependency failures propagate.
@@ -50,11 +50,11 @@ Entry point for `GetReport`, `RefreshAll`, and observables
 
 ## DI Integration
 
-`services.AddPrognosis(...)` — registers service nodes via `AddServiceNode<T>`, composites, delegates, wires edges, resolves roots. `PrognosisBuilder` provides the fluent API (`AddServiceNode<T>`, `AddDelegate<T>`, `AddComposite`, `MarkAsRoot`, `UseMonitor`). The generator emits `AddDiscoveredNodes()` which calls `AddServiceNode<T>` for every class with a public `HealthNode` property and wires `[DependsOn]` attribute-declared edges.
+`services.AddPrognosis(...)` — registers service nodes via `AddServiceNode<T>`, composites, probes, wires edges, resolves roots. `PrognosisBuilder` provides the fluent API (`AddServiceNode<T>`, `AddProbe<T>`, `AddComposite`, `MarkAsRoot`, `UseMonitor`). The generator emits `AddDiscoveredNodes()` which calls `AddServiceNode<T>` for every class with a public `HealthNode` property and wires `[DependsOn]` attribute-declared edges.
 
 ## Source Generators
 
-- **`HealthNodeNameCollector`** — incremental generator. Scans `HealthNode.CreateDelegate("name")` / `CreateComposite("name")` calls, emits `HealthNames` static class with `const string` fields.
+- **`HealthNodeNameCollector`** — incremental generator. Scans `HealthNode.Create("name")` / `CreateDelegate("name")` / `CreateComposite("name")` calls, emits `HealthNames` static class with `const string` fields.
 - **`ServiceNodeDiscoveryGenerator`** — incremental generator. Scans classes with public `HealthNode` properties, reads `[DependsOn]` attributes, emits `AddDiscoveredNodes()` extension on `PrognosisBuilder`. Only emits when `Prognosis.DependencyInjection` is referenced.
 - **`DependsOnEdgeAnalyzer`** — diagnostic analyzer. Validates `DependencyConfigurator.DependsOn("name")` arguments against discovered node names. Reports `PROGNOSIS001` for unknown references.
 
