@@ -346,6 +346,137 @@ public sealed class HealthNode
     }
 
     /// <summary>
+    /// Atomically replaces all dependency edges on this node with a new set.
+    /// Old edges are removed and their parent back-references cleaned up;
+    /// new edges are added and their parent back-references established.
+    /// A single <see cref="Refresh"/> propagation fires at the end.
+    /// <para>
+    /// Use this to switch between dependency profiles at runtime — for
+    /// example, swapping from a real implementation's dependencies to a
+    /// mock's dependencies — without rebuilding the graph.
+    /// </para>
+    /// </summary>
+    /// <param name="newDependencies">
+    /// The complete set of dependencies that should replace the current
+    /// edges. Pass an empty list to remove all dependencies. Duplicate
+    /// nodes are not allowed.
+    /// </param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="newDependencies"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="newDependencies"/> contains duplicate nodes.
+    /// </exception>
+    public void ReplaceDependencies(
+        IReadOnlyList<(HealthNode Node, Importance Importance)> newDependencies)
+    {
+        if (newDependencies is null)
+            throw new ArgumentNullException(nameof(newDependencies));
+
+        // Validate no duplicates in the incoming set.
+        for (var i = 0; i < newDependencies.Count; i++)
+        {
+            for (var j = i + 1; j < newDependencies.Count; j++)
+            {
+                if (ReferenceEquals(newDependencies[i].Node, newDependencies[j].Node))
+                    throw new ArgumentException(
+                        $"Duplicate dependency on '{newDependencies[i].Node.Name}'.",
+                        nameof(newDependencies));
+            }
+        }
+
+        IReadOnlyList<HealthDependency> oldDeps;
+
+        lock (_dependencyWriteLock)
+        {
+            oldDeps = _dependencies;
+
+            var updated = new List<HealthDependency>(newDependencies.Count);
+            for (var i = 0; i < newDependencies.Count; i++)
+            {
+                var (node, importance) = newDependencies[i];
+                updated.Add(new HealthDependency(node, importance));
+            }
+            _dependencies = updated;
+        }
+
+        // Remove parent back-references for edges that were dropped.
+        for (var i = 0; i < oldDeps.Count; i++)
+        {
+            var oldNode = oldDeps[i].Node;
+            var retained = false;
+            for (var j = 0; j < newDependencies.Count; j++)
+            {
+                if (ReferenceEquals(oldNode, newDependencies[j].Node))
+                {
+                    retained = true;
+                    break;
+                }
+            }
+
+            if (!retained)
+                RemoveParentBackReference(oldNode);
+        }
+
+        // Add parent back-references for edges that are new.
+        for (var i = 0; i < newDependencies.Count; i++)
+        {
+            var newNode = newDependencies[i].Node;
+            var existed = false;
+            for (var j = 0; j < oldDeps.Count; j++)
+            {
+                if (ReferenceEquals(newNode, oldDeps[j].Node))
+                {
+                    existed = true;
+                    break;
+                }
+            }
+
+            if (!existed)
+                AddParentBackReference(newNode);
+        }
+
+        Refresh();
+    }
+
+    private void RemoveParentBackReference(HealthNode child)
+    {
+        lock (child._parentWriteLock)
+        {
+            var current = child._parents;
+            var index = -1;
+            for (var i = 0; i < current.Count; i++)
+            {
+                if (ReferenceEquals(current[i], this))
+                {
+                    index = i;
+                    break;
+                }
+            }
+
+            if (index >= 0)
+            {
+                var updated = new List<HealthNode>(current.Count - 1);
+                for (var i = 0; i < current.Count; i++)
+                {
+                    if (i != index)
+                        updated.Add(current[i]);
+                }
+                child._parents = updated;
+            }
+        }
+    }
+
+    private void AddParentBackReference(HealthNode child)
+    {
+        lock (child._parentWriteLock)
+        {
+            var updated = new List<HealthNode>(child._parents) { this };
+            child._parents = updated;
+        }
+    }
+
+    /// <summary>
     /// Computes the worst-case health across the intrinsic evaluation and every
     /// dependency, with the propagation rules driven by <see cref="Importance"/>.
     /// Always reads dependency health from <see cref="_cachedEvaluation"/>.

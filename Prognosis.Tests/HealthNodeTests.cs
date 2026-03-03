@@ -337,6 +337,173 @@ public class HealthNodeTests
         Assert.Equal(HealthStatus.Unhealthy,
             report.Nodes.First(n => n.Name == "App").Status);
     }
+
+    // ── ReplaceDependencies ──────────────────────────────────────────
+
+    [Fact]
+    public void ReplaceDependencies_SwapsDependencySet()
+    {
+        var realDb = HealthNode.Create("RealDb").WithHealthProbe(
+            () => HealthEvaluation.Unhealthy("down"));
+        var mockDb = HealthNode.Create("MockDb");
+        var node = HealthNode.Create("Svc")
+            .DependsOn(realDb, Importance.Required);
+        var graph = HealthGraph.Create(node);
+
+        Assert.Equal(HealthStatus.Unhealthy,
+            graph.GetReport().Nodes.First(n => n.Name == "Svc").Status);
+
+        node.ReplaceDependencies([(mockDb, Importance.Required)]);
+
+        Assert.Single(node.Dependencies);
+        Assert.Same(mockDb, node.Dependencies[0].Node);
+        Assert.Equal(HealthStatus.Healthy,
+            graph.GetReport().Nodes.First(n => n.Name == "Svc").Status);
+    }
+
+    [Fact]
+    public void ReplaceDependencies_ClearsParentBackReferences()
+    {
+        var dep = HealthNode.Create("Dep");
+        var node = HealthNode.Create("Svc")
+            .DependsOn(dep, Importance.Required);
+
+        Assert.Single(dep.Parents);
+
+        node.ReplaceDependencies([]);
+
+        Assert.Empty(dep.Parents);
+    }
+
+    [Fact]
+    public void ReplaceDependencies_AddsParentBackReferences()
+    {
+        var node = HealthNode.Create("Svc");
+        var dep = HealthNode.Create("Dep");
+
+        node.ReplaceDependencies([(dep, Importance.Important)]);
+
+        Assert.Single(dep.Parents);
+        Assert.Same(node, dep.Parents[0]);
+    }
+
+    [Fact]
+    public void ReplaceDependencies_RetainedNodeKeepsParentBackReference()
+    {
+        var kept = HealthNode.Create("Kept");
+        var removed = HealthNode.Create("Removed");
+        var added = HealthNode.Create("Added");
+        var node = HealthNode.Create("Svc")
+            .DependsOn(kept, Importance.Required)
+            .DependsOn(removed, Importance.Required);
+
+        node.ReplaceDependencies([
+            (kept, Importance.Important),
+            (added, Importance.Required)
+        ]);
+
+        Assert.Single(kept.Parents);
+        Assert.Empty(removed.Parents);
+        Assert.Single(added.Parents);
+        Assert.Equal(2, node.Dependencies.Count);
+    }
+
+    [Fact]
+    public void ReplaceDependencies_EmptyList_RemovesAll()
+    {
+        var a = HealthNode.Create("A");
+        var b = HealthNode.Create("B");
+        var node = HealthNode.Create("Svc")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Required);
+
+        node.ReplaceDependencies([]);
+
+        Assert.Empty(node.Dependencies);
+        Assert.Empty(a.Parents);
+        Assert.Empty(b.Parents);
+    }
+
+    [Fact]
+    public void ReplaceDependencies_PropagatesUpThroughParent()
+    {
+        var realDep = HealthNode.Create("Real").WithHealthProbe(
+            () => HealthEvaluation.Unhealthy("down"));
+        var mockDep = HealthNode.Create("Mock");
+        var child = HealthNode.Create("Child")
+            .DependsOn(realDep, Importance.Required);
+        var parent = HealthNode.Create("Parent")
+            .DependsOn(child, Importance.Required);
+        var graph = HealthGraph.Create(parent);
+
+        Assert.Equal(HealthStatus.Unhealthy,
+            graph.GetReport().Nodes.First(n => n.Name == "Parent").Status);
+
+        child.ReplaceDependencies([(mockDep, Importance.Required)]);
+
+        Assert.Equal(HealthStatus.Healthy,
+            graph.GetReport().Nodes.First(n => n.Name == "Parent").Status);
+    }
+
+    [Fact]
+    public void ReplaceDependencies_UpdatesGraphTopology()
+    {
+        var realDep = HealthNode.Create("Real");
+        var mockDep = HealthNode.Create("Mock");
+        var node = HealthNode.Create("Svc")
+            .DependsOn(realDep, Importance.Required);
+        var graph = HealthGraph.Create(node);
+
+        Assert.True(graph.TryGetNode("Real", out _));
+        Assert.False(graph.TryGetNode("Mock", out _));
+
+        node.ReplaceDependencies([(mockDep, Importance.Required)]);
+
+        Assert.False(graph.TryGetNode("Real", out _));
+        Assert.True(graph.TryGetNode("Mock", out _));
+    }
+
+    [Fact]
+    public void ReplaceDependencies_EmitsTopologyChanged()
+    {
+        var realDep = HealthNode.Create("Real");
+        var mockDep = HealthNode.Create("Mock");
+        var node = HealthNode.Create("Svc")
+            .DependsOn(realDep, Importance.Required);
+        var graph = HealthGraph.Create(node);
+
+        var changes = new List<TopologyChange>();
+        graph.TopologyChanged.Subscribe(
+            new TestObserver<TopologyChange>(changes.Add));
+
+        node.ReplaceDependencies([(mockDep, Importance.Required)]);
+
+        Assert.Single(changes);
+        Assert.Contains(changes[0].Added, n => n.Name == "Mock");
+        Assert.Contains(changes[0].Removed, n => n.Name == "Real");
+    }
+
+    [Fact]
+    public void ReplaceDependencies_NullArgument_ThrowsArgumentNullException()
+    {
+        var node = HealthNode.Create("Svc");
+
+        Assert.Throws<ArgumentNullException>(
+            () => node.ReplaceDependencies(null!));
+    }
+
+    [Fact]
+    public void ReplaceDependencies_DuplicateNodes_ThrowsArgumentException()
+    {
+        var dep = HealthNode.Create("Dep");
+        var node = HealthNode.Create("Svc");
+
+        Assert.Throws<ArgumentException>(
+            () => node.ReplaceDependencies([
+                (dep, Importance.Required),
+                (dep, Importance.Optional)
+            ]));
+    }
 }
 
 file class TestObserver<T>(Action<T> onNext) : IObserver<T>

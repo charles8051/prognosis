@@ -15,7 +15,7 @@ Extension packages reference only the core. The core has zero project references
 
 ## Core Types
 
-- **`HealthNode`** — sealed, private constructors. Created via `Create(name)` with optional `.WithHealthProbe(healthCheck)`. Legacy `CreateDelegate` and `CreateComposite` factory methods are deprecated. Owns edges (`DependsOn`/`RemoveDependency`), aggregation, upward propagation, and external status reporting (`ReportStatus`).
+- **`HealthNode`** — sealed, private constructors. Created via `Create(name)` with optional `.WithHealthProbe(healthCheck)`. Legacy `CreateDelegate` and `CreateComposite` factory methods are deprecated. Owns edges (`DependsOn`/`RemoveDependency`/`ReplaceDependencies`), aggregation, upward propagation, and external status reporting (`ReportStatus`). `ReplaceDependencies` atomically swaps the full dependency set for switchable-service scenarios.
 Entry point for `GetReport`, `RefreshAll`, and observables
 - **`HealthStatus`** — enum: `Healthy(0)`, `Unknown(1)`, `Degraded(2)`, `Unhealthy(3)`. Worst-is-highest.
 - **`Importance`** — enum: `Required`, `Important`, `Optional`, `Resilient`. Controls how dependency failures propagate.
