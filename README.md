@@ -173,7 +173,7 @@ Only `Resilient`-marked siblings participate in the resilience check — `Requir
 ```csharp
 var graph = HealthGraph.Create(app);
 
-// Re-evaluate all intrinsic checks and return a fresh report
+// Re-evaluate all health probes and return a fresh report
 HealthReport report = graph.RefreshAll();
 
 // The root's aggregated status
@@ -182,7 +182,7 @@ HealthSnapshot root = report.Root;
 // Return the cached report (cheap, no re-evaluation)
 HealthReport cached = graph.GetReport();
 
-// Refresh a single node (re-evaluates intrinsic check, propagates upward, emits StatusChanged)
+// Refresh a single node (re-evaluates health probe, propagates upward, emits StatusChanged)
 app.Refresh();
 
 // Detect circular dependencies
@@ -207,7 +207,7 @@ var cache = HealthNode.Create("Cache")
 When the API service detects a connectivity failure, it reports the failure on the Internet node:
 
 ```csharp
-// In the API service's operational code (not the health delegate):
+// In the API service's operational code (not the health probe):
 catch (HttpRequestException ex) when (IsConnectivityError(ex))
 {
     internet.ReportStatus(HealthEvaluation.Unhealthy("Connectivity lost"));
@@ -216,7 +216,7 @@ catch (HttpRequestException ex) when (IsConnectivityError(ex))
 }
 ```
 
-The reported status acts as the intrinsic evaluation until the next delegate-based refresh (poll tick or explicit `Refresh`) naturally replaces it — no manual expiration needed.
+The reported status acts as the node's health evaluation until the next probe-based refresh (poll tick or explicit `Refresh`) naturally replaces it — no manual expiration needed.
 
 ## Observable health monitoring
 

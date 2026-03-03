@@ -124,20 +124,20 @@ public sealed class HealthNode
     }
 
     /// <summary>
-    /// Replaces the intrinsic health-check delegate and immediately
+    /// Replaces the intrinsic health probe and immediately
     /// re-evaluates and propagates. The node's identity — name, edges,
     /// parents, and graph membership — is preserved.
     /// <para>
-    /// Use this to swap between real and mock implementations at runtime
-    /// without rebuilding the graph topology.
+    /// Use this to swap between real and mock health probe implementations
+    /// at runtime without rebuilding the graph topology.
     /// </para>
     /// </summary>
     /// <param name="healthCheck">
-    /// The new delegate that returns this node's intrinsic health evaluation.
+    /// The new delegate that returns this node's health evaluation.
     /// </param>
-    public void ReplaceCheck(Func<HealthEvaluation> healthCheck)
+    public void ReplaceHealthProbe(Func<HealthEvaluation> healthCheck)
     {
-        _intrinsicCheck = healthCheck ?? throw new ArgumentNullException(nameof(healthCheck));
+        _intrinsicCheck = healthCheck;
         Refresh();
     }
 
@@ -180,14 +180,11 @@ public sealed class HealthNode
                 Array.Empty<HealthTreeDependency>());
         }
 
-        var deps = node.Dependencies;
-        var children = new List<HealthTreeDependency>(deps.Count);
-        foreach (var dep in deps)
-        {
-            children.Add(new HealthTreeDependency(
+        var children = node.Dependencies
+            .Select(dep => new HealthTreeDependency(
                 dep.Importance,
-                BuildTreeSnapshot(dep.Node, visited)));
-        }
+                BuildTreeSnapshot(dep.Node, visited)))
+            .ToList();
 
         return new HealthTreeSnapshot(node.Name, eval.Status, eval.Reason, children);
     }
@@ -259,15 +256,11 @@ public sealed class HealthNode
     {
         lock (_dependencyWriteLock)
         {
-            var current = _dependencies;
-            for (var i = 0; i < current.Count; i++)
-            {
-                if (ReferenceEquals(current[i].Node, node))
-                    throw new InvalidOperationException(
-                        $"'{Name}' already depends on '{node.Name}'.");
-            }
+            if (_dependencies.Any(d => ReferenceEquals(d.Node, node)))
+                throw new InvalidOperationException(
+                    $"'{Name}' already depends on '{node.Name}'.");
 
-            var updated = new List<HealthDependency>(current)
+            var updated = new List<HealthDependency>(_dependencies)
             {
                 new(node, importance)
             };
@@ -290,30 +283,44 @@ public sealed class HealthNode
     {
         lock (_dependencyWriteLock)
         {
-            var current = _dependencies;
-            var index = -1;
-            for (var i = 0; i < current.Count; i++)
-            {
-                if (ReferenceEquals(current[i].Node, node))
-                {
-                    index = i;
-                    break;
-                }
-            }
-
-            if (index < 0)
+            var depToRemove = _dependencies.FirstOrDefault(d => ReferenceEquals(d.Node, node));
+            if (depToRemove is null)
                 return false;
 
-            var updated = new List<HealthDependency>(current.Count - 1);
-            for (var i = 0; i < current.Count; i++)
-            {
-                if (i != index)
-                    updated.Add(current[i]);
-            }
+            var updated = _dependencies.Where(d => !ReferenceEquals(d, depToRemove)).ToList();
             _dependencies = updated;
         }
 
         RemoveParentBackReference(node);
+        Refresh();
+        return true;
+    }
+
+    /// <summary>
+    /// Updates the importance level of an existing dependency.
+    /// Returns <see langword="true"/> if the dependency was found and updated;
+    /// otherwise <see langword="false"/>. Immediately triggers propagation
+    /// so the new importance is reflected in all ancestors without waiting
+    /// for the next poll cycle.
+    /// </summary>
+    /// <param name="node">The dependency node whose importance should be updated.</param>
+    /// <param name="newImportance">The new importance level.</param>
+    public bool UpdateDependencyImportance(HealthNode node, Importance newImportance)
+    {
+        lock (_dependencyWriteLock)
+        {
+            var depToUpdate = _dependencies.FirstOrDefault(d => ReferenceEquals(d.Node, node));
+            if (depToUpdate is null)
+                return false;
+
+            var updated = _dependencies
+                .Select(d => ReferenceEquals(d.Node, node)
+                    ? new HealthDependency(node, newImportance)
+                    : d)
+                .ToList();
+            _dependencies = updated;
+        }
+
         Refresh();
         return true;
     }
@@ -341,15 +348,13 @@ public sealed class HealthNode
         params (HealthNode Node, Importance Importance)[] newDependencies)
     {
         // Validate no duplicates in the incoming set.
-        for (var i = 0; i < newDependencies.Length; i++)
+        var nodeSet = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+        foreach (var (node, _) in newDependencies)
         {
-            for (var j = i + 1; j < newDependencies.Length; j++)
-            {
-                if (ReferenceEquals(newDependencies[i].Node, newDependencies[j].Node))
-                    throw new ArgumentException(
-                        $"Duplicate dependency on '{newDependencies[i].Node.Name}'.",
-                        nameof(newDependencies));
-            }
+            if (!nodeSet.Add(node))
+                throw new ArgumentException(
+                    $"Duplicate dependency on '{node.Name}'.",
+                    nameof(newDependencies));
         }
 
         IReadOnlyList<HealthDependency> oldDeps;
@@ -358,89 +363,32 @@ public sealed class HealthNode
         {
             oldDeps = _dependencies;
 
-            var updated = new List<HealthDependency>(newDependencies.Length);
-            for (var i = 0; i < newDependencies.Length; i++)
-            {
-                var (node, importance) = newDependencies[i];
-                updated.Add(new HealthDependency(node, importance));
-            }
+            var updated = newDependencies
+                .Select(t => new HealthDependency(t.Node, t.Importance))
+                .ToList();
             _dependencies = updated;
         }
 
-        // Remove parent back-references for edges that were dropped.
-        for (var i = 0; i < oldDeps.Count; i++)
-        {
-            var oldNode = oldDeps[i].Node;
-            var retained = false;
-            for (var j = 0; j < newDependencies.Length; j++)
-            {
-                if (ReferenceEquals(oldNode, newDependencies[j].Node))
-                {
-                    retained = true;
-                    break;
-                }
-            }
+        var newNodes = new HashSet<HealthNode>(
+            newDependencies.Select(t => t.Node),
+            ReferenceEqualityComparer.Instance);
+        var oldNodes = new HashSet<HealthNode>(
+            oldDeps.Select(d => d.Node),
+            ReferenceEqualityComparer.Instance);
 
-            if (!retained)
-                RemoveParentBackReference(oldNode);
+        // Remove parent back-references for edges that were dropped.
+        foreach (var oldNode in oldNodes.Where(n => !newNodes.Contains(n)))
+        {
+            RemoveParentBackReference(oldNode);
         }
 
         // Add parent back-references for edges that are new.
-        for (var i = 0; i < newDependencies.Length; i++)
+        foreach (var newNode in newNodes.Where(n => !oldNodes.Contains(n)))
         {
-            var newNode = newDependencies[i].Node;
-            var existed = false;
-            for (var j = 0; j < oldDeps.Count; j++)
-            {
-                if (ReferenceEquals(newNode, oldDeps[j].Node))
-                {
-                    existed = true;
-                    break;
-                }
-            }
-
-            if (!existed)
-                AddParentBackReference(newNode);
+            AddParentBackReference(newNode);
         }
 
         Refresh();
-    }
-
-    private void RemoveParentBackReference(HealthNode child)
-    {
-        lock (child._parentWriteLock)
-        {
-            var current = child._parents;
-            var index = -1;
-            for (var i = 0; i < current.Count; i++)
-            {
-                if (ReferenceEquals(current[i], this))
-                {
-                    index = i;
-                    break;
-                }
-            }
-
-            if (index >= 0)
-            {
-                var updated = new List<HealthNode>(current.Count - 1);
-                for (var i = 0; i < current.Count; i++)
-                {
-                    if (i != index)
-                        updated.Add(current[i]);
-                }
-                child._parents = updated;
-            }
-        }
-    }
-
-    private void AddParentBackReference(HealthNode child)
-    {
-        lock (child._parentWriteLock)
-        {
-            var updated = new List<HealthNode>(child._parents) { this };
-            child._parents = updated;
-        }
     }
 
     /// <summary>
@@ -534,5 +482,27 @@ public sealed class HealthNode
         }
 
         node.NotifyChangedCore();
+    }
+
+    private void RemoveParentBackReference(HealthNode child)
+    {
+        lock (child._parentWriteLock)
+        {
+            var parentToRemove = child._parents.FirstOrDefault(p => ReferenceEquals(p, this));
+            if (parentToRemove is not null)
+            {
+                var updated = child._parents.Where(p => !ReferenceEquals(p, parentToRemove)).ToList();
+                child._parents = updated;
+            }
+        }
+    }
+
+    private void AddParentBackReference(HealthNode child)
+    {
+        lock (child._parentWriteLock)
+        {
+            var updated = new List<HealthNode>(child._parents) { this };
+            child._parents = updated;
+        }
     }
 }

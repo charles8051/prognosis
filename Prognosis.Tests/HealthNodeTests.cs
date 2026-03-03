@@ -154,10 +154,10 @@ public class HealthNodeTests
             () => node.DependsOn(dep, Importance.Optional));
     }
 
-    // ── ReplaceCheck ─────────────────────────────────────────────────
+    // ── ReplaceHealthProbe ──────────────────────────────────────────────
 
     [Fact]
-    public void ReplaceCheck_SwapsIntrinsicCheck()
+    public void ReplaceHealthProbe_SwapsIntrinsicProbe()
     {
         var node = HealthNode.Create("Svc").WithHealthProbe(
             () => HealthStatus.Healthy);
@@ -166,14 +166,14 @@ public class HealthNodeTests
         Assert.Equal(HealthStatus.Healthy,
             graph.GetReport().Nodes.First(n => n.Name == "Svc").Status);
 
-        node.ReplaceCheck(() => HealthEvaluation.Unhealthy("mock down"));
+        node.ReplaceHealthProbe(() => HealthEvaluation.Unhealthy("mock down"));
 
         Assert.Equal(HealthStatus.Unhealthy,
             graph.GetReport().Nodes.First(n => n.Name == "Svc").Status);
     }
 
     [Fact]
-    public void ReplaceCheck_PropagatesUpThroughParent()
+    public void ReplaceHealthProbe_PropagatesUpThroughParent()
     {
         var child = HealthNode.Create("Child").WithHealthProbe(
             () => HealthStatus.Healthy);
@@ -184,7 +184,7 @@ public class HealthNodeTests
         var emitted = new List<HealthReport>();
         graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
 
-        child.ReplaceCheck(() => HealthEvaluation.Unhealthy("swapped"));
+        child.ReplaceHealthProbe(() => HealthEvaluation.Unhealthy("swapped"));
 
         Assert.Single(emitted);
         Assert.Equal(HealthStatus.Unhealthy,
@@ -192,7 +192,7 @@ public class HealthNodeTests
     }
 
     [Fact]
-    public void ReplaceCheck_PreservesEdges()
+    public void ReplaceHealthProbe_PreservesEdges()
     {
         var dep = HealthNode.Create("Dep").WithHealthProbe(
             () => HealthEvaluation.Unhealthy("down"));
@@ -206,7 +206,7 @@ public class HealthNodeTests
             graph.GetReport().Nodes.First(n => n.Name == "Svc").Status);
 
         // Swap the intrinsic check — edges remain intact.
-        node.ReplaceCheck(() => HealthEvaluation.Degraded("slow"));
+        node.ReplaceHealthProbe(() => HealthEvaluation.Degraded("slow"));
 
         var result = graph.GetReport().Nodes.First(n => n.Name == "Svc");
         Assert.Equal(HealthStatus.Unhealthy, result.Status);
@@ -214,12 +214,12 @@ public class HealthNodeTests
     }
 
     [Fact]
-    public void ReplaceCheck_NullDelegate_ThrowsArgumentNullException()
+    public void ReplaceHealthProbe_NullDelegate_ThrowsArgumentNullException()
     {
         var node = HealthNode.Create("Svc");
 
         Assert.Throws<ArgumentNullException>(
-            () => node.ReplaceCheck(null!));
+            () => node.ReplaceHealthProbe(null!));
     }
 
     [Fact]
