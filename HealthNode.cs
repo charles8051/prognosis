@@ -273,11 +273,7 @@ public sealed class HealthNode
             };
             _dependencies = updated;
         }
-        lock (node._parentWriteLock)
-        {
-            var updated = new List<HealthNode>(node._parents) { this };
-            node._parents = updated;
-        }
+        AddParentBackReference(node);
         Refresh();
         return this;
     }
@@ -317,30 +313,7 @@ public sealed class HealthNode
             _dependencies = updated;
         }
 
-        lock (node._parentWriteLock)
-        {
-            var current = node._parents;
-            var index = -1;
-            for (var i = 0; i < current.Count; i++)
-            {
-                if (ReferenceEquals(current[i], this))
-                {
-                    index = i;
-                    break;
-                }
-            }
-
-            if (index >= 0)
-            {
-                var updated = new List<HealthNode>(current.Count - 1);
-                for (var i = 0; i < current.Count; i++)
-                {
-                    if (i != index)
-                        updated.Add(current[i]);
-                }
-                node._parents = updated;
-            }
-        }
+        RemoveParentBackReference(node);
         Refresh();
         return true;
     }
@@ -358,25 +331,19 @@ public sealed class HealthNode
     /// </summary>
     /// <param name="newDependencies">
     /// The complete set of dependencies that should replace the current
-    /// edges. Pass an empty list to remove all dependencies. Duplicate
+    /// edges. Pass no arguments to remove all dependencies. Duplicate
     /// nodes are not allowed.
     /// </param>
-    /// <exception cref="ArgumentNullException">
-    /// <paramref name="newDependencies"/> is <see langword="null"/>.
-    /// </exception>
     /// <exception cref="ArgumentException">
     /// <paramref name="newDependencies"/> contains duplicate nodes.
     /// </exception>
     public void ReplaceDependencies(
-        IReadOnlyList<(HealthNode Node, Importance Importance)> newDependencies)
+        params (HealthNode Node, Importance Importance)[] newDependencies)
     {
-        if (newDependencies is null)
-            throw new ArgumentNullException(nameof(newDependencies));
-
         // Validate no duplicates in the incoming set.
-        for (var i = 0; i < newDependencies.Count; i++)
+        for (var i = 0; i < newDependencies.Length; i++)
         {
-            for (var j = i + 1; j < newDependencies.Count; j++)
+            for (var j = i + 1; j < newDependencies.Length; j++)
             {
                 if (ReferenceEquals(newDependencies[i].Node, newDependencies[j].Node))
                     throw new ArgumentException(
@@ -391,8 +358,8 @@ public sealed class HealthNode
         {
             oldDeps = _dependencies;
 
-            var updated = new List<HealthDependency>(newDependencies.Count);
-            for (var i = 0; i < newDependencies.Count; i++)
+            var updated = new List<HealthDependency>(newDependencies.Length);
+            for (var i = 0; i < newDependencies.Length; i++)
             {
                 var (node, importance) = newDependencies[i];
                 updated.Add(new HealthDependency(node, importance));
@@ -405,7 +372,7 @@ public sealed class HealthNode
         {
             var oldNode = oldDeps[i].Node;
             var retained = false;
-            for (var j = 0; j < newDependencies.Count; j++)
+            for (var j = 0; j < newDependencies.Length; j++)
             {
                 if (ReferenceEquals(oldNode, newDependencies[j].Node))
                 {
@@ -419,7 +386,7 @@ public sealed class HealthNode
         }
 
         // Add parent back-references for edges that are new.
-        for (var i = 0; i < newDependencies.Count; i++)
+        for (var i = 0; i < newDependencies.Length; i++)
         {
             var newNode = newDependencies[i].Node;
             var existed = false;

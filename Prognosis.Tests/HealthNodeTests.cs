@@ -353,7 +353,7 @@ public class HealthNodeTests
         Assert.Equal(HealthStatus.Unhealthy,
             graph.GetReport().Nodes.First(n => n.Name == "Svc").Status);
 
-        node.ReplaceDependencies([(mockDb, Importance.Required)]);
+        node.ReplaceDependencies((mockDb, Importance.Required));
 
         Assert.Single(node.Dependencies);
         Assert.Same(mockDb, node.Dependencies[0].Node);
@@ -370,7 +370,7 @@ public class HealthNodeTests
 
         Assert.Single(dep.Parents);
 
-        node.ReplaceDependencies([]);
+        node.ReplaceDependencies();
 
         Assert.Empty(dep.Parents);
     }
@@ -381,7 +381,7 @@ public class HealthNodeTests
         var node = HealthNode.Create("Svc");
         var dep = HealthNode.Create("Dep");
 
-        node.ReplaceDependencies([(dep, Importance.Important)]);
+        node.ReplaceDependencies((dep, Importance.Important));
 
         Assert.Single(dep.Parents);
         Assert.Same(node, dep.Parents[0]);
@@ -397,10 +397,9 @@ public class HealthNodeTests
             .DependsOn(kept, Importance.Required)
             .DependsOn(removed, Importance.Required);
 
-        node.ReplaceDependencies([
+        node.ReplaceDependencies(
             (kept, Importance.Important),
-            (added, Importance.Required)
-        ]);
+            (added, Importance.Required));
 
         Assert.Single(kept.Parents);
         Assert.Empty(removed.Parents);
@@ -417,7 +416,7 @@ public class HealthNodeTests
             .DependsOn(a, Importance.Required)
             .DependsOn(b, Importance.Required);
 
-        node.ReplaceDependencies([]);
+        node.ReplaceDependencies();
 
         Assert.Empty(node.Dependencies);
         Assert.Empty(a.Parents);
@@ -439,7 +438,7 @@ public class HealthNodeTests
         Assert.Equal(HealthStatus.Unhealthy,
             graph.GetReport().Nodes.First(n => n.Name == "Parent").Status);
 
-        child.ReplaceDependencies([(mockDep, Importance.Required)]);
+        child.ReplaceDependencies((mockDep, Importance.Required));
 
         Assert.Equal(HealthStatus.Healthy,
             graph.GetReport().Nodes.First(n => n.Name == "Parent").Status);
@@ -457,7 +456,7 @@ public class HealthNodeTests
         Assert.True(graph.TryGetNode("Real", out _));
         Assert.False(graph.TryGetNode("Mock", out _));
 
-        node.ReplaceDependencies([(mockDep, Importance.Required)]);
+        node.ReplaceDependencies((mockDep, Importance.Required));
 
         Assert.False(graph.TryGetNode("Real", out _));
         Assert.True(graph.TryGetNode("Mock", out _));
@@ -476,20 +475,11 @@ public class HealthNodeTests
         graph.TopologyChanged.Subscribe(
             new TestObserver<TopologyChange>(changes.Add));
 
-        node.ReplaceDependencies([(mockDep, Importance.Required)]);
+        node.ReplaceDependencies((mockDep, Importance.Required));
 
         Assert.Single(changes);
         Assert.Contains(changes[0].Added, n => n.Name == "Mock");
         Assert.Contains(changes[0].Removed, n => n.Name == "Real");
-    }
-
-    [Fact]
-    public void ReplaceDependencies_NullArgument_ThrowsArgumentNullException()
-    {
-        var node = HealthNode.Create("Svc");
-
-        Assert.Throws<ArgumentNullException>(
-            () => node.ReplaceDependencies(null!));
     }
 
     [Fact]
@@ -499,10 +489,9 @@ public class HealthNodeTests
         var node = HealthNode.Create("Svc");
 
         Assert.Throws<ArgumentException>(
-            () => node.ReplaceDependencies([
+            () => node.ReplaceDependencies(
                 (dep, Importance.Required),
-                (dep, Importance.Optional)
-            ]));
+                (dep, Importance.Optional)));
     }
 }
 
