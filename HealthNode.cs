@@ -137,6 +137,7 @@ public sealed class HealthNode
     /// </param>
     public void ReplaceHealthProbe(Func<HealthEvaluation> healthCheck)
     {
+        if (_intrinsicCheck == healthCheck) return;
         _intrinsicCheck = healthCheck;
         Refresh();
     }
