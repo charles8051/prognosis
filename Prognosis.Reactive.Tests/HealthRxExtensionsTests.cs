@@ -277,5 +277,35 @@ public class HealthRxExtensionsTests
 
         Assert.Single(reports);
         Assert.Equal(HealthStatus.Unhealthy, reports[0].Nodes.First(n => n.Name == "A").Status);
+        Assert.Equal(HealthStatus.Unhealthy, reports[0].Root.Status);
+    }
+
+    [Fact]
+    public void ObserveHealthReport_Diamond_RecoveryUpdatesRoot()
+    {
+        var isHealthy = false;
+        var leaf = HealthNode.Create("Leaf").WithHealthProbe(
+            () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
+        var a = HealthNode.Create("A")
+            .DependsOn(leaf, Importance.Required);
+        var b = HealthNode.Create("B")
+            .DependsOn(leaf, Importance.Required);
+        var root = HealthNode.Create("Root")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        var reports = new List<HealthReport>();
+        using var sub = graph
+            .ObserveHealthReport()
+            .Subscribe(r => reports.Add(r));
+
+        isHealthy = true;
+        leaf.Refresh();
+
+        Assert.Single(reports);
+        Assert.Equal(HealthStatus.Healthy, reports[0].Root.Status);
+        Assert.All(reports[0].Nodes,
+            n => Assert.Equal(HealthStatus.Healthy, n.Status));
     }
 }

@@ -196,7 +196,11 @@ public sealed class HealthNode
     /// is re-evaluated.
     /// <para>
     /// Diamond graphs and cycles are handled correctly — each node
-    /// is visited at most once per propagation wave.
+    /// is visited at most once per propagation wave. A two-phase
+    /// approach ensures that in diamond topologies every node reads
+    /// up-to-date cached evaluations from its dependencies: phase 1
+    /// collects all reachable ancestors, phase 2 evaluates them in
+    /// dependency order (children before parents).
     /// </para>
     /// </summary>
     internal void BubbleChange()
@@ -209,16 +213,43 @@ public sealed class HealthNode
             if (!s_propagating.Add(this))
                 return;
 
-            NotifyChangedCore();
-
             foreach (var parent in _parents)
                 parent.BubbleChange();
         }
         finally
         {
             if (isRoot)
+            {
+                var scope = s_propagating;
                 s_propagating = null;
+
+                var evaluated = new HashSet<HealthNode>(ReferenceEqualityComparer.Instance);
+                foreach (var node in scope)
+                    EvalInDependencyOrder(node, scope, evaluated);
+            }
         }
+    }
+
+    /// <summary>
+    /// Recursively evaluates <paramref name="node"/> after first evaluating
+    /// any of its dependencies that are also in <paramref name="scope"/>.
+    /// This ensures that in diamond topologies every node reads up-to-date
+    /// cached evaluations from its dependencies.
+    /// </summary>
+    private static void EvalInDependencyOrder(
+        HealthNode node,
+        HashSet<HealthNode> scope,
+        HashSet<HealthNode> evaluated)
+    {
+        if (!evaluated.Add(node))
+            return;
+        if (!scope.Contains(node))
+            return;
+
+        foreach (var dep in node._dependencies)
+            EvalInDependencyOrder(dep.Node, scope, evaluated);
+
+        node.NotifyChangedCore();
     }
 
     /// <summary>

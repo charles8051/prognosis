@@ -188,6 +188,114 @@ public class HealthNodePropagateTests
         Assert.Equal(HealthStatus.Healthy,
             lastReport.Nodes.First(n => n.Name == "Parent").Status);
     }
+
+    // ── Diamond propagation ───────────────────────────────────────────
+
+    [Fact]
+    public void Refresh_Diamond_RecoveryUpdatesRoot()
+    {
+        var isUnhealthy = true;
+        var leaf = HealthNode.Create("Leaf").WithHealthProbe(
+            () => isUnhealthy ? HealthStatus.Unhealthy : HealthStatus.Healthy);
+        var a = HealthNode.Create("A")
+            .DependsOn(leaf, Importance.Required);
+        var b = HealthNode.Create("B")
+            .DependsOn(leaf, Importance.Required);
+        var root = HealthNode.Create("Root")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        Assert.Equal(HealthStatus.Unhealthy,
+            graph.GetReport().Root.Status);
+
+        isUnhealthy = false;
+        leaf.Refresh();
+
+        Assert.Equal(HealthStatus.Healthy,
+            graph.GetReport().Root.Status);
+        Assert.All(graph.GetReport().Nodes,
+            n => Assert.Equal(HealthStatus.Healthy, n.Status));
+    }
+
+    [Fact]
+    public void Refresh_DeepDiamond_RecoveryUpdatesRoot()
+    {
+        var isUnhealthy = true;
+        var leaf = HealthNode.Create("Leaf").WithHealthProbe(
+            () => isUnhealthy ? HealthStatus.Unhealthy : HealthStatus.Healthy);
+        var a = HealthNode.Create("A")
+            .DependsOn(leaf, Importance.Required);
+        var b = HealthNode.Create("B")
+            .DependsOn(leaf, Importance.Required);
+        var mid = HealthNode.Create("Mid")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Required);
+        var root = HealthNode.Create("Root")
+            .DependsOn(mid, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        Assert.Equal(HealthStatus.Unhealthy,
+            graph.GetReport().Root.Status);
+
+        isUnhealthy = false;
+        leaf.Refresh();
+
+        Assert.Equal(HealthStatus.Healthy,
+            graph.GetReport().Root.Status);
+    }
+
+    [Fact]
+    public void Refresh_Diamond_RecoveryEmitsCorrectReport()
+    {
+        var isUnhealthy = true;
+        var leaf = HealthNode.Create("Leaf").WithHealthProbe(
+            () => isUnhealthy ? HealthStatus.Unhealthy : HealthStatus.Healthy);
+        var a = HealthNode.Create("A")
+            .DependsOn(leaf, Importance.Required);
+        var b = HealthNode.Create("B")
+            .DependsOn(leaf, Importance.Required);
+        var root = HealthNode.Create("Root")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        var emitted = new List<HealthReport>();
+        graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
+
+        isUnhealthy = false;
+        leaf.Refresh();
+
+        Assert.Single(emitted);
+        Assert.Equal(HealthStatus.Healthy, emitted[0].Root.Status);
+    }
+
+    [Fact]
+    public void Refresh_AsymmetricDiamond_RecoveryUpdatesRoot()
+    {
+        var isUnhealthy = true;
+        var leaf = HealthNode.Create("Leaf").WithHealthProbe(
+            () => isUnhealthy ? HealthStatus.Unhealthy : HealthStatus.Healthy);
+        var a = HealthNode.Create("A")
+            .DependsOn(leaf, Importance.Required);
+        var mid = HealthNode.Create("Mid")
+            .DependsOn(leaf, Importance.Required);
+        var b = HealthNode.Create("B")
+            .DependsOn(mid, Importance.Required);
+        var root = HealthNode.Create("Root")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        Assert.Equal(HealthStatus.Unhealthy,
+            graph.GetReport().Root.Status);
+
+        isUnhealthy = false;
+        leaf.Refresh();
+
+        Assert.Equal(HealthStatus.Healthy,
+            graph.GetReport().Root.Status);
+    }
 }
 
 file class TestObserver<T>(Action<T> onNext) : IObserver<T>
