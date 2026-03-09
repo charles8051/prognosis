@@ -16,7 +16,7 @@
 
 ## Architecture Rules
 
-- `HealthGraph` is the sole public surface for querying, reporting, and observables. `HealthNode` owns topology building and intrinsic checks.
+- `HealthGraph` is the sole public surface for queryng, reporting, and observables. `HealthNode` owns topology building and intrinsic checks.
 - Observer notifications must always fire **outside** `_propagationLock` to prevent re-entrant deadlocks.
 - Lock ordering: `_propagationLock` → `_topologyLock` → observer locks (independent).
 - Extension packages (`Prognosis.DependencyInjection`, `Prognosis.Reactive`) reference only the core. Never add reverse references.
@@ -26,3 +26,9 @@
 - Tests use xUnit. Test projects target net10.0.
 - Create nodes via `HealthNode.Create(...)` with optional `.WithHealthProbe(...)` — never call constructors directly.
 - Reactive tests may use `Microsoft.Reactive.Testing`.
+
+## Tooling
+
+- **Always use GitHub MCP tools** (`github_push_files`, `github_create_or_update_file`, `github_get_file_contents`, `github_list_commits`, etc.) for all Git operations — commits, file reads, branch management.
+- **Never use PowerShell `git` commands** for commits or pushes. Multi-line commit messages and special characters (dashes, angle brackets, arrows) cause PowerShell to misparse arguments and fail silently or with cryptic errors.
+- For reading local files that are not yet committed, use `get_file` or `get_file_contents` instead.
