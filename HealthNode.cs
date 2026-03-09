@@ -26,6 +26,10 @@ public sealed class HealthNode
     private volatile IReadOnlyList<HealthDependency> _dependencies = Array.Empty<HealthDependency>();
     internal volatile HealthEvaluation _cachedEvaluation;
     private volatile bool _skipNextIntrinsicEvaluation;
+    private IReadOnlyDictionary<string, string> _tags = EmptyTags;
+
+    private static readonly IReadOnlyDictionary<string, string> EmptyTags =
+        new Dictionary<string, string>();
 
     /// <summary>
     /// Multicast delegate for propagating health changes after topology
@@ -75,6 +79,14 @@ public sealed class HealthNode
     public string Name { get; }
 
     /// <summary>
+    /// Arbitrary string metadata associated with this node at construction
+    /// time. Typical uses include environment, owner, region, and version
+    /// labels. Tags are immutable after <see cref="WithTags"/> is called.
+    /// Empty by default.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> Tags => _tags;
+
+    /// <summary>
     /// Creates a new health node whose intrinsic status is
     /// <see cref="HealthStatus.Healthy"/>. Attach a health-check delegate
     /// with <see cref="WithHealthProbe"/> and wire dependencies with
@@ -104,8 +116,25 @@ public sealed class HealthNode
     }
 
     /// <summary>
+    /// Attaches arbitrary string metadata to this node. Returns
+    /// <see langword="this"/> for fluent chaining.
+    /// <para>
+    /// Tags describe a node's identity (environment, owner, region, etc.)
+    /// and are immutable after this call. They are included in every
+    /// <see cref="HealthSnapshot"/> and <see cref="HealthTreeSnapshot"/>
+    /// produced from this node.
+    /// </para>
+    /// </summary>
+    /// <param name="tags">Key-value pairs to associate with the node.</param>
+    public HealthNode WithTags(IReadOnlyDictionary<string, string> tags)
+    {
+        _tags = tags ?? throw new ArgumentNullException(nameof(tags));
+        return this;
+    }
+
+    /// <summary>
     /// Overwrites this node's cached health evaluation and immediately
-    /// propagates upward through all ancestors. The reported value acts
+    /// propagates upward through all ancestors.
     /// as the intrinsic evaluation until the next delegate-based refresh
     /// (poll tick or explicit <see cref="Refresh"/>) naturally replaces it.
     /// <para>
@@ -173,13 +202,15 @@ public sealed class HealthNode
         HealthNode node, HashSet<HealthNode> visited)
     {
         var eval = node._cachedEvaluation;
+        var tags = node._tags.Count > 0 ? node._tags : null;
 
         if (!visited.Add(node))
         {
             // Already visited — return a leaf to break cycles / diamonds.
             return new HealthTreeSnapshot(
                 node.Name, eval.Status, eval.Reason,
-                Array.Empty<HealthTreeDependency>());
+                Array.Empty<HealthTreeDependency>(),
+                tags);
         }
 
         var children = node.Dependencies
@@ -188,7 +219,7 @@ public sealed class HealthNode
                 BuildTreeSnapshot(dep.Node, visited)))
             .ToList();
 
-        return new HealthTreeSnapshot(node.Name, eval.Status, eval.Reason, children);
+        return new HealthTreeSnapshot(node.Name, eval.Status, eval.Reason, children, tags);
     }
 
     /// <summary>
