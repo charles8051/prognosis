@@ -17,11 +17,16 @@ namespace Prognosis;
 /// The node's direct dependencies, each paired with its
 /// <see cref="Importance"/> weight.
 /// </param>
+/// <param name="Tags">
+/// Arbitrary string metadata copied from <see cref="HealthNode.Tags"/> at
+/// snapshot-build time. <see langword="null"/> when the node has no tags.
+/// </param>
 public sealed record HealthTreeSnapshot(
     string Name,
     HealthStatus Status,
     string? Reason,
-    IReadOnlyList<HealthTreeDependency> Dependencies);
+    IReadOnlyList<HealthTreeDependency> Dependencies,
+    IReadOnlyDictionary<string, string>? Tags = null);
 
 /// <summary>
 /// A weighted edge in a <see cref="HealthTreeSnapshot"/> tree. Pairs the
