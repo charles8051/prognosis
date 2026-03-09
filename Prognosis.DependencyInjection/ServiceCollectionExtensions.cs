@@ -127,6 +127,8 @@ public static class ServiceCollectionExtensions
             var node = HealthNode.Create(def.Name);
             if (def.HealthCheck is not null)
                 node.WithHealthProbe(() => def.HealthCheck(sp));
+            if (def.Tags is not null)
+                node.WithTags(def.Tags);
             WireEdges(node, def.Edges, byName);
             byName[def.Name] = node;
         }

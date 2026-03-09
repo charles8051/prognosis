@@ -16,6 +16,7 @@ public sealed class NodeConfigurator
     internal string Name { get; }
     internal Type? ServiceType { get; private set; }
     internal Func<IServiceProvider, HealthEvaluation>? HealthCheck { get; private set; }
+    internal IReadOnlyDictionary<string, string>? Tags { get; private set; }
     internal List<EdgeDefinition> Edges { get; } = [];
 
     internal NodeConfigurator(string name) => Name = name;
@@ -38,6 +39,18 @@ public sealed class NodeConfigurator
         ServiceType = typeof(TService);
         HealthCheck = sp => healthCheck(
             (TService)sp.GetRequiredService(typeof(TService)));
+        return this;
+    }
+
+    /// <summary>
+    /// Associates arbitrary string metadata with this node.
+    /// Delegates to <see cref="HealthNode.WithTags"/> at graph materialization
+    /// time. Returns <see langword="this"/> for fluent chaining.
+    /// </summary>
+    /// <param name="tags">Key-value pairs to associate with the node.</param>
+    public NodeConfigurator WithTags(IReadOnlyDictionary<string, string> tags)
+    {
+        Tags = tags ?? throw new ArgumentNullException(nameof(tags));
         return this;
     }
 
