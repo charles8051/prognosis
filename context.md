@@ -15,14 +15,14 @@ Extension packages reference only the core. The core has zero project references
 
 ## Core Types
 
-- **`HealthNode`** — sealed, private constructors. Created via `Create(name)` with optional `.WithHealthProbe(healthCheck)`. Legacy `CreateDelegate` and `CreateComposite` factory methods are deprecated. Owns edges (`DependsOn`/`RemoveDependency`/`ReplaceDependencies`), aggregation, upward propagation, and external status reporting (`ReportStatus`). `ReplaceDependencies` atomically swaps the full dependency set for switchable-service scenarios.
+- **`HealthNode`** — sealed, private constructors. Created via `Create(name)` with optional `.WithHealthProbe(healthCheck)` and `.WithTags(dict)` for immutable string metadata. Legacy `CreateDelegate` and `CreateComposite` factory methods are deprecated. Owns edges (`DependsOn`/`RemoveDependency`/`ReplaceDependencies`), aggregation, upward propagation, and external status reporting (`ReportStatus`). `ReplaceDependencies` atomically swaps the full dependency set for switchable-service scenarios.
 Entry point for `GetReport`, `RefreshAll`, and observables
 - **`HealthStatus`** — enum: `Healthy(0)`, `Unknown(1)`, `Degraded(2)`, `Unhealthy(3)`. Worst-is-highest.
 - **`Importance`** — enum: `Required`, `Important`, `Optional`, `Resilient`. Controls how dependency failures propagate.
 - **`HealthEvaluation`** — `(HealthStatus, string? Reason)` record. Implicit conversion from `HealthStatus`.
 - **`HealthDependency`** — weighted edge: `(HealthNode, Importance)`.
-- **`HealthReport`** / **`HealthSnapshot`** — flat report DTOs. `HealthReport.Root` carries the graph root's aggregated status. `DiffTo()` for change detection.
-- **`HealthTreeSnapshot`** — tree-shaped snapshot preserving hierarchy for nested JSON.
+- **`HealthReport`** / **`HealthSnapshot`** — flat report DTOs. `HealthReport.Root` carries the graph root's aggregated status. `HealthSnapshot` optionally includes `Tags` copied from node. `DiffTo()` for change detection.
+- **`HealthTreeSnapshot`** — tree-shaped snapshot preserving hierarchy for nested JSON. Optionally includes `Tags` from node.
 - **`HealthMonitor`** — timer-based poller wrapping `HealthGraph.RefreshAll()`.
 
 ## Aggregation Rules
@@ -50,7 +50,7 @@ Entry point for `GetReport`, `RefreshAll`, and observables
 
 ## DI Integration
 
-`services.AddPrognosis(...)` — registers service nodes via `AddServiceNode<T>`, defines new nodes via `AddNode`, wires edges, resolves roots. `PrognosisBuilder` provides the fluent API (`AddServiceNode<T>`, `AddNode`, `MarkAsRoot`, `UseMonitor`). The `NodeConfigurator` returned by `AddNode` provides `.WithHealthProbe<T>(...)` and `.DependsOn(...)`. The generator emits `AddDiscoveredNodes()` which calls `AddServiceNode<T>` for every class with a public `HealthNode` property and wires `[DependsOn]` attribute-declared edges.
+`services.AddPrognosis(...)` — registers service nodes via `AddServiceNode<T>`, defines new nodes via `AddNode`, wires edges, resolves roots. `PrognosisBuilder` provides the fluent API (`AddServiceNode<T>`, `AddNode`, `MarkAsRoot`, `UseMonitor`). The `NodeConfigurator` returned by `AddNode` provides `.WithHealthProbe<T>(...)`, `.WithTags(...)`, and `.DependsOn(...)`. The generator emits `AddDiscoveredNodes()` which calls `AddServiceNode<T>` for every class with a public `HealthNode` property and wires `[DependsOn]` attribute-declared edges.
 
 ## Source Generators
 
