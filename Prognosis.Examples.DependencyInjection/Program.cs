@@ -126,11 +126,13 @@ if (graph.TryGetNode<AuthService>(out var auth))
 // ─────────────────────────────────────────────────────────────────────
 // Multiple roots — shared nodes, separate graphs.
 //
+// (Commented out to avoid conflicts with rich reporting example services)
 // A second AddPrognosis call creates a separate configuration with
 // multiple MarkAsRoot calls. Each root produces a separate HealthGraph
 // that shares the same underlying HealthNode instances.
 // ─────────────────────────────────────────────────────────────────────
 
+/*
 Console.WriteLine();
 Console.WriteLine("=== Multi-root health graphs ===");
 
@@ -186,6 +188,77 @@ Console.WriteLine($"  Customer root (typed): {custGraphTyped.Root.Name}");
 opsGraphKeyed.TryGetNode(HealthNames.Database, out var opsDb);
 custGraphKeyed.TryGetNode(HealthNames.Database, out var custDb);
 Console.WriteLine($"  Shared Database node:  {ReferenceEquals(opsDb, custDb)}");
+Console.WriteLine();
+*/
+
+// ─────────────────────────────────────────────────────────────────────
+// Rich reporting — correlating health snapshots with operational metadata.
+//
+// Tags provide the correlation key. Services that want to expose
+// operational details (config, device IDs, etc.) implement IServiceMetadata.
+// The enrichment extension method joins health snapshots with metadata.
+// ─────────────────────────────────────────────────────────────────────
+
+Console.WriteLine("=== Rich reporting with metadata enrichment ===");
+
+var richBuilder = Host.CreateApplicationBuilder(args);
+
+// Register services with metadata.
+richBuilder.Services.AddSingleton<MetadataAwareDatabaseService>();
+richBuilder.Services.AddSingleton<MetadataAwareCacheService>();
+
+// Register metadata providers.
+richBuilder.Services.AddSingleton<IServiceMetadata>(sp =>
+    sp.GetRequiredService<MetadataAwareDatabaseService>());
+richBuilder.Services.AddSingleton<IServiceMetadata>(sp =>
+    sp.GetRequiredService<MetadataAwareCacheService>());
+
+richBuilder.Services.AddPrognosis(health =>
+{
+    // Service nodes expose tags for correlation.
+    health.AddServiceNode<MetadataAwareDatabaseService>(svc => svc.HealthNode);
+    health.AddServiceNode<MetadataAwareCacheService>(svc => svc.HealthNode);
+
+    health.AddNode("RichApp")
+        .DependsOn(nameof(MetadataAwareDatabaseService), Importance.Required)
+        .DependsOn(nameof(MetadataAwareCacheService), Importance.Important);
+
+    health.MarkAsRoot("RichApp");
+});
+
+var richHost = richBuilder.Build();
+var richGraph = richHost.Services.GetRequiredService<HealthGraph>();
+
+var basicReport = richGraph.GetReport();
+Console.WriteLine("  Basic report (no metadata):");
+foreach (var snapshot in basicReport.Nodes.Take(2))
+{
+    Console.WriteLine($"    {snapshot.Name}: {snapshot.Status}");
+    if (snapshot.Tags is not null)
+    {
+        foreach (var tag in snapshot.Tags)
+            Console.WriteLine($"      tag: {tag.Key}={tag.Value}");
+    }
+}
+Console.WriteLine();
+
+// Enrich with operational metadata from IServiceMetadata providers.
+var richReport = basicReport.EnrichWithMetadata(richHost.Services);
+Console.WriteLine("  Rich report (with metadata):");
+foreach (var snapshot in richReport.Nodes.Take(2))
+{
+    Console.WriteLine($"    {snapshot.Name}: {snapshot.Status}");
+    if (snapshot.Tags is not null)
+    {
+        foreach (var tag in snapshot.Tags)
+            Console.WriteLine($"      tag: {tag.Key}={tag.Value}");
+    }
+    if (snapshot.Metadata is not null)
+    {
+        foreach (var entry in snapshot.Metadata)
+            Console.WriteLine($"      meta: {entry.Key}={entry.Value}");
+    }
+}
 Console.WriteLine();
 
 // ─────────────────────────────────────────────────────────────────────
@@ -265,3 +338,133 @@ class ReportObserver : IObserver<HealthReport>
 /// <summary>Marker types for multi-root graph resolution.</summary>
 class OpsView;
 class CustomerView;
+
+// ─────────────────────────────────────────────────────────────────────
+// Metadata-aware service implementations for rich reporting example
+// ─────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// A service that exposes both a HealthNode (for health status) and
+/// IServiceMetadata (for operational details like connection strings,
+/// device IDs, configuration, etc.).
+/// </summary>
+class MetadataAwareDatabaseService : IServiceMetadata
+{
+    public HealthNode HealthNode { get; }
+
+    public MetadataAwareDatabaseService()
+    {
+        HealthNode = HealthNode.Create(nameof(MetadataAwareDatabaseService))
+            .WithHealthProbe(() => HealthStatus.Healthy)
+            .WithTags(new Dictionary<string, string>
+            {
+                ["env"] = "production",
+                ["owner"] = "platform-team",
+                ["tier"] = "critical"
+            });
+    }
+
+    // IServiceMetadata implementation — operational details.
+    public string Name => nameof(MetadataAwareDatabaseService);
+    public IReadOnlyDictionary<string, object> Details => new Dictionary<string, object>
+    {
+        ["connection_string"] = "Server=prod-db-01;Database=app",
+        ["pool_size"] = 50,
+        ["timeout_seconds"] = 30,
+        ["version"] = "PostgreSQL 15.2"
+    };
+}
+
+class MetadataAwareCacheService : IServiceMetadata
+{
+    public HealthNode HealthNode { get; }
+
+    public MetadataAwareCacheService()
+    {
+        HealthNode = HealthNode.Create(nameof(MetadataAwareCacheService))
+            .WithHealthProbe(() => HealthStatus.Healthy)
+            .WithTags(new Dictionary<string, string>
+            {
+                ["env"] = "production",
+                ["region"] = "us-east-1"
+            });
+    }
+
+    public string Name => nameof(MetadataAwareCacheService);
+    public IReadOnlyDictionary<string, object> Details => new Dictionary<string, object>
+    {
+        ["endpoint"] = "redis-cluster-01.amazonaws.com:6379",
+        ["cluster_mode"] = true,
+        ["max_connections"] = 100
+    };
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Enrichment infrastructure (your code, not part of Prognosis core)
+// ─────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// Optional interface for services that want to expose operational metadata
+/// in rich health reports. Tags on HealthNode provide the correlation key;
+/// this interface provides the "juicy details."
+/// </summary>
+interface IServiceMetadata
+{
+    string Name { get; }
+    IReadOnlyDictionary<string, object> Details { get; }
+}
+
+/// <summary>
+/// A health report enriched with operational metadata from IServiceMetadata.
+/// </summary>
+record RichHealthReport(
+    RichHealthSnapshot Root,
+    IReadOnlyList<RichHealthSnapshot> Nodes);
+
+/// <summary>
+/// A health snapshot enriched with operational metadata.
+/// </summary>
+record RichHealthSnapshot(
+    string Name,
+    HealthStatus Status,
+    string? Reason,
+    IReadOnlyDictionary<string, string>? Tags,
+    IReadOnlyDictionary<string, object>? Metadata);
+
+/// <summary>
+/// Extension method that joins HealthReport with IServiceMetadata providers
+/// registered in DI. Correlation is by node name; you could also match on tags.
+/// </summary>
+static class HealthReportEnrichmentExtensions
+{
+    public static RichHealthReport EnrichWithMetadata(
+        this HealthReport report,
+        IServiceProvider services)
+    {
+        // Build a lookup of metadata by service name.
+        var metadataByName = services.GetServices<IServiceMetadata>()
+            .ToDictionary(m => m.Name, m => m.Details);
+
+        var enrichedNodes = new List<RichHealthSnapshot>();
+        foreach (var snapshot in report.Nodes)
+        {
+            metadataByName.TryGetValue(snapshot.Name, out var metadata);
+            enrichedNodes.Add(new RichHealthSnapshot(
+                snapshot.Name,
+                snapshot.Status,
+                snapshot.Reason,
+                snapshot.Tags,
+                metadata));
+        }
+
+        var rootMeta = metadataByName.GetValueOrDefault(report.Root.Name);
+        var enrichedRoot = new RichHealthSnapshot(
+            report.Root.Name,
+            report.Root.Status,
+            report.Root.Reason,
+            report.Root.Tags,
+            rootMeta);
+
+        return new RichHealthReport(enrichedRoot, enrichedNodes);
+    }
+}
