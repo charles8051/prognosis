@@ -268,10 +268,12 @@ public sealed class HealthGraph : IDisposable
         foreach (var node in nodes)
         {
             var eval = node._cachedEvaluation;
-            results.Add(new HealthSnapshot(node.Name, eval.Status, eval.Reason));
+            var tags = node.Tags.Count > 0 ? node.Tags : null;
+            results.Add(new HealthSnapshot(node.Name, eval.Status, eval.Reason, tags));
         }
         var rootEval = _root._cachedEvaluation;
-        var rootSnapshot = new HealthSnapshot(_root.Name, rootEval.Status, rootEval.Reason);
+        var rootTags = _root.Tags.Count > 0 ? _root.Tags : null;
+        var rootSnapshot = new HealthSnapshot(_root.Name, rootEval.Status, rootEval.Reason, rootTags);
         var report = new HealthReport(rootSnapshot, results);
         _cachedReport = report;
         return report;
