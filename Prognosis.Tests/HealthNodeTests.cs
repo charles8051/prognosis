@@ -493,6 +493,95 @@ public class HealthNodeTests
                 (dep, Importance.Required),
                 (dep, Importance.Optional)));
     }
+
+    // ── WithTags ─────────────────────────────────────────────────────
+
+    [Fact]
+    public void WithTags_StoresTags()
+    {
+        var node = HealthNode.Create("Svc")
+            .WithTags(new Dictionary<string, string> { ["env"] = "prod" });
+
+        Assert.Equal("prod", node.Tags["env"]);
+    }
+
+    [Fact]
+    public void WithTags_ReturnsSelf_ForChaining()
+    {
+        var node = HealthNode.Create("Svc");
+
+        var returned = node.WithTags(new Dictionary<string, string>());
+
+        Assert.Same(node, returned);
+    }
+
+    [Fact]
+    public void WithTags_NullArgument_ThrowsArgumentNullException()
+    {
+        var node = HealthNode.Create("Svc");
+
+        Assert.Throws<ArgumentNullException>(() => node.WithTags(null!));
+    }
+
+    [Fact]
+    public void Tags_DefaultsToEmpty()
+    {
+        var node = HealthNode.Create("Svc");
+
+        Assert.Empty(node.Tags);
+    }
+
+    [Fact]
+    public void Tags_AppearsInReportSnapshot()
+    {
+        var node = HealthNode.Create("Svc")
+            .WithTags(new Dictionary<string, string> { ["env"] = "prod", ["owner"] = "platform" });
+        var graph = HealthGraph.Create(node);
+
+        var snapshot = graph.GetReport().Nodes.First(n => n.Name == "Svc");
+
+        Assert.NotNull(snapshot.Tags);
+        Assert.Equal("prod", snapshot.Tags["env"]);
+        Assert.Equal("platform", snapshot.Tags["owner"]);
+    }
+
+    [Fact]
+    public void Tags_AbsentFromReportSnapshot_WhenNodeHasNoTags()
+    {
+        var node = HealthNode.Create("Svc");
+        var graph = HealthGraph.Create(node);
+
+        var snapshot = graph.GetReport().Nodes.First(n => n.Name == "Svc");
+
+        Assert.Null(snapshot.Tags);
+    }
+
+    [Fact]
+    public void Tags_AppearsInTreeSnapshot()
+    {
+        var node = HealthNode.Create("Svc")
+            .WithTags(new Dictionary<string, string> { ["tier"] = "critical" });
+        var graph = HealthGraph.Create(node);
+
+        var tree = graph.CreateTreeSnapshot();
+
+        Assert.NotNull(tree.Tags);
+        Assert.Equal("critical", tree.Tags["tier"]);
+    }
+
+    [Fact]
+    public void Tags_AppearsInDependencyTreeSnapshot()
+    {
+        var dep = HealthNode.Create("Dep")
+            .WithTags(new Dictionary<string, string> { ["region"] = "us-east-1" });
+        var root = HealthNode.Create("Root").DependsOn(dep, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        var depTree = graph.CreateTreeSnapshot().Dependencies[0].Node;
+
+        Assert.NotNull(depTree.Tags);
+        Assert.Equal("us-east-1", depTree.Tags["region"]);
+    }
 }
 
 file class TestObserver<T>(Action<T> onNext) : IObserver<T>
