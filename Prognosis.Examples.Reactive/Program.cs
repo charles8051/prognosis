@@ -1,0 +1,286 @@
+using System.Reactive.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Prognosis;
+using Prognosis.Reactive;
+
+var jsonOptions = new JsonSerializerOptions
+{
+    WriteIndented = true,
+    Converters = { new JsonStringEnumConverter() },
+};
+
+// ─────────────────────────────────────────────────────────────────────
+// Build a small health graph manually (same as core example).
+// ─────────────────────────────────────────────────────────────────────
+
+var database = new DatabaseService();
+var cache = new CacheService();
+var externalEmailApi = new ThirdPartyEmailClient();
+
+var emailHealth = HealthNode.Create("EmailProvider").WithHealthProbe(
+    () => externalEmailApi.IsConnected
+        ? HealthStatus.Healthy
+        : HealthEvaluation.Unhealthy("SMTP connection refused"));
+
+var messageQueue = HealthNode.Create("MessageQueue");
+
+var authService = HealthNode.Create("AuthService")
+    .DependsOn(database.HealthNode, Importance.Required)
+    .DependsOn(cache.HealthNode, Importance.Important);
+
+var notificationSystem = HealthNode.Create("NotificationSystem")
+    .DependsOn(messageQueue, Importance.Required)
+    .DependsOn(emailHealth, Importance.Optional);
+
+var app = HealthNode.Create("Application")
+    .DependsOn(authService, Importance.Required)
+    .DependsOn(notificationSystem, Importance.Important);
+
+// Hand the graph a single root node — the full topology is discovered downward.
+var graph = HealthGraph.Create(app);
+
+// ─────────────────────────────────────────────────────────────────────
+// HealthGraph.PollHealthReport — timer-driven, whole-graph polling.
+// ─────────────────────────────────────────────────────────────────────
+
+Console.WriteLine("=== HealthGraph.PollHealthReport (polling every 1 second) ===");
+Console.WriteLine();
+
+using var graphPollSub = graph
+    .PollHealthReport(TimeSpan.FromSeconds(1))
+    .Subscribe(report =>
+    {
+        Console.WriteLine("  [Graph Poll]");
+        Console.WriteLine(JsonSerializer.Serialize(report, jsonOptions));
+    });
+
+await Task.Delay(TimeSpan.FromSeconds(1.5));
+
+Console.WriteLine("  Taking database offline...");
+database.IsConnected = false;
+await Task.Delay(TimeSpan.FromSeconds(1.5));
+
+Console.WriteLine("  Restoring database...");
+database.IsConnected = true;
+await Task.Delay(TimeSpan.FromSeconds(1.5));
+Console.WriteLine();
+
+graphPollSub.Dispose();
+
+// ─────────────────────────────────────────────────────────────────────
+// HealthGraph.ObserveHealthReport — push-triggered, whole-graph report.
+// ─────────────────────────────────────────────────────────────────────
+
+Console.WriteLine("=== HealthGraph.ObserveHealthReport (push-triggered) ===");
+Console.WriteLine();
+
+using var graphObserveSub = graph
+    .ObserveHealthReport()
+    .Subscribe(report =>
+    {
+        Console.WriteLine("  [Graph Observe]");
+        Console.WriteLine(JsonSerializer.Serialize(report, jsonOptions));
+    });
+
+Console.WriteLine("  Taking cache offline...");
+cache.IsConnected = false;
+cache.HealthNode.Refresh();
+await Task.Delay(TimeSpan.FromSeconds(1));
+
+Console.WriteLine("  Restoring cache...");
+cache.IsConnected = true;
+cache.HealthNode.Refresh();
+await Task.Delay(TimeSpan.FromSeconds(1));
+Console.WriteLine();
+
+graphObserveSub.Dispose();
+
+// ─────────────────────────────────────────────────────────────────────
+// HealthGraph + SelectServiceChanges — diff-based change stream.
+// ─────────────────────────────────────────────────────────────────────
+
+Console.WriteLine("=== HealthGraph.PollHealthReport + SelectServiceChanges ===");
+Console.WriteLine();
+
+using var graphChangeSub = graph
+    .PollHealthReport(TimeSpan.FromSeconds(1))
+    .SelectHealthChanges()
+    .Subscribe(change =>
+        Console.WriteLine($"  [Graph Change] {change.Name}: {change.Previous} → {change.Current}" +
+            (change.Reason is not null ? $" ({change.Reason})" : "")));
+
+await Task.Delay(TimeSpan.FromSeconds(1.5));
+
+Console.WriteLine("  Taking database offline...");
+database.IsConnected = false;
+await Task.Delay(TimeSpan.FromSeconds(1.5));
+
+Console.WriteLine("  Restoring database...");
+database.IsConnected = true;
+await Task.Delay(TimeSpan.FromSeconds(1.5));
+Console.WriteLine();
+
+graphChangeSub.Dispose();
+
+// ─────────────────────────────────────────────────────────────────────
+// HealthGraph.PollHealthReport — polling on a graph (same as above
+// but demonstrates a second subscription on the same graph).
+// ─────────────────────────────────────────────────────────────────────
+
+Console.WriteLine("=== HealthGraph.PollHealthReport (second subscription, polling every 1 second) ===");
+Console.WriteLine();
+
+using var pollSubscription = graph
+    .PollHealthReport(TimeSpan.FromSeconds(1))
+    .Subscribe(report =>
+    {
+        Console.WriteLine("  [Poll]");
+        Console.WriteLine(JsonSerializer.Serialize(report, jsonOptions));
+    });
+
+// Wait for the first tick to establish baseline.
+await Task.Delay(TimeSpan.FromSeconds(1.5));
+
+// Simulate a failure — the next tick picks it up.
+Console.WriteLine("  Taking database offline...");
+database.IsConnected = false;
+await Task.Delay(TimeSpan.FromSeconds(1.5));
+
+Console.WriteLine("  Restoring database...");
+database.IsConnected = true;
+await Task.Delay(TimeSpan.FromSeconds(1.5));
+Console.WriteLine();
+
+pollSubscription.Dispose();
+
+// ─────────────────────────────────────────────────────────────────────
+// HealthGraph.ObserveHealthReport — push-triggered via Refresh.
+// ─────────────────────────────────────────────────────────────────────
+
+Console.WriteLine("=== HealthGraph.ObserveHealthReport (push-triggered via Refresh) ===");
+Console.WriteLine();
+
+using var observeSubscription = graph
+    .ObserveHealthReport()
+    .Subscribe(report =>
+    {
+        Console.WriteLine("  [Observe]");
+        Console.WriteLine(JsonSerializer.Serialize(report, jsonOptions));
+    });
+
+// Trigger a change via Refresh, which fires StatusChanged and
+// a report is emitted immediately.
+Console.WriteLine("  Taking cache offline...");
+cache.IsConnected = false;
+cache.HealthNode.Refresh(); // push the change
+await Task.Delay(TimeSpan.FromSeconds(1));
+
+Console.WriteLine("  Restoring cache...");
+cache.IsConnected = true;
+cache.HealthNode.Refresh();
+await Task.Delay(TimeSpan.FromSeconds(1));
+Console.WriteLine();
+
+observeSubscription.Dispose();
+
+// ─────────────────────────────────────────────────────────────────────
+// HealthGraph.PollHealthReport + SelectServiceChanges — diffs
+// consecutive reports into individual StatusChange events.
+// ─────────────────────────────────────────────────────────────────────
+
+Console.WriteLine("=== HealthGraph.PollHealthReport + SelectServiceChanges ===");
+Console.WriteLine();
+
+using var changeSubscription = graph
+    .PollHealthReport(TimeSpan.FromSeconds(1))
+    .SelectHealthChanges()
+    .Subscribe(change =>
+        Console.WriteLine($"  [Change] {change.Name}: {change.Previous} → {change.Current}" +
+            (change.Reason is not null ? $" ({change.Reason})" : "")));
+
+// Wait for baseline.
+await Task.Delay(TimeSpan.FromSeconds(1.5));
+
+// Take database offline — should see Database + AuthService + Application change.
+Console.WriteLine("  Taking database offline...");
+database.IsConnected = false;
+await Task.Delay(TimeSpan.FromSeconds(1.5));
+
+// Restore — should see them revert.
+Console.WriteLine("  Restoring database...");
+database.IsConnected = true;
+await Task.Delay(TimeSpan.FromSeconds(1.5));
+
+// Take email offline — optional dependency, only EmailProvider itself changes.
+Console.WriteLine("  Taking email provider offline (optional — only EmailProvider changes)...");
+externalEmailApi.IsConnected = false;
+await Task.Delay(TimeSpan.FromSeconds(1.5));
+
+Console.WriteLine();
+Console.WriteLine("Done.");
+
+// ─────────────────────────────────────────────────────────────────────
+// HealthGraph.CreateTreeSnapshot — hierarchical JSON output whose
+// nesting mirrors the dependency topology.
+// ─────────────────────────────────────────────────────────────────────
+
+Console.WriteLine("=== HealthGraph.CreateTreeSnapshot (hierarchical JSON) ===");
+Console.WriteLine();
+
+// Restore everything to healthy first.
+externalEmailApi.IsConnected = true;
+database.IsConnected = true;
+
+Console.WriteLine("All services healthy:");
+Console.WriteLine(JsonSerializer.Serialize(graph.CreateTreeSnapshot(), jsonOptions));
+Console.WriteLine();
+
+Console.WriteLine("Taking database offline...");
+database.IsConnected = false;
+Console.WriteLine(JsonSerializer.Serialize(graph.CreateTreeSnapshot(), jsonOptions));
+Console.WriteLine();
+
+Console.WriteLine("Restoring database...");
+database.IsConnected = true;
+Console.WriteLine(JsonSerializer.Serialize(graph.CreateTreeSnapshot(), jsonOptions));
+Console.WriteLine();
+
+// ─────────────────────────────────────────────────────────────────────
+// Example service classes (self-contained, same as core example)
+// ─────────────────────────────────────────────────────────────────────
+
+class DatabaseService
+{
+    public HealthNode HealthNode { get; }
+
+    public DatabaseService()
+    {
+        HealthNode = HealthNode.Create("Database").WithHealthProbe(
+            () => IsConnected
+                ? HealthStatus.Healthy
+                : HealthEvaluation.Unhealthy("Connection lost"));
+    }
+
+    public bool IsConnected { get; set; } = true;
+}
+
+class CacheService
+{
+    public HealthNode HealthNode { get; }
+
+    public CacheService()
+    {
+        HealthNode = HealthNode.Create("Cache").WithHealthProbe(
+            () => IsConnected
+                ? HealthStatus.Healthy
+                : HealthEvaluation.Unhealthy("Redis timeout"));
+    }
+
+    public bool IsConnected { get; set; } = true;
+}
+
+class ThirdPartyEmailClient
+{
+    public bool IsConnected { get; set; } = true;
+}

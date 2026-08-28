@@ -1,0 +1,90 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;netstandard2.1</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <!-- NuGet package metadata -->
+    <PackageId>Prognosis</PackageId>
+    <Authors>Charles Lee</Authors>
+    <Description>A dependency-aware service health modeling library for .NET. Models the health of multiple services as a directed graph where each service's effective status is computed from its own intrinsic health and the weighted health of its dependencies.</Description>
+    <PackageTags>health;health-check;service-health;dependency-graph;monitoring;observability;diagnostics</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/charles8051/prognosis</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/charles8051/prognosis</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+
+    <!-- Symbols and source link -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+    <!-- Deterministic / reproducible builds -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <!-- Allow the DI package to call HealthGraph's internal constructor -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Prognosis.DependencyInjection" />
+    <InternalsVisibleTo Include="Prognosis.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include=".github\workflows\ci.yml" />
+    <None Include=".github\workflows\publish.yml" />
+    <None Include="Prognosis.Benchmarks\Prognosis.Benchmarks.csproj" />
+    <None Include="Prognosis.DependencyInjection.Tests\Prognosis.DependencyInjection.Tests.csproj" />
+    <None Include="Prognosis.DependencyInjection\Prognosis.DependencyInjection.csproj" />
+    <None Include="Prognosis.Examples.DependencyInjection\Prognosis.Examples.DependencyInjection.csproj" />
+    <None Include="Prognosis.Examples.Reactive\Prognosis.Examples.Reactive.csproj" />
+    <None Include="Prognosis.Generators.Tests\Prognosis.Generators.Tests.csproj" />
+    <None Include="Prognosis.Generators\Prognosis.Generators.csproj" />
+    <None Include="Prognosis.Reactive.Tests\Prognosis.Reactive.Tests.csproj" />
+    <None Include="Prognosis.Reactive\Prognosis.Reactive.csproj" />
+    <None Include="Prognosis.Tests\Prognosis.Tests.csproj" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="icon.png" Pack="true" PackagePath="\" />
+    <None Include="icon.svg" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+    <PackageReference Include="System.Text.Json" Version="9.0.5" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="9.0.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Prognosis.Benchmarks\**" />
+    <None Remove="Prognosis.Benchmarks\**" />
+    <Compile Remove="Prognosis.DependencyInjection\**" />
+    <None Remove="Prognosis.DependencyInjection\**" />
+    <Compile Remove="Prognosis.DependencyInjection.Tests\**" />
+    <None Remove="Prognosis.DependencyInjection.Tests\**" />
+    <Compile Remove="Prognosis.Examples\**" />
+    <None Remove="Prognosis.Examples\**" />
+    <Compile Remove="Prognosis.Examples.DependencyInjection\**" />
+    <None Remove="Prognosis.Examples.DependencyInjection\**" />
+    <Compile Remove="Prognosis.Examples.Reactive\**" />
+    <None Remove="Prognosis.Examples.Reactive\**" />
+    <Compile Remove="Prognosis.Generators\**" />
+    <None Remove="Prognosis.Generators\**" />
+    <Compile Remove="Prognosis.Generators.Tests\**" />
+    <None Remove="Prognosis.Generators.Tests\**" />
+    <Compile Remove="Prognosis.Reactive\**" />
+    <None Remove="Prognosis.Reactive\**" />
+    <Compile Remove="Prognosis.Reactive.Tests\**" />
+    <None Remove="Prognosis.Reactive.Tests\**" />
+    <Compile Remove="Prognosis.Tests\**" />
+    <None Remove="Prognosis.Tests\**" />
+  </ItemGroup>
+
+
+  </Project>

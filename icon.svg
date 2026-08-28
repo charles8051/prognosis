@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Prognosis">
+  <title>Prognosis</title>
+
+  <!-- tile -->
+  <rect width="128" height="128" rx="26" fill="#163A29"/>
+
+  <!-- staff: the dependency chain -->
+  <line x1="64" y1="26" x2="64" y2="113" stroke="#40916C" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- serpent: one weave, inflecting at each node -->
+  <path d="M64 98 C89 92 89 79 64 73 C39 67 39 54 64 48 C87 42 87 34 64 29"
+        fill="none" stroke="#95D5B2" stroke-width="7" stroke-linecap="round"/>
+
+  <!-- nodes, knocked out of the edges they sit on -->
+  <g fill="#D8F3DC" stroke="#163A29" stroke-width="2.5">
+    <circle cx="64" cy="98" r="7.5"/>
+    <circle cx="64" cy="73" r="7.5"/>
+    <circle cx="64" cy="48" r="7.5"/>
+    <circle cx="64" cy="26" r="10.5"/>
+  </g>
+</svg>

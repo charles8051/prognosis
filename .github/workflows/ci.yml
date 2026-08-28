@@ -1,0 +1,139 @@
+name: CI
+
+# The repo's canonical build + test gate, on every PR and every push to main.
+#
+# ── Runner ───────────────────────────────────────────────────────────────────
+# Prognosis is a pure, cross-platform .NET library (the root package multi-targets
+# netstandard2.0/2.1; the test projects are net10.0) with no native or
+# platform-specific dependencies, so it builds anywhere.
+#
+# The trusted job runs on a self-hosted Linux runner labelled
+# self-hosted,Linux,X64,docker. That runner is minimal + docker, so dotnet runs
+# inside a pinned SDK container as the job user rather than on the host. There is
+# no repo nuget.config and no private-feed credential: every dependency restores
+# from nuget.org, so there is nothing to authenticate and no package-source
+# mapping to maintain. Fork pull requests run the hosted twin below instead.
+
+on:
+  push:
+    branches: [main]
+  # Deliberately NOT filtered to `branches: [main]`. A base filter means a stacked PR
+  # (one targeting another feature branch rather than main) gets no build/test check at
+  # all — it merges ungated, and the gap is invisible because the PR simply shows fewer
+  # checks rather than a failing one. Retargeting to main later does not rescue it
+  # either: a base change fires `pull_request: edited`, which is not one of the default
+  # trigger types, so no run is queued. Build every PR regardless of base.
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    # Trusted events only: pushes to main, and pull requests whose head branch is
+    # in this repository. A fork PR goes to the hosted twin below instead.
+    #
+    # This is availability and hygiene, not a security boundary: on a
+    # pull_request event GitHub runs the workflow from the PR's merge ref, so a
+    # hostile fork can edit this condition away. The boundary is the repository
+    # setting "Require approval for all outside collaborators" under
+    # Settings -> Actions. What this genuinely fixes is the honest case: without
+    # a hosted twin, a fork PR queues forever against a runner it cannot reach.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, linux, x64, docker]
+    # The suite is small and CPU-bound (no containers, no IO); this is a backstop
+    # against a wedged job holding the runner, not a real expected duration.
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Persistent NuGet package cache. dotnet runs inside an ephemeral SDK
+      # container with HOME=/tmp, so without this every run re-downloads the whole
+      # package graph. Because CI runs on the SELF-HOSTED runner, whose host docker
+      # daemon outlives any single job, a named volume persists packages across
+      # jobs — not merely across the steps of one job. chown it to the job user up
+      # front so the non-root build container can write (NUGET_PACKAGES=/nuget
+      # below points restore here). Reusing the SDK image for the chown is
+      # deliberate: the build step needs that image next anyway, so this adds no
+      # extra image pull.
+      - name: Prime NuGet cache volume
+        run: |
+          docker volume create prognosis-nuget >/dev/null
+          docker run --rm -v prognosis-nuget:/nuget \
+            mcr.microsoft.com/dotnet/sdk:10.0 \
+            chown -R "$(id -u):$(id -g)" /nuget
+
+      # Build and test are separate container runs (sharing the checkout and the
+      # cache volume) so a compile break and a test failure are distinct red steps
+      # rather than one opaque one. Test uses --no-build to reuse the build output.
+      - name: Build (Release)
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            -e DOTNET_NOLOGO=true -e DOTNET_CLI_TELEMETRY_OPTOUT=true \
+            -e CI=true \
+            -e NUGET_PACKAGES=/nuget \
+            -v "$PWD:/src" -w /src \
+            -v prognosis-nuget:/nuget \
+            mcr.microsoft.com/dotnet/sdk:10.0 \
+            dotnet build Prognosis.slnx -c Release
+
+      - name: Test (Release)
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            -e DOTNET_NOLOGO=true -e DOTNET_CLI_TELEMETRY_OPTOUT=true \
+            -e NUGET_PACKAGES=/nuget \
+            -v "$PWD:/src" -w /src \
+            -v prognosis-nuget:/nuget \
+            mcr.microsoft.com/dotnet/sdk:10.0 \
+            dotnet test Prognosis.slnx -c Release --no-build \
+              --logger "console;verbosity=normal" \
+              --logger "trx;LogFileName=prognosis.trx" \
+              --results-directory TestResults
+
+      # NOTE: deliberately no actions/upload-artifact step. This account's artifact
+      # STORAGE quota is exhausted (a separate meter from Actions minutes, and
+      # recalculated only every 6-12 hours), so an upload fails the job — which is
+      # exactly what happened on this workflow's first run: build and test both went
+      # green and only the upload went red. The console logger already prints every
+      # test as it completes, so the artifact bought little. The TRX above still
+      # lands in TestResults/ on the runner, so re-adding an upload is a one-step
+      # change once storage frees up.
+
+  build-and-test-fork:
+    # Fork pull requests. Same checks on a GitHub-hosted runner, so an outside
+    # contributor gets a real result instead of a check that never clears.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name != github.repository
+    # Hosted runner, so no docker-run wrapper and no persistent NuGet volume:
+    # the VM is thrown away either way, and a named volume on a hosted runner
+    # would not survive the job. setup-dotnet replaces the SDK container.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build (Release)
+        run: dotnet build Prognosis.slnx -c Release
+
+      - name: Test (Release)
+        run: >
+          dotnet test Prognosis.slnx -c Release --no-build
+          --logger "console;verbosity=normal"
+          --logger "trx;LogFileName=prognosis.trx"
+          --results-directory TestResults

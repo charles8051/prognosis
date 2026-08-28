@@ -1,0 +1,257 @@
+using System.Text.Json;
+using Prognosis;
+
+var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
+
+// ─────────────────────────────────────────────────────────────────────
+// Pattern 1 — Embed HealthNode properties on a class you own.
+//             DatabaseService uses a composite HealthNode backed by
+//             fine-grained sub-nodes (connection, latency, pool).
+// ─────────────────────────────────────────────────────────────────────
+var database = new DatabaseService();
+var cache = new CacheService();
+
+// ─────────────────────────────────────────────────────────────────────
+// Pattern 2 — Wrap a service you don't own (or don't want to modify)
+//             with HealthNode.Create and .WithHealthProbe.
+// ─────────────────────────────────────────────────────────────────────
+var externalEmailApi = new ThirdPartyEmailClient();        // some closed class
+var emailHealth = HealthNode.Create("EmailProvider").WithHealthProbe(
+    () => externalEmailApi.IsConnected
+        ? HealthStatus.Healthy
+        : HealthEvaluation.Unhealthy("SMTP connection refused"));
+
+var messageQueue = HealthNode.Create("MessageQueue"); // always healthy for demo
+
+// ─────────────────────────────────────────────────────────────────────
+// Pattern 3 — Pure composite aggregation (no backing service).
+//             The fluent .DependsOn() API reads naturally and avoids
+//             having to wrap every edge in a HealthDependency object.
+// ─────────────────────────────────────────────────────────────────────
+var authService = HealthNode.Create("AuthService")
+    .DependsOn(database.HealthNode, Importance.Required)
+    .DependsOn(cache.HealthNode, Importance.Important);
+
+var notificationSystem = HealthNode.Create("NotificationSystem")
+    .DependsOn(messageQueue, Importance.Required)
+    .DependsOn(emailHealth, Importance.Optional);
+
+var app = HealthNode.Create("Application")
+    .DependsOn(authService, Importance.Required)
+    .DependsOn(notificationSystem, Importance.Important);
+
+// ─────────────────────────────────────────────────────────────────────
+// Pattern 4 — HealthGraph: hand the topology a single root node and the
+//             graph discovers every reachable dependency downward.
+// ─────────────────────────────────────────────────────────────────────
+var graph = HealthGraph.Create(app);
+
+// ── Demo ─────────────────────────────────────────────────────────────
+void PrintHealth()
+{
+    var report = graph.RefreshAll();
+    foreach (var snapshot in report.Nodes)
+    {
+        Console.WriteLine($"  {snapshot}");
+    }
+
+    Console.WriteLine();
+}
+
+Console.WriteLine("=== All services healthy ===");
+PrintHealth();
+
+Console.WriteLine("=== Cache goes unhealthy (Important to AuthService → degrades it) ===");
+cache.IsConnected = false;
+PrintHealth();
+
+Console.WriteLine("=== Database goes unhealthy (Required by AuthService → unhealthy cascades up) ===");
+database.IsConnected = false;
+PrintHealth();
+
+Console.WriteLine("=== Only EmailProvider unhealthy (Optional to NotificationSystem → no effect) ===");
+database.IsConnected = true;
+cache.IsConnected = true;
+externalEmailApi.IsConnected = false;
+PrintHealth();
+
+// ── Fine-grained database health ─────────────────────────────────────
+Console.WriteLine("=== Database sub-graph: high latency (Important → degrades Database) ===");
+externalEmailApi.IsConnected = true;
+database.AverageLatencyMs = 600;   // above the 500ms threshold
+PrintHealth();
+
+Console.WriteLine("=== Database sub-graph: connection pool exhausted (Required → unhealthy) ===");
+database.AverageLatencyMs = 50;    // restore latency
+database.PoolUtilization = 1.0;   // 100% — exhausted
+PrintHealth();
+
+Console.WriteLine("=== Database sub-graph: everything restored ===");
+database.PoolUtilization = 0.3;
+PrintHealth();
+
+// ── Cycle detection ──────────────────────────────────────────────────
+Console.WriteLine("=== Upfront cycle detection ===");
+var cycles = graph.DetectCycles();
+Console.WriteLine(cycles.Count == 0
+    ? "  No cycles detected."
+    : string.Join(Environment.NewLine, cycles.Select(c => "  Cycle: " + string.Join(" → ", c))));
+Console.WriteLine();
+
+// Now introduce a deliberate cycle and detect it.
+var nodeA = HealthNode.Create("ServiceA");
+var nodeB = HealthNode.Create("ServiceB")
+    .DependsOn(nodeA, Importance.Required);
+nodeA.DependsOn(nodeB, Importance.Required); // A → B → A
+
+Console.WriteLine("=== After introducing ServiceA ↔ ServiceB cycle ===");
+var cycleGraph = HealthGraph.Create(nodeA);
+cycles = cycleGraph.DetectCycles();
+Console.WriteLine(string.Join(Environment.NewLine, cycles.Select(c => "  Cycle: " + string.Join(" → ", c))));
+Console.WriteLine();
+
+// The propagation guard prevents a stack overflow — nodes are still usable.
+var cycleReport = cycleGraph.GetReport();
+Console.WriteLine($"  ServiceA status: {cycleReport.Nodes.First(n => n.Name == HealthNames.ServiceA)}");
+Console.WriteLine($"  ServiceB status: {cycleReport.Nodes.First(n => n.Name == HealthNames.ServiceB)}");
+Console.WriteLine();
+
+// ── Serialization ────────────────────────────────────────────────────
+Console.WriteLine("=== Serialized health report (JSON) ===");
+externalEmailApi.IsConnected = true; // reset for clean report
+var report = graph.GetReport();
+Console.WriteLine(JsonSerializer.Serialize(report, jsonOptions));
+Console.WriteLine();
+
+// ── Observable health monitoring ─────────────────────────────────────
+Console.WriteLine("=== Observable health monitoring ===");
+
+// Reset all services to healthy.
+database.IsConnected = true;
+cache.IsConnected = true;
+externalEmailApi.IsConnected = true;
+
+// Subscribe to graph-level status changes.
+using var statusSubscription = graph.StatusChanged.Subscribe(
+    new ReportObserver());
+
+// Subscribe to graph-level report changes via HealthMonitor.
+// The HealthGraph overload re-queries Roots each tick, so runtime
+// edge changes are reflected automatically.
+await using var monitor = new HealthMonitor(graph, TimeSpan.FromSeconds(1));
+monitor.Start();
+using var reportSubscription = monitor.ReportChanged.Subscribe(
+    new ReportObserver());
+
+// Initial poll to establish baseline.
+Console.WriteLine("  Polling initial state...");
+monitor.Poll();
+Console.WriteLine();
+
+// Simulate a change — detected on manual poll.
+Console.WriteLine("  Taking database offline...");
+database.IsConnected = false;
+monitor.Poll();
+Console.WriteLine();
+
+// Bring it back.
+Console.WriteLine("  Restoring database...");
+database.IsConnected = true;
+monitor.Poll();
+Console.WriteLine();
+
+// Let the timer do the work — change state, then wait for a tick.
+Console.WriteLine("  Taking cache offline and waiting for next timer tick...");
+cache.IsConnected = false;
+await Task.Delay(TimeSpan.FromSeconds(1.5));
+Console.WriteLine();
+
+// ─────────────────────────────────────────────────────────────────────
+// Example service classes
+// ─────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// A service you own — expose one or more <see cref="HealthNode"/> properties.
+/// Here the top-level node is created via
+/// <see cref="HealthNode.Create(string)"/> whose health is derived entirely
+/// from three fine-grained sub-nodes created via
+/// <see cref="HealthNode.Create(string)"/> with
+/// <see cref="HealthNode.WithHealthProbe"/>:
+/// connection, latency, and connection-pool utilization.
+/// </summary>
+class DatabaseService
+{
+    public HealthNode HealthNode { get; }
+
+    public bool IsConnected { get; set; } = true;
+    public double AverageLatencyMs { get; set; } = 50;
+    public double PoolUtilization { get; set; } = 0.3;
+
+    public DatabaseService()
+    {
+        var connection = HealthNode.Create("Database.Connection").WithHealthProbe(
+            () => IsConnected
+                ? HealthStatus.Healthy
+                : HealthEvaluation.Unhealthy("Connection lost"));
+
+        var latency = HealthNode.Create("Database.Latency").WithHealthProbe(
+            () => AverageLatencyMs switch
+            {
+                > 500 => HealthEvaluation.Degraded(
+                    $"Avg latency {AverageLatencyMs:F0}ms exceeds 500ms threshold"),
+                _ => HealthStatus.Healthy,
+            });
+
+        var connectionPool = HealthNode.Create("Database.ConnectionPool").WithHealthProbe(
+            () => PoolUtilization switch
+            {
+                >= 1.0 => HealthEvaluation.Unhealthy("Connection pool exhausted"),
+                >= 0.9 => HealthEvaluation.Degraded(
+                    $"Connection pool at {PoolUtilization:P0} utilization"),
+                _ => HealthStatus.Healthy,
+            });
+
+        HealthNode = HealthNode.Create("Database")
+            .DependsOn(connection, Importance.Required)
+            .DependsOn(latency, Importance.Important)
+            .DependsOn(connectionPool, Importance.Required);
+    }
+}
+
+/// <summary>Another service you own, same pattern.</summary>
+class CacheService
+{
+    public HealthNode HealthNode { get; }
+
+    public CacheService()
+    {
+        HealthNode = HealthNode.Create("Cache").WithHealthProbe(
+            () => IsConnected
+                ? HealthStatus.Healthy
+                : HealthEvaluation.Unhealthy("Redis timeout"));
+    }
+
+    public bool IsConnected { get; set; } = true;
+}
+
+/// <summary>
+/// A third-party class you cannot modify.
+/// Wrapped via <see cref="HealthNode.Create(string)"/> with
+/// <see cref="HealthNode.WithHealthProbe"/> above.
+/// </summary>
+class ThirdPartyEmailClient
+{
+    public bool IsConnected { get; set; } = true;
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Minimal IObserver<T> implementation for the demo
+// ─────────────────────────────────────────────────────────────────────
+
+class ReportObserver : IObserver<HealthReport>
+{
+    public void OnNext(HealthReport value) =>
+        Console.WriteLine($"    >> Report changed: {value.Nodes.Count} nodes");
+    public void OnError(Exception error) { }
+    public void OnCompleted() { }
+}

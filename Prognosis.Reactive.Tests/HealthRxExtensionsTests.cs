@@ -1,0 +1,317 @@
+using System.Reactive.Linq;
+using System.Reactive.Subjects;
+using Microsoft.Reactive.Testing;
+using Prognosis;
+using Prognosis.Reactive;
+
+namespace Prognosis.Reactive.Tests;
+
+public class HealthRxExtensionsTests
+{
+    private static readonly HealthSnapshot DummyRoot = new("Root", HealthStatus.Healthy);
+
+    // ── SelectServiceChanges ────────────────────────────────────────
+
+    [Fact]
+    public void SelectServiceChanges_EmitsStatusChanges()
+    {
+        var subject = new Subject<HealthReport>();
+
+        var changes = new List<StatusChange>();
+        using var sub = subject
+            .SelectHealthChanges()
+            .Subscribe(c => changes.Add(c));
+
+        var report1 = new HealthReport(DummyRoot, new[]
+        {
+            new HealthSnapshot("Svc", HealthStatus.Healthy),
+        });
+        var report2 = new HealthReport(DummyRoot, new[]
+        {
+            new HealthSnapshot("Svc", HealthStatus.Unhealthy, "down"),
+        });
+
+        subject.OnNext(report1);
+        subject.OnNext(report2);
+
+        Assert.Single(changes);
+        Assert.Equal("Svc", changes[0].Name);
+        Assert.Equal(HealthStatus.Healthy, changes[0].Previous);
+        Assert.Equal(HealthStatus.Unhealthy, changes[0].Current);
+    }
+
+    [Fact]
+    public void SelectServiceChanges_NoChange_NoEmission()
+    {
+        var subject = new Subject<HealthReport>();
+
+        var changes = new List<StatusChange>();
+        using var sub = subject
+            .SelectHealthChanges()
+            .Subscribe(c => changes.Add(c));
+
+        var report = new HealthReport(DummyRoot, new[]
+        {
+            new HealthSnapshot("Svc", HealthStatus.Healthy),
+        });
+    }
+
+    [Fact]
+    public void SelectServiceChanges_NewServiceAppears_EmitsChange()
+    {
+        var subject = new Subject<HealthReport>();
+
+        var changes = new List<StatusChange>();
+        using var sub = subject
+            .SelectHealthChanges()
+            .Subscribe(c => changes.Add(c));
+
+        var report1 = new HealthReport(DummyRoot, Array.Empty<HealthSnapshot>());
+        var report2 = new HealthReport(DummyRoot, new[]
+        {
+            new HealthSnapshot("New", HealthStatus.Healthy),
+        });
+
+        subject.OnNext(report1);
+        subject.OnNext(report2);
+
+        Assert.Single(changes);
+        Assert.Equal("New", changes[0].Name);
+        Assert.Equal(HealthStatus.Unknown, changes[0].Previous);
+    }
+
+    [Fact]
+    public void SelectServiceChanges_FirstReport_NoEmission()
+    {
+        var subject = new Subject<HealthReport>();
+
+        var changes = new List<StatusChange>();
+        using var sub = subject
+            .SelectHealthChanges()
+            .Subscribe(c => changes.Add(c));
+
+        var report = new HealthReport(DummyRoot, new[]
+        {
+            new HealthSnapshot("Svc", HealthStatus.Healthy),
+        });
+    }
+
+    // ── ForNodes ─────────────────────────────────────────────────────
+
+    [Fact]
+    public void ForNodes_FiltersToNamedNodes()
+    {
+        var subject = new Subject<HealthReport>();
+
+        var changes = new List<StatusChange>();
+        using var sub = subject
+            .SelectHealthChanges()
+            .ForNodes("DB")
+            .Subscribe(c => changes.Add(c));
+
+        var report1 = new HealthReport(DummyRoot, new[]
+        {
+            new HealthSnapshot("DB", HealthStatus.Healthy),
+            new HealthSnapshot("Cache", HealthStatus.Healthy),
+        });
+        var report2 = new HealthReport(DummyRoot, new[]
+        {
+            new HealthSnapshot("DB", HealthStatus.Unhealthy, "down"),
+            new HealthSnapshot("Cache", HealthStatus.Unhealthy, "timeout"),
+        });
+
+        subject.OnNext(report1);
+        subject.OnNext(report2);
+
+        Assert.Single(changes);
+        Assert.Equal("DB", changes[0].Name);
+    }
+
+    [Fact]
+    public void ForNodes_MultipleNames_MatchesAll()
+    {
+        var subject = new Subject<HealthReport>();
+
+        var changes = new List<StatusChange>();
+        using var sub = subject
+            .SelectHealthChanges()
+            .ForNodes("DB", "Cache")
+            .Subscribe(c => changes.Add(c));
+
+        var report1 = new HealthReport(DummyRoot, new[]
+        {
+            new HealthSnapshot("DB", HealthStatus.Healthy),
+            new HealthSnapshot("Cache", HealthStatus.Healthy),
+            new HealthSnapshot("Auth", HealthStatus.Healthy),
+        });
+        var report2 = new HealthReport(DummyRoot, new[]
+        {
+            new HealthSnapshot("DB", HealthStatus.Unhealthy, "down"),
+            new HealthSnapshot("Cache", HealthStatus.Degraded, "slow"),
+            new HealthSnapshot("Auth", HealthStatus.Unhealthy, "expired"),
+        });
+
+        subject.OnNext(report1);
+        subject.OnNext(report2);
+
+        Assert.Equal(2, changes.Count);
+        Assert.Contains(changes, c => c.Name == "DB");
+        Assert.Contains(changes, c => c.Name == "Cache");
+    }
+
+    [Fact]
+    public void ForNodes_NoMatch_NoEmission()
+    {
+        var subject = new Subject<HealthReport>();
+
+        var changes = new List<StatusChange>();
+        using var sub = subject
+            .SelectHealthChanges()
+            .ForNodes("NonExistent")
+            .Subscribe(c => changes.Add(c));
+
+        var report1 = new HealthReport(DummyRoot, new[]
+        {
+            new HealthSnapshot("DB", HealthStatus.Healthy),
+        });
+        var report2 = new HealthReport(DummyRoot, new[]
+        {
+            new HealthSnapshot("DB", HealthStatus.Unhealthy, "down"),
+        });
+
+        subject.OnNext(report1);
+        subject.OnNext(report2);
+
+        Assert.Empty(changes);
+    }
+
+    // ── PollHealthReport (HealthGraph) ─────────────────────────────────
+
+    [Fact]
+    public void PollHealthReport_Graph_EmitsReportOnInterval()
+    {
+        var scheduler = new TestScheduler();
+        var leaf = HealthNode.Create("Leaf");
+        var root = HealthNode.Create("Root")
+            .DependsOn(leaf, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        HealthReport? received = null;
+        using var sub = graph
+            .PollHealthReport(TimeSpan.FromMilliseconds(50), scheduler)
+            .Subscribe(r => received = r);
+
+        // Virtual time: advance past several 50ms ticks — no wall-clock wait.
+        scheduler.AdvanceBy(TimeSpan.FromMilliseconds(200).Ticks);
+
+        Assert.NotNull(received);
+        Assert.All(received!.Nodes, n => Assert.Equal(HealthStatus.Healthy, n.Status));
+        Assert.Equal(2, received.Nodes.Count);
+    }
+
+    [Fact]
+    public void PollHealthReport_Graph_EmitsOnStateChange()
+    {
+        var scheduler = new TestScheduler();
+        var isHealthy = true;
+        var leaf = HealthNode.Create("Leaf").WithHealthProbe(
+            () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
+        var root = HealthNode.Create("Root")
+            .DependsOn(leaf, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        var reports = new List<HealthReport>();
+        using var sub = graph
+            .PollHealthReport(TimeSpan.FromMilliseconds(50), scheduler)
+            .Subscribe(r => reports.Add(r));
+
+        // First few ticks while Healthy → single emission (DistinctUntilChanged).
+        scheduler.AdvanceBy(TimeSpan.FromMilliseconds(150).Ticks);
+        isHealthy = false;
+        // Next tick observes the flipped probe → second, Unhealthy emission.
+        scheduler.AdvanceBy(TimeSpan.FromMilliseconds(150).Ticks);
+
+        Assert.True(reports.Count >= 2);
+        Assert.All(reports[0].Nodes, n => Assert.Equal(HealthStatus.Healthy, n.Status));
+        Assert.Contains(reports, r => r.Nodes.Any(n => n.Status == HealthStatus.Unhealthy));
+    }
+
+    // ── ObserveHealthReport (HealthGraph) ──────────────────────────────
+
+    [Fact]
+    public void ObserveHealthReport_Graph_EmitsOnStatusChange()
+    {
+        var isHealthy = true;
+        var leaf = HealthNode.Create("Leaf").WithHealthProbe(
+            () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
+        var root = HealthNode.Create("Root")
+            .DependsOn(leaf, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        var reports = new List<HealthReport>();
+        using var sub = graph
+            .ObserveHealthReport()
+            .Subscribe(r => reports.Add(r));
+
+        isHealthy = false;
+        leaf.Refresh();
+
+        Assert.Single(reports);
+        Assert.Equal(HealthStatus.Unhealthy, reports[0].Nodes.First(n => n.Name == "Leaf").Status);
+        Assert.Equal(2, reports[0].Nodes.Count);
+    }
+
+    [Fact]
+    public void ObserveHealthReport_Graph_RootReflectsDescendantChange()
+    {
+        var isHealthy = true;
+        var a = HealthNode.Create("A").WithHealthProbe(
+            () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
+        var b = HealthNode.Create("B");
+        var root = HealthNode.Create("Root")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        var reports = new List<HealthReport>();
+        using var sub = graph
+            .ObserveHealthReport()
+            .Subscribe(r => reports.Add(r));
+
+        isHealthy = false;
+        a.Refresh();
+
+        Assert.Single(reports);
+        Assert.Equal(HealthStatus.Unhealthy, reports[0].Nodes.First(n => n.Name == "A").Status);
+        Assert.Equal(HealthStatus.Unhealthy, reports[0].Root.Status);
+    }
+
+    [Fact]
+    public void ObserveHealthReport_Diamond_RecoveryUpdatesRoot()
+    {
+        var isHealthy = false;
+        var leaf = HealthNode.Create("Leaf").WithHealthProbe(
+            () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
+        var a = HealthNode.Create("A")
+            .DependsOn(leaf, Importance.Required);
+        var b = HealthNode.Create("B")
+            .DependsOn(leaf, Importance.Required);
+        var root = HealthNode.Create("Root")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        var reports = new List<HealthReport>();
+        using var sub = graph
+            .ObserveHealthReport()
+            .Subscribe(r => reports.Add(r));
+
+        isHealthy = true;
+        leaf.Refresh();
+
+        Assert.Single(reports);
+        Assert.Equal(HealthStatus.Healthy, reports[0].Root.Status);
+        Assert.All(reports[0].Nodes,
+            n => Assert.Equal(HealthStatus.Healthy, n.Status));
+    }
+}

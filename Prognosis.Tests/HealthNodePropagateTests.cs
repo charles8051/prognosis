@@ -1,0 +1,306 @@
+namespace Prognosis.Tests;
+
+public class HealthNodePropagateTests
+{
+    // ── StatusChanged basics ─────────────────────────────────────────
+
+    [Fact]
+    public void Refresh_EmitsReportOnStatusChange()
+    {
+        var node = HealthNode.Create("Node").WithHealthProbe(
+            () => HealthEvaluation.Unhealthy("down"));
+        var graph = HealthGraph.Create(node);
+
+        var emitted = new List<HealthReport>();
+        graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
+
+        node.Refresh();
+
+        Assert.Single(emitted);
+        Assert.Equal(HealthStatus.Unhealthy, emitted[0].Nodes[0].Status);
+    }
+
+    [Fact]
+    public void Refresh_PropagatesFromChildToParent()
+    {
+        var isUnhealthy = false;
+        var leaf = HealthNode.Create("Leaf").WithHealthProbe(
+            () => isUnhealthy ? HealthStatus.Unhealthy : HealthStatus.Healthy);
+        var parent = HealthNode.Create("Parent")
+            .DependsOn(leaf, Importance.Required);
+        var graph = HealthGraph.Create(parent);
+
+        var emitted = new List<HealthReport>();
+        graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
+
+        // Leaf degrades after the edge was wired. Refresh bubbles it up.
+        isUnhealthy = true;
+        leaf.Refresh();
+
+        Assert.Single(emitted);
+        Assert.Equal(HealthStatus.Unhealthy,
+            emitted[0].Nodes.First(n => n.Name == "Parent").Status);
+    }
+
+    [Fact]
+    public void Refresh_PropagatesThroughChain()
+    {
+        var isUnhealthy = false;
+        var leaf = HealthNode.Create("Leaf").WithHealthProbe(
+            () => isUnhealthy ? HealthStatus.Unhealthy : HealthStatus.Healthy);
+        var middle = HealthNode.Create("Middle")
+            .DependsOn(leaf, Importance.Required);
+        var root = HealthNode.Create("Root")
+            .DependsOn(middle, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        var emitted = new List<HealthReport>();
+        graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
+
+        isUnhealthy = true;
+        leaf.Refresh();
+
+        Assert.Single(emitted);
+        Assert.Equal(HealthStatus.Unhealthy,
+            emitted[0].Nodes.First(n => n.Name == "Root").Status);
+    }
+
+    [Fact]
+    public void Refresh_Diamond_EmitsExactlyOneReport()
+    {
+        // leaf → A and leaf → B, both → root (diamond shape)
+        var isUnhealthy = false;
+        var leaf = HealthNode.Create("Leaf").WithHealthProbe(
+            () => isUnhealthy ? HealthStatus.Unhealthy : HealthStatus.Healthy);
+        var a = HealthNode.Create("A")
+            .DependsOn(leaf, Importance.Required);
+        var b = HealthNode.Create("B")
+            .DependsOn(leaf, Importance.Required);
+        var root = HealthNode.Create("Root")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        var emitted = new List<HealthReport>();
+        graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
+
+        isUnhealthy = true;
+        leaf.Refresh();
+
+        // Root has two paths from the leaf
+        Assert.Single(emitted);
+        Assert.Equal(HealthStatus.Unhealthy,
+            emitted[0].Nodes.First(n => n.Name == "Root").Status);
+    }
+
+    [Fact]
+    public void Refresh_Cycle_DoesNotStackOverflow()
+    {
+        var a = HealthNode.Create("A");
+        var b = HealthNode.Create("B")
+            .DependsOn(a, Importance.Required);
+        a.DependsOn(b, Importance.Required);
+        var graph = HealthGraph.Create(a);
+
+        // Should not throw or hang.
+        var exception = Record.Exception(() => a.Refresh());
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public void Refresh_NoParents_EmitsReport()
+    {
+        var node = HealthNode.Create("Lone").WithHealthProbe(
+            () => HealthEvaluation.Degraded("slow"));
+        var graph = HealthGraph.Create(node);
+
+        var emitted = new List<HealthReport>();
+        graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
+
+        node.Refresh();
+
+        Assert.Single(emitted);
+        Assert.Equal(HealthStatus.Degraded, emitted[0].Nodes[0].Status);
+    }
+
+    // ── DependsOn / RemoveDependency auto-propagation ─────────────────
+
+    [Fact]
+    public void DependsOn_ImmediatelyEmitsReport()
+    {
+        var child = HealthNode.Create("Child").WithHealthProbe(
+            () => HealthEvaluation.Unhealthy("down"));
+        var parent = HealthNode.Create("Parent");
+        var graph = HealthGraph.Create(parent);
+
+        var emitted = new List<HealthReport>();
+        graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
+
+        // The child is already Unhealthy. Wiring the edge surfaces that status
+        // to the parent immediately without requiring a poll.
+        parent.DependsOn(child, Importance.Required);
+
+        Assert.True(emitted.Count >= 1);
+        var lastReport = emitted.Last();
+        Assert.Equal(HealthStatus.Unhealthy,
+            lastReport.Nodes.First(n => n.Name == "Parent").Status);
+    }
+
+    [Fact]
+    public void DependsOn_PropagatesUpThroughGrandparent()
+    {
+        var child = HealthNode.Create("Child").WithHealthProbe(
+            () => HealthEvaluation.Unhealthy("down"));
+        var parent = HealthNode.Create("Parent");
+        var grandparent = HealthNode.Create("Grandparent")
+            .DependsOn(parent, Importance.Required);
+        var graph = HealthGraph.Create(grandparent);
+
+        var emitted = new List<HealthReport>();
+        graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
+
+        // Wiring parent → child propagates all the way up to grandparent.
+        parent.DependsOn(child, Importance.Required);
+
+        Assert.True(emitted.Count >= 1);
+        var lastReport = emitted.Last();
+        Assert.Equal(HealthStatus.Unhealthy,
+            lastReport.Nodes.First(n => n.Name == "Grandparent").Status);
+    }
+
+    [Fact]
+    public void RemoveDependency_ImmediatelyEmitsReport()
+    {
+        var child = HealthNode.Create("Child").WithHealthProbe(
+            () => HealthEvaluation.Unhealthy("down"));
+        var parent = HealthNode.Create("Parent")
+            .DependsOn(child, Importance.Required);
+        var graph = HealthGraph.Create(parent);
+
+        var emitted = new List<HealthReport>();
+        graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
+
+        // Removing the edge immediately restores Healthy without polling.
+        parent.RemoveDependency(child);
+
+        Assert.True(emitted.Count >= 1);
+        var lastReport = emitted.Last();
+        Assert.Equal(HealthStatus.Healthy,
+            lastReport.Nodes.First(n => n.Name == "Parent").Status);
+    }
+
+    // ── Diamond propagation ───────────────────────────────────────────
+
+    [Fact]
+    public void Refresh_Diamond_RecoveryUpdatesRoot()
+    {
+        var isUnhealthy = true;
+        var leaf = HealthNode.Create("Leaf").WithHealthProbe(
+            () => isUnhealthy ? HealthStatus.Unhealthy : HealthStatus.Healthy);
+        var a = HealthNode.Create("A")
+            .DependsOn(leaf, Importance.Required);
+        var b = HealthNode.Create("B")
+            .DependsOn(leaf, Importance.Required);
+        var root = HealthNode.Create("Root")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        Assert.Equal(HealthStatus.Unhealthy,
+            graph.GetReport().Root.Status);
+
+        isUnhealthy = false;
+        leaf.Refresh();
+
+        Assert.Equal(HealthStatus.Healthy,
+            graph.GetReport().Root.Status);
+        Assert.All(graph.GetReport().Nodes,
+            n => Assert.Equal(HealthStatus.Healthy, n.Status));
+    }
+
+    [Fact]
+    public void Refresh_DeepDiamond_RecoveryUpdatesRoot()
+    {
+        var isUnhealthy = true;
+        var leaf = HealthNode.Create("Leaf").WithHealthProbe(
+            () => isUnhealthy ? HealthStatus.Unhealthy : HealthStatus.Healthy);
+        var a = HealthNode.Create("A")
+            .DependsOn(leaf, Importance.Required);
+        var b = HealthNode.Create("B")
+            .DependsOn(leaf, Importance.Required);
+        var mid = HealthNode.Create("Mid")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Required);
+        var root = HealthNode.Create("Root")
+            .DependsOn(mid, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        Assert.Equal(HealthStatus.Unhealthy,
+            graph.GetReport().Root.Status);
+
+        isUnhealthy = false;
+        leaf.Refresh();
+
+        Assert.Equal(HealthStatus.Healthy,
+            graph.GetReport().Root.Status);
+    }
+
+    [Fact]
+    public void Refresh_Diamond_RecoveryEmitsCorrectReport()
+    {
+        var isUnhealthy = true;
+        var leaf = HealthNode.Create("Leaf").WithHealthProbe(
+            () => isUnhealthy ? HealthStatus.Unhealthy : HealthStatus.Healthy);
+        var a = HealthNode.Create("A")
+            .DependsOn(leaf, Importance.Required);
+        var b = HealthNode.Create("B")
+            .DependsOn(leaf, Importance.Required);
+        var root = HealthNode.Create("Root")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        var emitted = new List<HealthReport>();
+        graph.StatusChanged.Subscribe(new TestObserver<HealthReport>(emitted.Add));
+
+        isUnhealthy = false;
+        leaf.Refresh();
+
+        Assert.Single(emitted);
+        Assert.Equal(HealthStatus.Healthy, emitted[0].Root.Status);
+    }
+
+    [Fact]
+    public void Refresh_AsymmetricDiamond_RecoveryUpdatesRoot()
+    {
+        var isUnhealthy = true;
+        var leaf = HealthNode.Create("Leaf").WithHealthProbe(
+            () => isUnhealthy ? HealthStatus.Unhealthy : HealthStatus.Healthy);
+        var a = HealthNode.Create("A")
+            .DependsOn(leaf, Importance.Required);
+        var mid = HealthNode.Create("Mid")
+            .DependsOn(leaf, Importance.Required);
+        var b = HealthNode.Create("B")
+            .DependsOn(mid, Importance.Required);
+        var root = HealthNode.Create("Root")
+            .DependsOn(a, Importance.Required)
+            .DependsOn(b, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        Assert.Equal(HealthStatus.Unhealthy,
+            graph.GetReport().Root.Status);
+
+        isUnhealthy = false;
+        leaf.Refresh();
+
+        Assert.Equal(HealthStatus.Healthy,
+            graph.GetReport().Root.Status);
+    }
+}
+
+file class TestObserver<T>(Action<T> onNext) : IObserver<T>
+{
+    public void OnNext(T value) => onNext(value);
+    public void OnError(Exception error) { }
+    public void OnCompleted() { }
+}

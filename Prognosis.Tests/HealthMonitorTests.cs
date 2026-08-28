@@ -1,0 +1,174 @@
+namespace Prognosis.Tests;
+
+public class HealthMonitorTests : IAsyncDisposable
+{
+    private HealthMonitor? _monitor;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_monitor is not null)
+            await _monitor.DisposeAsync();
+    }
+
+    [Fact]
+    public void Poll_EmitsInitialReport()
+    {
+        var svc = HealthNode.Create("Svc");
+        _monitor = new HealthMonitor(svc, TimeSpan.FromHours(1));
+
+        var reports = new List<HealthReport>();
+        _monitor.ReportChanged.Subscribe(new TestObserver<HealthReport>(reports.Add));
+
+        _monitor.Poll();
+        _monitor.Poll();
+
+        Assert.Single(reports);
+    }
+
+    [Fact]
+    public void Poll_StateChanges_EmitsNewReport()
+    {
+        var isHealthy = true;
+        var svc = HealthNode.Create("Svc").WithHealthProbe(
+            () => isHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
+        _monitor = new HealthMonitor(svc, TimeSpan.FromHours(1));
+
+        var reports = new List<HealthReport>();
+        _monitor.ReportChanged.Subscribe(new TestObserver<HealthReport>(reports.Add));
+
+        _monitor.Poll(); // baseline: Healthy
+
+        isHealthy = false;
+        _monitor.Poll(); // state change → Unhealthy
+
+        Assert.Equal(2, reports.Count);
+        Assert.Equal(HealthStatus.Unhealthy, reports.Last().Nodes[0].Status);
+    }
+
+    [Fact]
+    public void ReportChanged_MultipleSubscribers_AllReceive()
+    {
+        var svc = HealthNode.Create("Svc");
+        _monitor = new HealthMonitor(svc, TimeSpan.FromHours(1));
+
+        var reports1 = new List<HealthReport>();
+        var reports2 = new List<HealthReport>();
+        _monitor.ReportChanged.Subscribe(new TestObserver<HealthReport>(reports1.Add));
+        _monitor.ReportChanged.Subscribe(new TestObserver<HealthReport>(reports2.Add));
+
+        _monitor.Poll();
+
+        Assert.Single(reports1);
+        Assert.Single(reports2);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_StopsPolling()
+    {
+        var svc = HealthNode.Create("Svc");
+        _monitor = new HealthMonitor(svc, TimeSpan.FromMilliseconds(50));
+        _monitor.Start();
+
+        await _monitor.DisposeAsync();
+        _monitor = null; // prevent double dispose
+
+        // If we get here without hanging, the test passes.
+    }
+
+    [Fact]
+    public void Constructor_WithHealthGraph_Polls()
+    {
+        var child = HealthNode.Create("Child");
+        var root = HealthNode.Create("Root")
+            .DependsOn(child, Importance.Required);
+        var graph = HealthGraph.Create(root);
+
+        _monitor = new HealthMonitor(graph, TimeSpan.FromHours(1));
+
+        var reports = new List<HealthReport>();
+        _monitor.ReportChanged.Subscribe(new TestObserver<HealthReport>(reports.Add));
+
+        _monitor.Poll();
+
+        Assert.Single(reports);
+        Assert.Equal(2, reports[0].Nodes.Count);
+    }
+
+    [Fact]
+    public void Constructor_WithHealthGraph_ReflectsDynamicDependencyChanges()
+    {
+        var a = HealthNode.Create("A");
+        var b = HealthNode.Create("B").WithHealthProbe(
+            () => HealthEvaluation.Unhealthy("down"));
+        var graph = HealthGraph.Create(a);
+
+        _monitor = new HealthMonitor(graph, TimeSpan.FromHours(1));
+
+        var reports = new List<HealthReport>();
+        _monitor.ReportChanged.Subscribe(new TestObserver<HealthReport>(reports.Add));
+
+        _monitor.Poll();
+        Assert.Single(reports);
+        Assert.All(reports[0].Nodes, n => Assert.Equal(HealthStatus.Healthy, n.Status));
+
+        // Wire A → B (Required) — A's status changes from Healthy to Unhealthy.
+        a.DependsOn(b, Importance.Required);
+        _monitor.Poll();
+
+        // Report changed because A's effective status now reflects B's failure.
+        Assert.Equal(2, reports.Count);
+        Assert.Equal(HealthStatus.Unhealthy, reports[1].Nodes.First(s => s.Name == "A").Status);
+    }
+
+    [Fact]
+    public void Dispose_Synchronous_StopsPolling()
+    {
+        var svc = HealthNode.Create("Svc");
+        _monitor = new HealthMonitor(svc, TimeSpan.FromMilliseconds(50));
+        _monitor.Start();
+
+        _monitor.Dispose();
+        _monitor = null; // prevent double dispose in DisposeAsync
+
+        // If we get here without hanging, the test passes.
+    }
+
+    [Fact]
+    public void Start_CalledMultipleTimes_IsIdempotent()
+    {
+        var svc = HealthNode.Create("Svc");
+        _monitor = new HealthMonitor(svc, TimeSpan.FromHours(1));
+
+        // Should not throw or create multiple polling tasks.
+        _monitor.Start();
+        _monitor.Start();
+        _monitor.Start();
+    }
+
+    [Fact]
+    public void Graph_WithHealthGraph_ReturnsSameInstance()
+    {
+        var root = HealthNode.Create("Root");
+        var graph = HealthGraph.Create(root);
+        _monitor = new HealthMonitor(graph, TimeSpan.FromHours(1));
+
+        Assert.Same(graph, _monitor.Graph);
+    }
+
+    [Fact]
+    public void Graph_WithHealthNode_ReturnsCreatedGraph()
+    {
+        var root = HealthNode.Create("Root");
+        _monitor = new HealthMonitor(root, TimeSpan.FromHours(1));
+
+        Assert.NotNull(_monitor.Graph);
+        Assert.Same(root, _monitor.Graph.Root);
+    }
+}
+
+file class TestObserver<T>(Action<T> onNext) : IObserver<T>
+{
+    public void OnNext(T value) => onNext(value);
+    public void OnError(Exception error) { }
+    public void OnCompleted() { }
+}

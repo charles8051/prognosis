@@ -1,0 +1,140 @@
+name: Publish
+
+# Publishes Prognosis (+ Reactive / DependencyInjection / Generators) to
+# nuget.org on a v* tag.
+#
+# Authentication is nuget.org Trusted Publishing: the job requests a short-lived
+# OIDC token from GitHub, nuget.org validates it against a policy registered for
+# this repository and this workflow file, and returns a temporary API key good
+# for one hour. No long-lived key is stored anywhere.
+#
+# The policy on nuget.org must name:
+#   Repository Owner  charles8051
+#   Repository        prognosis
+#   Workflow File     publish.yml          <- filename only, no path
+#   Environment       nuget.org
+#
+# Renaming this file breaks publishing until the policy is updated to match.
+#
+# UNTIL THAT POLICY EXISTS THIS WORKFLOW CANNOT PUBLISH. `NuGet/login` fails at
+# the OIDC exchange, which is the intended failure: loud, before the push, and
+# with nothing sent. Registering the policy is a release-prep step, and
+# nuget.org marks a policy on a *private* repo "temporarily active" for 7 days
+# only — so register it after the repository is public, not before.
+#
+# The package version is supplied explicitly via -p:Version= (this repo does not
+# use MinVer): from the pushed tag name on a tag push, or from the
+# workflow_dispatch `version` input. No fetch-depth is needed for the same
+# reason.
+#
+# Runs on a GitHub-hosted runner rather than the self-hosted one. This job
+# handles a credential and runs a few times a year; a clean throwaway VM is the
+# right place for that, and it keeps releases independent of runner
+# availability.
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'         # v1.0.0
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'       # v1.0.0-preview.1
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Package version (e.g. 8.0.0 or 8.0.0-preview.1)'
+        required: true
+      dry_run:
+        description: 'Verify the OIDC exchange and packing without pushing to nuget.org'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Pack and publish
+    runs-on: ubuntu-latest
+    environment: nuget.org
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write   # required for nuget.org to issue the short-lived key
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Extract version
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            echo "VERSION=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build (Release)
+        run: dotnet build Prognosis.slnx -c Release -p:Version="${{ steps.version.outputs.VERSION }}"
+
+      # Never publish a tag that does not pass its own tests.
+      - name: Test
+        run: dotnet test Prognosis.slnx -c Release --no-build
+
+      # The four packable projects are listed rather than packing the solution,
+      # so an example or benchmark project can never be published by accident.
+      # --no-build requires the same -p:Version the build above used.
+      - name: Pack
+        run: |
+          for proj in \
+            Prognosis.csproj \
+            Prognosis.Reactive/Prognosis.Reactive.csproj \
+            Prognosis.DependencyInjection/Prognosis.DependencyInjection.csproj \
+            Prognosis.Generators/Prognosis.Generators.csproj
+          do
+            dotnet pack "$proj" -c Release --no-build -o artifacts \
+              -p:Version="${{ steps.version.outputs.VERSION }}"
+          done
+
+      - name: List packages
+        run: ls -l artifacts
+
+      # Requested immediately before the push: the key expires after one hour.
+      - name: NuGet login
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      # On a tag push `inputs.dry_run` is null, so this runs. Only a manual
+      # dispatch can skip it, and that is the default for a dispatch — the first
+      # exercise of a new trusted-publishing policy should not have to be an
+      # irreversible publish. A published nuget.org version cannot be deleted.
+      - name: Push to nuget.org
+        if: ${{ !inputs.dry_run }}
+        run: >
+          dotnet nuget push "artifacts/*.nupkg"
+          --api-key ${{ steps.login.outputs.NUGET_API_KEY }}
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate
+
+      - name: Dry run complete
+        if: ${{ inputs.dry_run }}
+        run: |
+          echo "Dry run: the OIDC exchange with nuget.org succeeded and the"
+          echo "packages below were built. Nothing was pushed."
+          ls -1 artifacts
+
+      - name: Upload packages
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: packages
+          path: artifacts/*.nupkg
+          if-no-files-found: warn
