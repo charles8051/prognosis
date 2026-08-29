@@ -112,12 +112,20 @@ jobs:
         with:
           user: ${{ secrets.NUGET_USER }}
 
-      # On a tag push `inputs.dry_run` is null, so this runs. Only a manual
-      # dispatch can skip it, and that is the default for a dispatch — the first
-      # exercise of a new trusted-publishing policy should not have to be an
-      # irreversible publish. A published nuget.org version cannot be deleted.
+      # Two conditions, and the ref one is what stops a branch reaching nuget.org.
+      #
+      # Unlike the sibling repos, a manual publish here is DESIGNED: `version` is a
+      # required dispatch input and -p:Version uses it, so dispatching a release is a
+      # real path rather than an accident. But the dispatch also carries a ref, and
+      # nothing tied the two together - dispatching from main with an arbitrary
+      # version would publish a BRANCH's code under a release number, permanently.
+      #
+      # github.ref_type == 'tag' holds for a tag push (where inputs.dry_run is null,
+      # so the first clause passes too) and for a dispatch selecting a tag. It is
+      # false for every branch, so the designed path survives and the accident does
+      # not.
       - name: Push to nuget.org
-        if: ${{ !inputs.dry_run }}
+        if: ${{ !inputs.dry_run && github.ref_type == 'tag' }}
         run: >
           dotnet nuget push "artifacts/*.nupkg"
           --api-key ${{ steps.login.outputs.NUGET_API_KEY }}
