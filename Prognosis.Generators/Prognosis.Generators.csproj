@@ -17,6 +17,8 @@
     <PackageProjectUrl>https://github.com/charles8051/prognosis</PackageProjectUrl>
     <RepositoryUrl>https://github.com/charles8051/prognosis</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
 
     <!-- Analyzer/generator packaging -->
     <DevelopmentDependency>true</DevelopmentDependency>
@@ -32,6 +34,8 @@
   <!-- Pack the assembly into the analyzers folder so it loads as a Roslyn component -->
   <ItemGroup>
     <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="..\icon.png" Pack="true" PackagePath="\" />
   </ItemGroup>
 
   <ItemGroup>
