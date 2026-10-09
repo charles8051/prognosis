@@ -1,5 +1,6 @@
 // Polyfill: ReferenceEqualityComparer is available in .NET 5+ but not in netstandard.
 
+#if !NET5_0_OR_GREATER
 using System.Runtime.CompilerServices;
 
 namespace System.Collections.Generic;
@@ -14,3 +15,4 @@ internal sealed class ReferenceEqualityComparer : IEqualityComparer<object?>
 
     public int GetHashCode(object? obj) => RuntimeHelpers.GetHashCode(obj!);
 }
+#endif

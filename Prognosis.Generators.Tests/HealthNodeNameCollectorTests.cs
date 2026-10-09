@@ -308,7 +308,7 @@ public class HealthNodeNameCollectorTests
             TestState =
             {
                 Sources = { source },
-                ReferenceAssemblies = ReferenceAssemblies.Net.Net90,
+                ReferenceAssemblies = TestReferenceAssemblies.None,
                 AdditionalReferences =
                 {
                     MetadataReference.CreateFromFile(typeof(Prognosis.HealthNode).Assembly.Location),
@@ -316,6 +316,7 @@ public class HealthNodeNameCollectorTests
                 },
             },
         };
+        test.TestState.AdditionalReferences.AddRange(TestReferenceAssemblies.SharedFramework);
 
         foreach (var (filename, content) in expectedGenerated)
         {

@@ -60,3 +60,4 @@ The Rx helpers produce cold `IObservable<HealthReport>` streams — each subscri
 ## Requirements
 
 - .NET Standard 2.0+ (.NET Framework 4.6.1+, .NET Core 2.0+, .NET 5+)
+- On .NET 10 the package uses its `net10.0` build, which is marked trimmable and AOT-compatible

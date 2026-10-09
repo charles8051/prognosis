@@ -21,10 +21,12 @@ dotnet build Prognosis.slnx -c Release
 dotnet test Prognosis.slnx -c Release
 ```
 
-The .NET 10 SDK is required — `.slnx` needs 9.0.200 or newer to parse — even
-though the shipped libraries target `netstandard2.0` and `netstandard2.1`. Keep
-those target frameworks: the library is consumed from framework versions older
-than the SDK that builds it.
+The .NET 10 SDK is required — `.slnx` needs 9.0.200 or newer to parse. The
+shipped libraries target `netstandard2.0` and `netstandard2.1`. Keep those target
+frameworks: the library is consumed from framework versions older than the SDK
+that builds it. `Prognosis` and `Prognosis.Reactive` also target `net10.0`, where
+they are marked trimmable and AOT-compatible, so a change to them must build
+without trim or AOT analyzer warnings on that target.
 
 ## What a good change looks like
 
