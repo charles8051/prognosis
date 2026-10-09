@@ -16,9 +16,9 @@ Prognosis is a dependency-aware service health modeling library for .NET. It mod
 
 ```
 Prognosis.sln
-├── Prognosis/                          # Core library (netstandard2.0; netstandard2.1)
+├── Prognosis/                          # Core library (netstandard2.0; netstandard2.1; net10.0)
 ├── Prognosis.DependencyInjection/      # M.E.DI integration (netstandard2.0; netstandard2.1)
-├── Prognosis.Reactive/                 # System.Reactive extensions (netstandard2.0; netstandard2.1)
+├── Prognosis.Reactive/                 # System.Reactive extensions (netstandard2.0; netstandard2.1; net10.0)
 ├── Prognosis.Generators/               # Source generators + analyzers (netstandard2.0)
 ├── Prognosis.Tests/                    # Core unit tests (net10.0)
 ├── Prognosis.DependencyInjection.Tests/

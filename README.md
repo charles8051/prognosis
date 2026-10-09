@@ -584,5 +584,6 @@ This replaces the previous reflection-based `ScanForServices()` pattern with zer
 ## Requirements
 
 - .NET Standard 2.0 or .NET Standard 2.1 compatible runtime (.NET Framework 4.6.1+, .NET Core 2.0+, .NET 5+)
-- [System.Text.Json](https://www.nuget.org/packages/System.Text.Json) (bundled as a dependency)
+- On .NET 10 the package uses its `net10.0` build, which is marked trimmable and AOT-compatible
+- [System.Text.Json](https://www.nuget.org/packages/System.Text.Json) (netstandard only, bundled as a dependency; .NET includes it)
 - [Microsoft.Bcl.AsyncInterfaces](https://www.nuget.org/packages/Microsoft.Bcl.AsyncInterfaces) (netstandard2.0 only, bundled as a dependency)

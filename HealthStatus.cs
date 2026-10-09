@@ -6,7 +6,7 @@ namespace Prognosis;
 /// Represents the health state of a service, ordered from worst to best
 /// so that <c>Math.Max</c> / comparisons naturally pick the worst status.
 /// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter))]
+[JsonConverter(typeof(JsonStringEnumConverter<HealthStatus>))]
 public enum HealthStatus
 {
     Healthy = 0,

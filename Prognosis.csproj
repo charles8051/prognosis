@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;netstandard2.1</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0;netstandard2.1;net10.0</TargetFrameworks>
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -26,6 +26,14 @@
     <!-- Deterministic / reproducible builds -->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <!-- On a .NET target, mark the assembly trimmable and AOT-compatible so the trim and AOT
+       analyzers check it and a trimming consumer keeps it as one. netstandard has no such
+       metadata, which is why the net10.0 target exists. -->
+  <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
+    <IsTrimmable>true</IsTrimmable>
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 
   <!-- Allow the DI package to call HealthGraph's internal constructor -->
@@ -54,6 +62,10 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
+
+  <!-- System.Text.Json ships in the shared framework on .NET; netstandard needs the package. -->
+  <ItemGroup Condition="'$(TargetFrameworkIdentifier)' == '.NETStandard'">
     <PackageReference Include="System.Text.Json" Version="9.0.5" />
   </ItemGroup>
 
